@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MBP Escalation Dashboard</title>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<style>
+  :root {
+    --navy: #1e3a8a;
+    --navy-dark: #172554;
+    --navy-light: #3b5bdb;
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --border: #e4e7ee;
+    --border-strong: #cbd0db;
+    --text: #1f2937;
+    --text-muted: #6b7280;
+    --text-faint: #9ca3af;
+    --green: #15803d;
+    --green-bg: #dcfce7;
+    --amber: #b45309;
+    --amber-bg: #fef3c7;
+    --red: #b91c1c;
+    --red-bg: #fee2e2;
+    --blue: #1d4ed8;
+    --blue-bg: #dbeafe;
+    --purple: #6d28d9;
+    --purple-bg: #ede9fe;
+    --gray: #4b5563;
+    --gray-bg: #f3f4f6;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+    --radius: 8px;
+    --radius-sm: 6px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; cursor: pointer; }
+  input, select, textarea { font-family: inherit; font-size: 14px; }
+  a { color: var(--navy-light); }
+
+  header.app-header {
+    background: var(--navy-dark); color: #fff;
+    padding: 12px 24px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: var(--shadow-sm);
+  }
+  .brand { display: flex; align-items: center; gap: 12px; }
+  .brand-logo {
+    background: #fff; color: var(--navy-dark); font-weight: 800;
+    width: 32px; height: 32px; border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 13px; letter-spacing: -0.5px;
+  }
+  .brand-title { font-weight: 600; font-size: 16px; }
+  .brand-sub { font-size: 12px; color: rgba(255,255,255,0.7); }
+  .header-right { display: flex; align-items: center; gap: 12px; font-size: 13px; }
+  .connection-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(255,255,255,0.1);
+    padding: 4px 10px; border-radius: 999px;
+    font-size: 11px; font-weight: 600;
+  }
+  .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-faint); }
+  .conn-dot.live { background: #4ade80; box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.25); }
+  .conn-dot.demo { background: #fbbf24; }
+  .conn-dot.error { background: #f87171; }
+  .header-user {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; color: rgba(255,255,255,0.85);
+  }
+  .header-user .avatar {
+    width: 26px; height: 26px; border-radius: 50%;
+    background: var(--navy-light); color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 600; font-size: 11px;
+  }
+  .header-user button {
+    background: transparent; color: rgba(255,255,255,0.7);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: var(--radius-sm); padding: 3px 8px;
+    font-size: 11px;
+  }
+
+  main { padding: 20px 24px 40px; max-width: 1600px; margin: 0 auto; }
+
+  .banner {
+    background: var(--amber-bg); border: 1px solid #fde68a;
+    color: #92400e; padding: 10px 14px;
+    border-radius: var(--radius); margin-bottom: 16px;
+    font-size: 13px; display: none;
+  }
+  .banner.show { display: block; }
+  .banner.error { background: var(--red-bg); border-color: #fecaca; color: var(--red); }
+  .banner code { background: rgba(0,0,0,0.05); padding: 1px 5px; border-radius: 3px; font-size: 12px; }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .kpi {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow-sm);
+  }
+  .kpi-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    color: var(--text-muted); margin-bottom: 6px; font-weight: 600;
+  }
+  .kpi-value { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1.1; }
+  .kpi-foot { font-size: 11px; color: var(--text-faint); margin-top: 4px; }
+  .kpi-accent .kpi-value { color: var(--red); }
+  .kpi-warn .kpi-value { color: var(--amber); }
+  .kpi-good .kpi-value { color: var(--green); }
+  .kpi-info .kpi-value { color: var(--blue); }
+
+  .toolbar {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 12px;
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin-bottom: 16px; box-shadow: var(--shadow-sm);
+  }
+  .toolbar input[type="search"], .toolbar select {
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    padding: 7px 10px; background: #fff; color: var(--text); outline: none;
+    min-width: 130px;
+  }
+  .toolbar input[type="search"] { min-width: 240px; }
+  .toolbar input[type="search"]:focus, .toolbar select:focus { border-color: var(--navy-light); }
+  .toolbar .spacer { flex: 1; }
+  .toolbar-toggle {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--gray-bg); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 6px 10px;
+    font-size: 13px; user-select: none;
+  }
+
+  .btn {
+    background: var(--navy); color: #fff; border: none;
+    border-radius: var(--radius-sm); padding: 8px 14px;
+    font-weight: 600; font-size: 13px;
+    display: inline-flex; align-items: center; gap: 6px;
+    text-decoration: none;
+  }
+  .btn:hover { background: var(--navy-dark); }
+  .btn-secondary { background: #fff; color: var(--text); border: 1px solid var(--border-strong); }
+  .btn-secondary:hover { background: var(--gray-bg); }
+  .btn-ghost { background: transparent; color: var(--text-muted); border: none; padding: 6px 8px; }
+  .btn-ghost:hover { background: var(--gray-bg); color: var(--text); }
+
+  .content {
+    display: grid;
+    grid-template-columns: 1fr 480px;
+    gap: 16px; align-items: start;
+  }
+  @media (max-width: 1200px) { .content { grid-template-columns: 1fr; } }
+
+  .list-card, .ref-card, .detail-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); box-shadow: var(--shadow-sm);
+  }
+  .list-card { overflow: hidden; }
+  .list-head {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-weight: 600;
+  }
+  .list-head-meta { font-size: 12px; color: var(--text-muted); font-weight: 400; }
+  .list-items { max-height: calc(100vh - 340px); overflow-y: auto; }
+  .esc-row {
+    padding: 12px 16px; border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    display: grid; grid-template-columns: auto 1fr auto;
+    gap: 12px; align-items: center;
+    transition: background 0.1s;
+  }
+  .esc-row:hover { background: #fafbff; }
+  .esc-row.selected { background: #eef2ff; border-left: 3px solid var(--navy); padding-left: 13px; }
+  .esc-id-block { text-align: center; min-width: 64px; }
+  .esc-id {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px; color: var(--text-muted); font-weight: 600;
+  }
+  .esc-age { font-size: 10px; color: var(--text-faint); margin-top: 2px; }
+  .esc-age.warn { color: var(--amber); font-weight: 600; }
+  .esc-age.over { color: var(--red); font-weight: 700; }
+  .esc-main { min-width: 0; }
+  .esc-title {
+    font-weight: 600; font-size: 14px; color: var(--text); margin: 0 0 4px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .esc-meta {
+    font-size: 12px; color: var(--text-muted);
+    display: flex; gap: 10px; flex-wrap: wrap;
+  }
+  .esc-meta .pill { display: inline-flex; align-items: center; gap: 4px; }
+  .esc-right { text-align: right; display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 3px 8px; font-size: 11px; font-weight: 600;
+    border-radius: 999px; text-transform: uppercase; letter-spacing: 0.3px;
+    line-height: 1.4;
+  }
+  .badge.s-assigned { background: var(--blue-bg); color: var(--blue); }
+  .badge.s-inprocess { background: var(--blue-bg); color: var(--blue); }
+  .badge.s-pendingmember { background: var(--purple-bg); color: var(--purple); }
+  .badge.s-pendingresearch { background: var(--purple-bg); color: var(--purple); }
+  .badge.s-complete { background: var(--green-bg); color: var(--green); }
+  .badge.s-default { background: var(--gray-bg); color: var(--gray); }
+  .badge.u-critical { background: var(--red-bg); color: var(--red); }
+  .badge.u-high { background: var(--amber-bg); color: var(--amber); }
+  .badge.u-medium { background: var(--blue-bg); color: var(--blue); }
+  .badge.u-low { background: var(--gray-bg); color: var(--gray); }
+  .badge.alert { background: var(--red-bg); color: var(--red); }
+
+  .detail-card { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; }
+  .detail-empty { padding: 40px 20px; text-align: center; color: var(--text-faint); font-size: 13px; }
+  .detail-head { padding: 16px; border-bottom: 1px solid var(--border); }
+  .detail-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--text-muted); font-weight: 600; }
+  .detail-title { font-size: 16px; font-weight: 600; margin: 4px 0 8px; }
+  .detail-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .detail-actions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .detail-body { padding: 16px; }
+  .field { margin-bottom: 12px; }
+  .field-label {
+    font-size: 11px; text-transform: uppercase; color: var(--text-muted);
+    font-weight: 600; letter-spacing: 0.4px; margin-bottom: 3px;
+  }
+  .field-value { font-size: 13px; color: var(--text); white-space: pre-wrap; word-break: break-word; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .rich-html {
+    font-size: 13px; line-height: 1.5;
+    background: #fafbff; border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 12px;
+  }
+  .rich-html p, .rich-html div { margin: 0 0 6px; }
+  .rich-html p:last-child, .rich-html div:last-child { margin-bottom: 0; }
+  .rich-html ul, .rich-html ol { margin: 4px 0 6px 18px; padding: 0; }
+  .timeline-block { border-top: 1px solid var(--border); padding: 16px; }
+  .timeline-head { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+
+  .ref-card { margin-top: 16px; }
+  .ref-head { padding: 12px 16px; border-bottom: 1px solid var(--border); font-weight: 600; }
+  .ref-body { padding: 8px 16px 16px; }
+  .leads-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .leads-table th, .leads-table td {
+    text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--border);
+  }
+  .leads-table th { font-weight: 600; color: var(--text-muted); }
+
+  .muted { color: var(--text-muted); }
+  .nowrap { white-space: nowrap; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--navy-dark); color: #fff;
+    padding: 10px 18px; border-radius: 8px; font-size: 13px;
+    box-shadow: var(--shadow-md); transition: transform 0.25s ease; z-index: 200;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  .loading {
+    padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 13px;
+  }
+  .spinner {
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid var(--border-strong); border-top-color: var(--navy);
+    border-radius: 50%; animation: spin 0.8s linear infinite;
+    vertical-align: middle; margin-right: 6px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    display: none; align-items: flex-start; justify-content: center;
+    padding: 40px 16px; z-index: 100; overflow-y: auto;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #fff; border-radius: var(--radius);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.16);
+    width: 100%; max-width: 720px; overflow: hidden;
+  }
+  .modal-head {
+    padding: 16px 20px; border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .modal-title { font-weight: 600; font-size: 16px; }
+  .modal-body { padding: 20px; max-height: 70vh; overflow-y: auto; }
+  .modal-foot {
+    padding: 12px 20px; border-top: 1px solid var(--border);
+    display: flex; justify-content: flex-end; gap: 8px; background: #fafbff;
+  }
+  .form-row { margin-bottom: 14px; }
+  .form-row label {
+    display: block; font-size: 12px; font-weight: 600;
+    color: var(--text); margin-bottom: 4px;
+  }
+  .form-row label .req { color: var(--red); }
+  .form-row input[type="text"],
+  .form-row input[type="email"],
+  .form-row input[type="number"],
+  .form-row input[type="date"],
+  .form-row select,
+  .form-row textarea {
+    width: 100%; border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm); padding: 8px 10px;
+    background: #fff; color: var(--text); outline: none;
+  }
+  .form-row textarea { min-height: 100px; resize: vertical; font-family: inherit; }
+  .form-row input:focus, .form-row select:focus, .form-row textarea:focus { border-color: var(--navy-light); }
+  .form-help { font-size: 11px; color: var(--text-muted); margin-top: 3px; }
+  .form-row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .dept-info {
+    background: var(--blue-bg); border: 1px solid #bfdbfe;
+    color: var(--blue); padding: 8px 10px; border-radius: var(--radius-sm);
+    font-size: 12px; margin-top: 6px;
+  }
+  .form-error {
+    background: var(--red-bg); border: 1px solid #fecaca;
+    color: var(--red); padding: 10px 12px; border-radius: var(--radius-sm);
+    font-size: 13px; margin-bottom: 12px; display: none;
+  }
+  .form-error.show { display: block; }
+
+  /* Sign-in overlay */
+  .signin-overlay {
+    position: fixed; inset: 0;
+    background: var(--bg);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 1000;
+  }
+  .signin-card {
+    background: #fff; border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 32px 40px;
+    box-shadow: var(--shadow-md); text-align: center;
+    max-width: 420px;
+  }
+  .signin-card h2 { margin: 12px 0 4px; font-size: 18px; }
+  .signin-card p { margin: 4px 0 20px; color: var(--text-muted); font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header class="app-header">
+  <div class="brand">
+    <div class="brand-logo">MBP</div>
+    <div>
+      <div class="brand-title">Escalation Dashboard</div>
+      <div class="brand-sub">Live view of Escalation Tracker · myBasePay</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="connection-pill"><span class="conn-dot" id="connDot"></span><span id="connLabel">connecting…</span></span>
+    <div class="header-user" id="headerUser" style="display:none">
+      <div class="avatar" id="userAvatar">?</div>
+      <span id="userName">—</span>
+      <button id="signOutBtn">Sign out</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="banner" id="banner"></div>
+
+  <section class="kpi-row" id="kpiRow"></section>
+
+  <div class="toolbar">
+    <input type="search" id="searchInput" placeholder="Search by title, ID, customer, member, assignee…">
+    <select id="filterStatus">
+      <option value="">All statuses</option>
+      <option value="open">Open only (not Complete)</option>
+      <option value="Assigned">Assigned</option>
+      <option value="In Process">In Process</option>
+      <option value="Pending Member">Pending Member</option>
+      <option value="Pending Research">Pending Research</option>
+      <option value="Complete">Complete</option>
+    </select>
+    <select id="filterUrgency">
+      <option value="">All urgencies</option>
+      <option value="Critical">Critical</option>
+      <option value="High">High</option>
+      <option value="Medium">Medium</option>
+      <option value="Low">Low</option>
+    </select>
+    <select id="filterDept">
+      <option value="">All assigned depts</option>
+    </select>
+    <select id="filterIssueType">
+      <option value="">All issue types</option>
+    </select>
+    <label class="toolbar-toggle">
+      <input type="checkbox" id="filterOverdue"> Past expected date
+    </label>
+    <div class="spacer"></div>
+    <button class="btn-ghost" id="refreshBtn" title="Refetch from SharePoint">↻ Refresh</button>
+    <button class="btn-ghost" id="exportBtn" title="Export current view to CSV">Export CSV</button>
+    <a class="btn-secondary btn" id="openListBtn" href="#" target="_blank" rel="noopener">Open List ↗</a>
+    <button class="btn" id="newEscBtn">+ New Escalation</button>
+  </div>
+
+  <section class="content">
+    <div>
+      <div class="list-card">
+        <div class="list-head">
+          <span>Escalations</span>
+          <span class="list-head-meta" id="listMeta">—</span>
+        </div>
+        <div class="list-items" id="listItems">
+          <div class="loading"><span class="spinner"></span>Loading…</div>
+        </div>
+      </div>
+
+      <div class="ref-card">
+        <div class="ref-head">Department Leads</div>
+        <div class="ref-body">
+          <table class="leads-table" id="leadsTable">
+            <thead><tr><th>Department</th><th>Primary Lead</th><th>Backup Lead</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <aside>
+      <div class="detail-card" id="detailCard">
+        <div class="detail-empty">Select an escalation to view full details, commentary, and status history.</div>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<!-- Sign-in overlay (only shown while waiting on MSAL) -->
+<div class="signin-overlay" id="signinOverlay">
+  <div class="signin-card">
+    <div class="spinner" style="width:24px;height:24px;border-width:3px"></div>
+    <h2 id="signinTitle">Signing you in…</h2>
+    <p id="signinSubtitle">Connecting to Microsoft 365.</p>
+    <button class="btn" id="signinBtn" style="display:none">Sign in with myBasePay</button>
+  </div>
+</div>
+
+<!-- New Escalation Modal -->
+<div class="modal-backdrop" id="newModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">New Escalation</div>
+      <button class="btn-ghost" data-close>&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-error" id="newFormError"></div>
+      <form id="newForm" autocomplete="off">
+        <div class="form-row">
+          <label>Title <span class="req">*</span></label>
+          <input type="text" name="title" required maxlength="180" placeholder="Brief, descriptive summary">
+        </div>
+        <div class="form-row">
+          <label>Escalation Commentary <span class="req">*</span></label>
+          <textarea name="commentary" required placeholder="What happened? Who is involved? Steps already taken? Impact?"></textarea>
+          <div class="form-help">Plain text or basic formatting. Saved to the Escalation Commentary field.</div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row" style="margin-bottom:0">
+            <label>Urgency <span class="req">*</span></label>
+            <select name="urgency" required>
+              <option value="">Select…</option>
+              <option>Critical</option>
+              <option>High</option>
+              <option selected>Medium</option>
+              <option>Low</option>
+            </select>
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <label>Expected Resolution Date</label>
+            <input type="date" name="expectedDate">
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row" style="margin-bottom:0">
+            <label>Requesting Dept <span class="req">*</span></label>
+            <select name="requestingDept" required>
+              <option value="">Select…</option>
+              <option>Leadership</option>
+              <option>Sales/BD</option>
+              <option>Operations</option>
+              <option>Payroll</option>
+              <option>Billing</option>
+              <option>Finance</option>
+              <option>HR</option>
+              <option>Contracts</option>
+              <option>Technology</option>
+            </select>
+            <div class="form-help">Your department (who is escalating).</div>
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <label>Assigned Dept Owner <span class="req">*</span></label>
+            <select name="assignedDept" id="newAssignedDept" required>
+              <option value="">Select…</option>
+              <option>Leadership</option>
+              <option>Sales</option>
+              <option>Operations</option>
+              <option>Payroll</option>
+              <option>Billing</option>
+              <option>Finance</option>
+              <option>HR</option>
+              <option>Contracts</option>
+              <option>Technology</option>
+            </select>
+            <div id="deptLeadInfo" class="dept-info" style="display:none"></div>
+          </div>
+        </div>
+        <div class="form-row-2">
+          <div class="form-row" style="margin-bottom:0">
+            <label>Issue Type <span class="req">*</span></label>
+            <select name="issueType" required>
+              <option value="">Select…</option>
+              <option>Billing Issue</option>
+              <option>Customer Issue/Concern</option>
+              <option>Legal/Compliance Issue/Concern</option>
+              <option>Member Issue/Concern</option>
+              <option>Payroll Issue</option>
+              <option>Process Issue/Concern</option>
+              <option>Screening Issue/Concern</option>
+              <option>Technology Issue/Concern</option>
+              <option>Worker Issue/Concern</option>
+            </select>
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <label>Issue Category Detail <span class="req">*</span></label>
+            <select name="issueCategory" required>
+              <option value="">Select…</option>
+              <option>BackOffice Issue/Concern</option>
+              <option>Compliance Violation</option>
+              <option>Customer Contract Dispute/Concern/Issue</option>
+              <option>Employee Relations Concern/Issue</option>
+              <option>Invoice Dispute/Concern/Issue</option>
+              <option>Member Contract Dispute/Concern/Issue</option>
+              <option>Missing Fees</option>
+              <option>Missing Payment</option>
+              <option>NetSuite Issue/Concern</option>
+              <option>Process Concern/Issue</option>
+              <option>Profit Report Dispute/Concern/Issue</option>
+              <option>Screening Results Review</option>
+              <option>Timesheet Dispute/Concern/Issue</option>
+              <option>UKG Issue/Concern</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row-3">
+          <div class="form-row" style="margin-bottom:0">
+            <label>Customer Name</label>
+            <input type="text" name="customer" placeholder="If customer-impacting">
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <label>Member Name</label>
+            <input type="text" name="member" placeholder="If member-impacting">
+          </div>
+          <div class="form-row" style="margin-bottom:0">
+            <label>Worker Name</label>
+            <input type="text" name="worker" placeholder="If worker-impacting">
+          </div>
+        </div>
+        <div class="form-row">
+          <label>Financial Impact ($)</label>
+          <input type="number" name="financialImpact" min="0" step="100" placeholder="e.g. 12000">
+        </div>
+        <div class="form-row">
+          <label>Additional people to tag</label>
+          <input type="text" name="addTags" placeholder="Comma-separated emails: angela@mybasepay.com, kristine@mybasepay.com">
+          <div class="form-help">Email addresses. Each is resolved against the site's user directory.</div>
+        </div>
+      </form>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary" data-close>Cancel</button>
+      <button class="btn" id="submitNew">Submit Escalation</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ===========================================================
+   MBP Escalation Dashboard — MSAL + Microsoft Graph
+   Hosted at: mybasepaycom.sharepoint.com/sites/escalations/SiteAssets/
+   Lists live on: mybasepaycom-my.sharepoint.com/personal/teri_mybasepay_com
+   Cross-origin, so we go through Graph with a Bearer token (MSAL).
+   =========================================================== */
+
+const CONFIG = {
+  msal: {
+    clientId: "c1b03319-1968-46f9-9922-589376ca272d",
+    tenantId: "e1a27c94-fb0c-4728-b71d-3766f21a3acb",
+    // Redirect URI must match exactly what's registered on the Entra app.
+    // location.origin + pathname strips the query/fragment, which is what we want.
+    redirectUri: window.location.origin + window.location.pathname,
+    scopes: ["Sites.Read.All", "Sites.ReadWrite.All", "User.Read"]
+  },
+  graph: {
+    // Site lookup path for Teri's OneDrive — Graph format: {host}:/{server-relative-path}:
+    sitePath: "mybasepaycom-my.sharepoint.com:/personal/teri_mybasepay_com:",
+    // Pre-resolved IDs (saves a roundtrip; updated if mismatched)
+    siteId: "mybasepaycom-my.sharepoint.com,ddcd17b8-a0b4-4518-8184-ddf9c7098923,dbf38549-a8bc-4a21-9a35-95da12b7400f",
+    trackerListTitle: "Escalation Tracker",
+    leadsListTitle: "Escalations Dept Leads",
+    userInfoListTitle: "User Information List",
+    pageSize: 500
+  },
+  // Link to the actual list for "Open List" button
+  trackerWebUrl: "https://mybasepaycom-my.sharepoint.com/personal/teri_mybasepay_com/Lists/Escalations/AllItems.aspx",
+  hideLeadDepts: ["Testing"]
+};
+
+const STATUS_OPEN = new Set(["Assigned","In Process","Pending Member","Pending Research"]);
+
+/* ---------- environment detection ---------- */
+const isFile = location.protocol === "file:" || location.protocol === "data:";
+const msalAvailable = typeof msal !== "undefined" && !!msal.PublicClientApplication;
+const isLive = !isFile && msalAvailable;
+
+/* ---------- state ---------- */
+let escalations = [];
+let deptLeads = [];
+let userMap = {};        // id -> {name, email}
+let userByEmail = {};    // email (lower) -> id
+let trackerListId = null;
+let leadsListId = null;
+let userInfoListId = null;
+let selectedId = null;
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false };
+let pca = null;          // MSAL PublicClientApplication
+let activeAccount = null;
+
+/* ---------- helpers ---------- */
+function daysBetween(iso) {
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / (1000*60*60*24));
+}
+function fmtDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" });
+}
+function fmtMoney(n) {
+  if (n == null || n === "" || isNaN(Number(n))) return "—";
+  return "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
+}
+function escapeHtml(s) {
+  return (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"})[c]);
+}
+function badgeClassStatus(s) {
+  return ({"Assigned":"s-assigned","In Process":"s-inprocess","Pending Member":"s-pendingmember","Pending Research":"s-pendingresearch","Complete":"s-complete"})[s] || "s-default";
+}
+function badgeClassUrgency(u) {
+  return ({ Critical:"u-critical", High:"u-high", Medium:"u-medium", Low:"u-low" })[u] || "s-default";
+}
+function toast(msg, ms=2200) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => t.classList.remove("show"), ms);
+}
+function setConnection(state, label) {
+  const dot = document.getElementById("connDot");
+  dot.className = "conn-dot " + state;
+  document.getElementById("connLabel").textContent = label;
+}
+function showBanner(html, isError) {
+  const b = document.getElementById("banner");
+  b.innerHTML = html;
+  b.classList.toggle("error", !!isError);
+  b.classList.add("show");
+}
+function hideBanner() { document.getElementById("banner").classList.remove("show"); }
+function initials(name) {
+  if (!name) return "?";
+  return name.split(/\s+/).slice(0,2).map(s => s[0] || "").join("").toUpperCase();
+}
+
+/* ---------- HTML sanitizer ---------- */
+function sanitizeHtml(html) {
+  if (!html) return "";
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  const walk = (node) => {
+    if (node.nodeType !== 1) return;
+    const tag = node.tagName.toLowerCase();
+    if (["script","style","iframe","object","embed","link","meta","form","input","button"].includes(tag)) {
+      node.remove(); return;
+    }
+    [...node.attributes].forEach(a => {
+      const n = a.name.toLowerCase();
+      if (n.startsWith("on") || n === "srcdoc") node.removeAttribute(a.name);
+      if (n === "href" && /^\s*javascript:/i.test(a.value)) node.removeAttribute(a.name);
+    });
+    if (tag === "div" && /ExternalClass/i.test(node.className || "")) {
+      while (node.firstChild) node.parentNode.insertBefore(node.firstChild, node);
+      node.remove(); return;
+    }
+    [...node.children].forEach(walk);
+  };
+  [...tpl.content.children].forEach(walk);
+  return tpl.innerHTML;
+}
+
+/* ---------- MSAL ---------- */
+function initMsal() {
+  pca = new msal.PublicClientApplication({
+    auth: {
+      clientId: CONFIG.msal.clientId,
+      authority: `https://login.microsoftonline.com/${CONFIG.msal.tenantId}`,
+      redirectUri: CONFIG.msal.redirectUri
+    },
+    cache: { cacheLocation: "sessionStorage", storeAuthStateInCookie: false }
+  });
+}
+
+async function handleMsalRedirect() {
+  // Returns the auth result if we're returning from a redirect; null otherwise.
+  try {
+    return await pca.handleRedirectPromise();
+  } catch (err) {
+    console.error("MSAL redirect handling failed:", err);
+    return null;
+  }
+}
+
+function pickActiveAccount() {
+  const all = pca.getAllAccounts();
+  if (!all.length) return null;
+  const active = pca.getActiveAccount() || all[0];
+  pca.setActiveAccount(active);
+  return active;
+}
+
+async function ensureSignedIn() {
+  const response = await handleMsalRedirect();
+  if (response && response.account) {
+    pca.setActiveAccount(response.account);
+    activeAccount = response.account;
+    return true;
+  }
+  activeAccount = pickActiveAccount();
+  if (!activeAccount) {
+    // No account yet — show sign-in card with a manual button
+    document.getElementById("signinTitle").textContent = "Sign in to view escalations";
+    document.getElementById("signinSubtitle").textContent = "Use your myBasePay account to continue.";
+    const btn = document.getElementById("signinBtn");
+    btn.style.display = "inline-flex";
+    btn.onclick = () => pca.loginRedirect({ scopes: CONFIG.msal.scopes });
+    return false;
+  }
+  return true;
+}
+
+async function getToken() {
+  if (!activeAccount) throw new Error("Not signed in");
+  try {
+    const result = await pca.acquireTokenSilent({
+      scopes: CONFIG.msal.scopes,
+      account: activeAccount
+    });
+    return result.accessToken;
+  } catch (err) {
+    if (err && (err.name === "InteractionRequiredAuthError" || /interaction_required|login_required|consent_required/i.test(err.message || ""))) {
+      await pca.acquireTokenRedirect({ scopes: CONFIG.msal.scopes });
+      // page will redirect
+      return new Promise(() => {});
+    }
+    throw err;
+  }
+}
+
+function signOut() {
+  if (!pca || !activeAccount) return;
+  pca.logoutRedirect({ account: activeAccount });
+}
+
+/* ---------- Graph helpers ---------- */
+async function graphGet(path) {
+  const token = await getToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Graph GET ${res.status}: ${txt.slice(0, 300)}`);
+  }
+  return res.json();
+}
+
+async function graphPost(path, body) {
+  const token = await getToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Graph POST ${res.status}: ${txt.slice(0, 400)}`);
+  }
+  return res.json();
+}
+
+/* ---------- list ID resolution ---------- */
+async function resolveListIds() {
+  // Look up the three lists by title in one call
+  const r = await graphGet(`/sites/${CONFIG.graph.siteId}/lists?$select=id,displayName,name`);
+  const byName = {};
+  for (const l of (r.value || [])) byName[l.displayName] = l.id;
+  trackerListId = byName[CONFIG.graph.trackerListTitle];
+  leadsListId = byName[CONFIG.graph.leadsListTitle];
+  userInfoListId = byName[CONFIG.graph.userInfoListTitle];
+  if (!trackerListId) throw new Error(`List not found: ${CONFIG.graph.trackerListTitle}`);
+}
+
+/* ---------- user map (resolves person LookupIds → names/emails) ---------- */
+async function fetchUserMap() {
+  if (!userInfoListId) return;
+  let url = `/sites/${CONFIG.graph.siteId}/lists/${userInfoListId}/items?$expand=fields($select=Title,EMail)&$top=999`;
+  while (url) {
+    const r = await graphGet(url);
+    for (const u of (r.value || [])) {
+      const f = u.fields || {};
+      const id = u.id;
+      const entry = { name: f.Title || "", email: (f.EMail || "").toLowerCase() };
+      userMap[id] = entry;
+      if (entry.email) userByEmail[entry.email] = id;
+    }
+    url = r["@odata.nextLink"] ? r["@odata.nextLink"].replace("https://graph.microsoft.com/v1.0", "") : null;
+  }
+}
+
+/* ---------- fetch list data ---------- */
+async function fetchAllPages(initialUrl) {
+  const out = [];
+  let url = initialUrl;
+  while (url) {
+    const r = await graphGet(url);
+    out.push(...(r.value || []));
+    url = r["@odata.nextLink"] ? r["@odata.nextLink"].replace("https://graph.microsoft.com/v1.0", "") : null;
+  }
+  return out;
+}
+
+async function fetchTracker() {
+  const url = `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items?$expand=fields&$top=${CONFIG.graph.pageSize}`;
+  const items = await fetchAllPages(url);
+  return items.map(mapTrackerItem);
+}
+
+async function fetchLeads() {
+  if (!leadsListId) return [];
+  const url = `/sites/${CONFIG.graph.siteId}/lists/${leadsListId}/items?$expand=fields&$top=50`;
+  const items = await fetchAllPages(url);
+  return items
+    .filter(it => it.fields && it.fields.Title && !CONFIG.hideLeadDepts.includes(it.fields.Title))
+    .map(mapLeadItem)
+    .sort((a, b) => a.dept.localeCompare(b.dept));
+}
+
+/* ---------- mappers (Graph response shape) ---------- */
+function resolveLookup(id) {
+  if (id == null) return null;
+  const u = userMap[String(id)];
+  return u || null;
+}
+
+function mapTrackerItem(it) {
+  const f = it.fields || {};
+  const assigneeUser = resolveLookup(f.AssignedToLookupId);
+  const authorUser = resolveLookup(f.AuthorLookupId);
+  return {
+    id: Number(it.id || f.id),
+    title: f.Title || "(no title)",
+    status: f.Status || "—",
+    urgency: f.Urgency || "—",
+    escalationDate: f.EscalationDate,
+    resolvedDate: f.ResolvedDate,
+    expectedDate: f.ExpectedResolutionDate,
+    requestingDept: f.RequestingDept || "—",
+    assignedDept: f.AssignedDepartmentOwner || "—",
+    originalDept: f.OriginalAssignedDept,
+    daysCurrentDept: f.DaysCurrentDept,
+    dateAssignedCurrent: f.DateAssignedtoCurrent,
+    issueType: f.IssueType,
+    issueCategory: f.IssueCategoryDetail,
+    financialImpact: f.FinancialImpactAmount,
+    amountRemaining: f.AmountRemaining,
+    member: f.MemberName,
+    customer: f.CustomerName,
+    worker: f.WorkerName,
+    commentary: f.StatusCommentary || "",
+    updates: f.StatusUpdates || "",
+    daysOpen: f.DaysOpen,
+    submitter: authorUser ? authorUser.name : "—",
+    submitterEmail: authorUser ? authorUser.email : "",
+    assignee: assigneeUser ? assigneeUser.name : null,
+    assigneeEmail: assigneeUser ? assigneeUser.email : "",
+    tags: (f.AddTags || []).map(t => ({ name: t.LookupValue, email: (t.Email || "").toLowerCase(), id: t.LookupId })),
+    teamsPost: f.TeamsPost && (f.TeamsPost.Url || f.TeamsPost.url) || null,
+    assignmentId: f.AssignmentID,
+    docNeeded: f.InternalDocumentationNeeded,
+    docCommentary: f.InternalDocumentationCommentary,
+    created: f.Created,
+    modified: f.Modified
+  };
+}
+
+function mapLeadItem(it) {
+  const f = it.fields || {};
+  const primary = resolveLookup(f.PrimaryLookupId);
+  const backup = resolveLookup(f.BackupLookupId);
+  return {
+    dept: f.Title,
+    primary: primary ? primary.name : (f.PrimaryEmail || "—"),
+    primaryEmail: f.PrimaryEmail || (primary ? primary.email : ""),
+    backup: backup ? backup.name : (f.BackupEmail || "—"),
+    backupEmail: f.BackupEmail || (backup ? backup.email : "")
+  };
+}
+
+/* ---------- create ---------- */
+async function createEscalation(fields) {
+  return graphPost(
+    `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items`,
+    { fields }
+  );
+}
+
+/* ---------- KPIs ---------- */
+function renderKpis() {
+  const open = escalations.filter(e => STATUS_OPEN.has(e.status));
+  const unassigned = open.filter(e => !e.assignee);
+  const overdue = open.filter(e => e.expectedDate && new Date(e.expectedDate) < new Date());
+  const last30 = escalations.filter(e => e.status === "Complete" && e.resolvedDate && daysBetween(e.resolvedDate) <= 30);
+  const totalImpact = open.reduce((s,e) => s + (Number(e.financialImpact) || 0), 0);
+
+  document.getElementById("kpiRow").innerHTML = `
+    <div class="kpi">
+      <div class="kpi-label">Open</div>
+      <div class="kpi-value">${open.length}</div>
+      <div class="kpi-foot">of ${escalations.length} total</div>
+    </div>
+    <div class="kpi kpi-warn">
+      <div class="kpi-label">Unassigned · Open</div>
+      <div class="kpi-value">${unassigned.length}</div>
+      <div class="kpi-foot">awaiting owner</div>
+    </div>
+    <div class="kpi kpi-accent">
+      <div class="kpi-label">Past Expected Date</div>
+      <div class="kpi-value">${overdue.length}</div>
+      <div class="kpi-foot">SLA at risk</div>
+    </div>
+    <div class="kpi kpi-good">
+      <div class="kpi-label">Resolved · last 30d</div>
+      <div class="kpi-value">${last30.length}</div>
+      <div class="kpi-foot">closed</div>
+    </div>
+    <div class="kpi kpi-info">
+      <div class="kpi-label">Open Financial Exposure</div>
+      <div class="kpi-value">${fmtMoney(totalImpact)}</div>
+      <div class="kpi-foot">sum on open items</div>
+    </div>
+  `;
+}
+
+/* ---------- list ---------- */
+function applyFilters() {
+  const q = filters.search.toLowerCase().trim();
+  return escalations.filter(e => {
+    if (filters.status === "open" && !STATUS_OPEN.has(e.status)) return false;
+    if (filters.status && filters.status !== "open" && e.status !== filters.status) return false;
+    if (filters.urgency && e.urgency !== filters.urgency) return false;
+    if (filters.dept && e.assignedDept !== filters.dept) return false;
+    if (filters.issueType && e.issueType !== filters.issueType) return false;
+    if (filters.overdue) {
+      if (!e.expectedDate || new Date(e.expectedDate) >= new Date()) return false;
+      if (e.status === "Complete") return false;
+    }
+    if (q) {
+      const hay = `${e.id} ${e.title} ${e.customer||""} ${e.member||""} ${e.worker||""} ${e.assignee||""} ${e.submitter||""} ${e.assignedDept}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a,b) => {
+    if (STATUS_OPEN.has(a.status) !== STATUS_OPEN.has(b.status)) return STATUS_OPEN.has(a.status) ? -1 : 1;
+    return new Date(b.escalationDate || 0) - new Date(a.escalationDate || 0);
+  });
+}
+
+function renderList() {
+  const items = applyFilters();
+  document.getElementById("listMeta").textContent = `${items.length} of ${escalations.length}`;
+  const el = document.getElementById("listItems");
+  if (!items.length) {
+    el.innerHTML = `<div class="loading">No escalations match your filters.</div>`;
+    return;
+  }
+  el.innerHTML = items.map(e => {
+    const age = daysBetween(e.escalationDate);
+    const isOpen = STATUS_OPEN.has(e.status);
+    const overdue = isOpen && e.expectedDate && new Date(e.expectedDate) < new Date();
+    const ageClass = overdue ? "over" : (age != null && age >= 14 && isOpen ? "warn" : "");
+    const ageText = age == null ? "—" : (age === 0 ? "today" : age + "d ago");
+    const who = e.customer || e.member || e.worker;
+    return `
+      <div class="esc-row ${selectedId === e.id ? "selected" : ""}" data-id="${e.id}">
+        <div class="esc-id-block">
+          <div class="esc-id">#${e.id}</div>
+          <div class="esc-age ${ageClass}">${ageText}</div>
+        </div>
+        <div class="esc-main">
+          <div class="esc-title">${escapeHtml(e.title)}</div>
+          <div class="esc-meta">
+            <span class="pill">📂 ${escapeHtml(e.assignedDept)}</span>
+            ${e.assignee ? `<span class="pill">→ ${escapeHtml(e.assignee)}</span>` : `<span class="pill" style="color:var(--amber);font-weight:600">unassigned</span>`}
+            ${who ? `<span class="pill">${escapeHtml(who)}</span>` : ""}
+            ${e.financialImpact ? `<span class="pill">${fmtMoney(e.financialImpact)}</span>` : ""}
+            ${e.issueType ? `<span class="pill muted">${escapeHtml(e.issueType)}</span>` : ""}
+          </div>
+        </div>
+        <div class="esc-right">
+          <span class="badge ${badgeClassStatus(e.status)}">${escapeHtml(e.status)}</span>
+          <span class="badge ${badgeClassUrgency(e.urgency)}">${escapeHtml(e.urgency)}</span>
+          ${overdue ? `<span class="badge alert">Past expected</span>` : ""}
+        </div>
+      </div>
+    `;
+  }).join("");
+  el.querySelectorAll(".esc-row").forEach(row => {
+    row.addEventListener("click", () => {
+      selectedId = Number(row.dataset.id);
+      renderList();
+      renderDetail();
+    });
+  });
+}
+
+/* ---------- detail ---------- */
+function renderDetail() {
+  const el = document.getElementById("detailCard");
+  const e = escalations.find(x => x.id === selectedId);
+  if (!e) {
+    el.innerHTML = `<div class="detail-empty">Select an escalation to view full details, commentary, and status history.</div>`;
+    return;
+  }
+  const lead = deptLeads.find(d => d.dept === e.assignedDept);
+  const overdue = STATUS_OPEN.has(e.status) && e.expectedDate && new Date(e.expectedDate) < new Date();
+  const dispFormUrl = `https://mybasepaycom-my.sharepoint.com/personal/teri_mybasepay_com/Lists/Escalations/DispForm.aspx?ID=${e.id}`;
+  el.innerHTML = `
+    <div class="detail-head">
+      <div class="detail-id">#${e.id} · submitted ${fmtDate(e.escalationDate)} by ${escapeHtml(e.submitter)}</div>
+      <div class="detail-title">${escapeHtml(e.title)}</div>
+      <div class="detail-badges">
+        <span class="badge ${badgeClassStatus(e.status)}">${escapeHtml(e.status)}</span>
+        <span class="badge ${badgeClassUrgency(e.urgency)}">${escapeHtml(e.urgency)}</span>
+        ${overdue ? `<span class="badge alert">Past expected date</span>` : ""}
+        ${e.docNeeded === "Yes" ? `<span class="badge u-medium">Doc needed</span>` : ""}
+      </div>
+      <div class="detail-actions">
+        <a class="btn" target="_blank" rel="noopener" href="${dispFormUrl}">Open in SharePoint ↗</a>
+        ${e.teamsPost ? `<a class="btn-secondary btn" target="_blank" rel="noopener" href="${escapeHtml(e.teamsPost)}">Teams thread ↗</a>` : ""}
+      </div>
+    </div>
+    <div class="detail-body">
+      <div class="grid-2">
+        <div class="field"><div class="field-label">Assigned Dept</div><div class="field-value">${escapeHtml(e.assignedDept)}${e.originalDept && e.originalDept !== e.assignedDept ? ` <span class="muted">(was ${escapeHtml(e.originalDept)})</span>` : ""}</div></div>
+        <div class="field"><div class="field-label">Requesting Dept</div><div class="field-value">${escapeHtml(e.requestingDept)}</div></div>
+        <div class="field"><div class="field-label">Assignee</div><div class="field-value">${e.assignee ? escapeHtml(e.assignee) : `<span class="muted">unassigned</span>`}</div></div>
+        <div class="field"><div class="field-label">Days in current dept</div><div class="field-value">${e.daysCurrentDept ?? "—"}${e.dateAssignedCurrent ? ` <span class="muted">(since ${fmtDate(e.dateAssignedCurrent)})</span>` : ""}</div></div>
+        <div class="field"><div class="field-label">Issue Type</div><div class="field-value">${escapeHtml(e.issueType||"—")}</div></div>
+        <div class="field"><div class="field-label">Issue Category</div><div class="field-value">${escapeHtml(e.issueCategory||"—")}</div></div>
+        <div class="field"><div class="field-label">Financial Impact</div><div class="field-value">${fmtMoney(e.financialImpact)}</div></div>
+        <div class="field"><div class="field-label">Amount Remaining</div><div class="field-value">${fmtMoney(e.amountRemaining)}</div></div>
+        <div class="field"><div class="field-label">Expected Resolution</div><div class="field-value">${fmtDate(e.expectedDate)}</div></div>
+        <div class="field"><div class="field-label">Resolved</div><div class="field-value">${fmtDate(e.resolvedDate)}</div></div>
+      </div>
+      ${(e.customer || e.member || e.worker) ? `
+        <div class="field">
+          <div class="field-label">Affected</div>
+          <div class="field-value">
+            ${e.customer ? `<div><strong>Customer:</strong> ${escapeHtml(e.customer)}</div>` : ""}
+            ${e.member ? `<div><strong>Member:</strong> ${escapeHtml(e.member)}</div>` : ""}
+            ${e.worker ? `<div><strong>Worker:</strong> ${escapeHtml(e.worker)}</div>` : ""}
+          </div>
+        </div>` : ""}
+      ${lead ? `
+        <div class="field">
+          <div class="field-label">Dept Leads (auto-routed)</div>
+          <div class="field-value">${escapeHtml(lead.primary)} (primary) · ${escapeHtml(lead.backup)} (backup)</div>
+        </div>` : ""}
+      ${e.tags && e.tags.length ? `
+        <div class="field">
+          <div class="field-label">Additional people tagged</div>
+          <div class="field-value">${e.tags.map(t => escapeHtml(t.name)).join(", ")}</div>
+        </div>` : ""}
+      <div class="field">
+        <div class="field-label">Escalation Commentary</div>
+        <div class="rich-html">${sanitizeHtml(e.commentary) || `<span class="muted">—</span>`}</div>
+      </div>
+      ${e.docNeeded === "Yes" && e.docCommentary ? `
+        <div class="field">
+          <div class="field-label">Internal Documentation</div>
+          <div class="rich-html">${sanitizeHtml(e.docCommentary)}</div>
+        </div>` : ""}
+    </div>
+    ${e.updates ? `
+      <div class="timeline-block">
+        <div class="timeline-head">Status Updates</div>
+        <div class="rich-html">${sanitizeHtml(e.updates)}</div>
+      </div>` : ""}
+  `;
+}
+
+/* ---------- leads table ---------- */
+function renderLeads() {
+  const tbody = document.querySelector("#leadsTable tbody");
+  if (!deptLeads.length) {
+    tbody.innerHTML = `<tr><td colspan="3" class="muted">No leads loaded.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = deptLeads.map(d => `
+    <tr>
+      <td><strong>${escapeHtml(d.dept)}</strong></td>
+      <td>${escapeHtml(d.primary)}${d.primaryEmail ? ` <span class="muted">· ${escapeHtml(d.primaryEmail)}</span>` : ""}</td>
+      <td>${escapeHtml(d.backup)}${d.backupEmail ? ` <span class="muted">· ${escapeHtml(d.backupEmail)}</span>` : ""}</td>
+    </tr>
+  `).join("");
+}
+
+/* ---------- filter UI ---------- */
+function populateFilterOptions() {
+  const deptSel = document.getElementById("filterDept");
+  const depts = [...new Set(escalations.map(e => e.assignedDept).filter(Boolean))].sort();
+  deptSel.innerHTML = `<option value="">All assigned depts</option>` + depts.map(d => `<option>${escapeHtml(d)}</option>`).join("");
+
+  const typeSel = document.getElementById("filterIssueType");
+  const types = [...new Set(escalations.map(e => e.issueType).filter(Boolean))].sort();
+  typeSel.innerHTML = `<option value="">All issue types</option>` + types.map(t => `<option>${escapeHtml(t)}</option>`).join("");
+}
+
+function wireUI() {
+  document.getElementById("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
+  document.getElementById("filterStatus").addEventListener("change", (e) => { filters.status = e.target.value; renderList(); });
+  document.getElementById("filterUrgency").addEventListener("change", (e) => { filters.urgency = e.target.value; renderList(); });
+  document.getElementById("filterDept").addEventListener("change", (e) => { filters.dept = e.target.value; renderList(); });
+  document.getElementById("filterIssueType").addEventListener("change", (e) => { filters.issueType = e.target.value; renderList(); });
+  document.getElementById("filterOverdue").addEventListener("change", (e) => { filters.overdue = e.target.checked; renderList(); });
+  document.getElementById("refreshBtn").addEventListener("click", () => loadData(true));
+  document.getElementById("exportBtn").addEventListener("click", exportCsv);
+  document.getElementById("openListBtn").href = CONFIG.trackerWebUrl;
+  document.getElementById("newEscBtn").addEventListener("click", openNewModal);
+  document.getElementById("submitNew").addEventListener("click", submitNew);
+  document.getElementById("signOutBtn").addEventListener("click", signOut);
+  document.getElementById("newAssignedDept").addEventListener("change", (e) => {
+    const info = document.getElementById("deptLeadInfo");
+    const lead = deptLeads.find(d => d.dept === e.target.value);
+    if (lead) {
+      info.style.display = "block";
+      info.innerHTML = `Will auto-route to <strong>${escapeHtml(lead.primary)}</strong> (primary) and <strong>${escapeHtml(lead.backup)}</strong> (backup).`;
+    } else {
+      info.style.display = "none";
+    }
+  });
+  document.addEventListener("click", (e) => {
+    if (e.target.matches("[data-close]") || e.target.classList.contains("modal-backdrop")) {
+      document.querySelectorAll(".modal-backdrop.open").forEach(m => m.classList.remove("open"));
+    }
+  });
+}
+
+/* ---------- new escalation ---------- */
+function openNewModal() {
+  if (!isLive) {
+    toast("Submission requires SharePoint hosting.", 4000);
+    return;
+  }
+  document.getElementById("newForm").reset();
+  document.getElementById("newFormError").classList.remove("show");
+  document.getElementById("deptLeadInfo").style.display = "none";
+  document.getElementById("newModal").classList.add("open");
+}
+
+async function submitNew() {
+  const errBox = document.getElementById("newFormError");
+  errBox.classList.remove("show");
+  const f = document.getElementById("newForm");
+  const data = Object.fromEntries(new FormData(f).entries());
+
+  const required = ["title","commentary","urgency","requestingDept","assignedDept","issueType","issueCategory"];
+  const missing = required.filter(k => !data[k] || !String(data[k]).trim());
+  if (missing.length) {
+    errBox.textContent = "Required: " + missing.join(", ");
+    errBox.classList.add("show");
+    errBox.scrollIntoView({ block: "nearest" });
+    return;
+  }
+
+  const submitBtn = document.getElementById("submitNew");
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '<span class="spinner"></span>Submitting…';
+
+  try {
+    // Resolve tagged emails to SharePoint user IDs via the userMap we already loaded
+    const emails = (data.addTags || "").split(",").map(s => s.trim().toLowerCase()).filter(Boolean);
+    const tagIds = [];
+    const unresolved = [];
+    for (const email of emails) {
+      const id = userByEmail[email];
+      if (id) tagIds.push(String(id));
+      else unresolved.push(email);
+    }
+
+    const commentaryHtml =
+      `<div class="ExternalClassMBPDashboard"><div>${escapeHtml(data.commentary).replace(/\n/g, "<br>")}</div></div>`;
+
+    const fields = {
+      Title: data.title.trim(),
+      Status: "Assigned",
+      Urgency: data.urgency,
+      EscalationDate: new Date().toISOString(),
+      RequestingDept: data.requestingDept,
+      AssignedDepartmentOwner: data.assignedDept,
+      OriginalAssignedDept: data.assignedDept,
+      IssueType: data.issueType,
+      IssueCategoryDetail: data.issueCategory,
+      StatusCommentary: commentaryHtml,
+      InternalDocumentationNeeded: "No"
+    };
+    if (data.expectedDate) fields.ExpectedResolutionDate = new Date(data.expectedDate).toISOString();
+    if (data.customer) fields.CustomerName = data.customer.trim();
+    if (data.member) fields.MemberName = data.member.trim();
+    if (data.worker) fields.WorkerName = data.worker.trim();
+    if (data.financialImpact && Number(data.financialImpact) > 0) {
+      fields.FinancialImpactAmount = Number(data.financialImpact);
+      fields.AmountRemaining = Number(data.financialImpact);
+    }
+    if (tagIds.length) {
+      fields.AddTagsLookupId = tagIds;
+    }
+
+    const created = await createEscalation(fields);
+    const newId = Number(created.id || (created.fields && created.fields.id));
+
+    document.getElementById("newModal").classList.remove("open");
+    const unresolvedMsg = unresolved.length ? ` (${unresolved.length} email${unresolved.length>1?"s":""} couldn't be matched: ${unresolved.join(", ")})` : "";
+    toast(`Escalation #${newId} submitted${unresolvedMsg}`, 5000);
+
+    await loadData(false);
+    if (newId) {
+      selectedId = newId;
+      renderList();
+      renderDetail();
+    }
+  } catch (err) {
+    console.error(err);
+    errBox.textContent = "Submit failed: " + err.message;
+    errBox.classList.add("show");
+    errBox.scrollIntoView({ block: "nearest" });
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Submit Escalation";
+  }
+}
+
+/* ---------- export ---------- */
+function exportCsv() {
+  const items = applyFilters();
+  const rows = [["ID","Submitted","Status","Urgency","Title","Assigned Dept","Assignee","Requesting Dept","Issue Type","Issue Category","Customer","Member","Worker","Financial Impact","Amount Remaining","Expected Resolution","Resolved","Days Open"]];
+  items.forEach(e => rows.push([
+    e.id, e.escalationDate, e.status, e.urgency, e.title, e.assignedDept, e.assignee || "",
+    e.requestingDept, e.issueType || "", e.issueCategory || "",
+    e.customer || "", e.member || "", e.worker || "",
+    e.financialImpact || 0, e.amountRemaining || 0,
+    e.expectedDate || "", e.resolvedDate || "", e.daysOpen || ""
+  ]));
+  const csv = rows.map(r => r.map(c => `"${String(c == null ? "" : c).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = `escalations_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click(); URL.revokeObjectURL(url);
+  toast("Exported " + items.length + " rows");
+}
+
+/* ---------- header user chip ---------- */
+function renderUserChip() {
+  if (!activeAccount) {
+    document.getElementById("headerUser").style.display = "none";
+    return;
+  }
+  const name = activeAccount.name || activeAccount.username || "Signed in";
+  document.getElementById("userName").textContent = name;
+  document.getElementById("userAvatar").textContent = initials(name);
+  document.getElementById("headerUser").style.display = "inline-flex";
+}
+
+/* ---------- bootstrap ---------- */
+async function loadData(isRefresh) {
+  setConnection("", "loading…");
+  document.getElementById("listItems").innerHTML = `<div class="loading"><span class="spinner"></span>Loading from Microsoft Graph…</div>`;
+  try {
+    if (!trackerListId) await resolveListIds();
+    if (!Object.keys(userMap).length) await fetchUserMap();
+    const [items, leads] = await Promise.all([fetchTracker(), fetchLeads()]);
+    escalations = items;
+    deptLeads = leads;
+    setConnection("live", `live · ${items.length} records`);
+    hideBanner();
+    populateFilterOptions();
+    renderKpis();
+    renderList();
+    renderLeads();
+    if (isRefresh) toast("Refreshed · " + items.length + " records");
+  } catch (err) {
+    console.error(err);
+    setConnection("error", "load failed");
+    showBanner(`<strong>Couldn't reach Microsoft Graph.</strong> ${escapeHtml(err.message)}`, true);
+  }
+}
+
+async function bootstrap() {
+  if (isFile) {
+    setConnection("demo", "demo mode");
+    showBanner(`<strong>Demo mode.</strong> Opened via <code>file://</code>. Sign-in and live data require hosting on SharePoint.`);
+    document.getElementById("signinOverlay").style.display = "none";
+    return;
+  }
+  if (!msalAvailable) {
+    setConnection("error", "MSAL not loaded");
+    showBanner(`<strong>Auth library couldn't load.</strong> Check that the MSAL CDN is reachable from your network.`, true);
+    document.getElementById("signinOverlay").style.display = "none";
+    return;
+  }
+  initMsal();
+  const signedIn = await ensureSignedIn();
+  if (!signedIn) {
+    setConnection("", "signed out");
+    return;  // Sign-in card is shown; clicking it triggers redirect
+  }
+  document.getElementById("signinOverlay").style.display = "none";
+  renderUserChip();
+  await loadData(false);
+}
+
+wireUI();
+bootstrap();
+</script>
+</body>
+</html>
