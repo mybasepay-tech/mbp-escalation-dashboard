@@ -158,11 +158,20 @@
     border-radius: var(--radius); padding: 22px 24px;
     box-shadow: var(--shadow-sm);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
+    position: relative;
   }
-  .kpi:hover {
-    transform: translateY(-1px);
+  .kpi[data-preset] { cursor: pointer; }
+  .kpi[data-preset]:hover {
+    transform: translateY(-2px);
     box-shadow: var(--shadow-md);
   }
+  .kpi[data-preset]:active { transform: translateY(0); }
+  .kpi[data-preset]::after {
+    content: "↗"; position: absolute; top: 14px; right: 16px;
+    font-size: 12px; color: var(--text-faint); opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .kpi[data-preset]:hover::after { opacity: 1; }
   .kpi-label {
     font-family: "Roboto", sans-serif;
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px;
@@ -628,11 +637,14 @@
     <input type="search" id="searchInput" placeholder="Search by title, ID, customer, member, assignee…">
     <select id="filterStatus">
       <option value="">All statuses</option>
-      <option value="open">Open only (not Complete)</option>
+      <option value="open">All Active (not Complete)</option>
+      <option value="unassigned">Unassigned (active only)</option>
+      <option value="Not yet assigned">Not yet assigned</option>
       <option value="Assigned">Assigned</option>
       <option value="In Process">In Process</option>
       <option value="Pending Member">Pending Member</option>
       <option value="Pending Research">Pending Research</option>
+      <option value="Pending Customer">Pending Customer</option>
       <option value="Complete">Complete</option>
     </select>
     <select id="filterUrgency">
@@ -883,7 +895,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -1257,32 +1269,35 @@ function renderKpis() {
   const totalImpact = open.reduce((s,e) => s + (Number(e.financialImpact) || 0), 0);
 
   document.getElementById("kpiRow").innerHTML = `
-    <div class="kpi">
+    <div class="kpi" data-preset="open" title="Show all active escalations">
       <div class="kpi-label">Open</div>
       <div class="kpi-value">${open.length}</div>
       <div class="kpi-foot">of ${escalations.length} total</div>
     </div>
-    <div class="kpi kpi-warn">
+    <div class="kpi kpi-warn" data-preset="unassigned" title="Show active escalations with no assignee">
       <div class="kpi-label">Unassigned · Open</div>
       <div class="kpi-value">${unassigned.length}</div>
       <div class="kpi-foot">awaiting owner</div>
     </div>
-    <div class="kpi kpi-accent">
+    <div class="kpi kpi-accent" data-preset="overdue" title="Show active escalations past their expected date">
       <div class="kpi-label">Past Expected Date</div>
       <div class="kpi-value">${overdue.length}</div>
       <div class="kpi-foot">SLA at risk</div>
     </div>
-    <div class="kpi kpi-good">
+    <div class="kpi kpi-good" data-preset="resolved30" title="Show escalations resolved in the last 30 days">
       <div class="kpi-label">Resolved · last 30d</div>
       <div class="kpi-value">${last30.length}</div>
       <div class="kpi-foot">closed</div>
     </div>
-    <div class="kpi kpi-info">
+    <div class="kpi kpi-info" data-preset="financial" title="Show active escalations with financial impact">
       <div class="kpi-label">Open Financial Exposure</div>
       <div class="kpi-value">${fmtMoney(totalImpact)}</div>
       <div class="kpi-foot">sum on open items</div>
     </div>
   `;
+  document.getElementById("kpiRow").querySelectorAll(".kpi[data-preset]").forEach(card => {
+    card.addEventListener("click", () => applyKpiPreset(card.dataset.preset));
+  });
 }
 
 /* ---------- list ---------- */
@@ -1290,7 +1305,11 @@ function applyFilters() {
   const q = filters.search.toLowerCase().trim();
   return escalations.filter(e => {
     if (filters.status === "open" && !STATUS_OPEN.has(e.status)) return false;
-    if (filters.status && filters.status !== "open" && e.status !== filters.status) return false;
+    if (filters.status === "unassigned") {
+      if (!STATUS_OPEN.has(e.status)) return false;
+      if (e.assignee) return false;
+    }
+    if (filters.status && filters.status !== "open" && filters.status !== "unassigned" && e.status !== filters.status) return false;
     if (filters.urgency && e.urgency !== filters.urgency) return false;
     if (filters.dept && e.assignedDept !== filters.dept) return false;
     if (filters.issueType && e.issueType !== filters.issueType) return false;
@@ -1298,6 +1317,13 @@ function applyFilters() {
       if (!e.expectedDate || new Date(e.expectedDate) >= new Date()) return false;
       if (e.status === "Complete") return false;
     }
+    if (filters.resolvedWithin != null) {
+      if (e.status !== "Complete") return false;
+      if (!e.resolvedDate) return false;
+      const d = daysBetween(e.resolvedDate);
+      if (d == null || d > filters.resolvedWithin) return false;
+    }
+    if (filters.hasFinancial && !(Number(e.financialImpact) > 0)) return false;
     if (q) {
       const hay = `${e.id} ${e.title} ${e.customer||""} ${e.member||""} ${e.worker||""} ${e.assignee||""} ${e.submitter||""} ${e.assignedDept}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -1309,6 +1335,31 @@ function applyFilters() {
   });
 }
 
+/* ---------- KPI preset filters ---------- */
+function applyKpiPreset(preset) {
+  // Reset all filters first so the preset doesn't compound with whatever was set.
+  filters.search = ""; filters.status = ""; filters.urgency = "";
+  filters.dept = ""; filters.issueType = ""; filters.overdue = false;
+  filters.resolvedWithin = null; filters.hasFinancial = false;
+
+  if (preset === "open")        filters.status = "open";
+  else if (preset === "unassigned") filters.status = "unassigned";
+  else if (preset === "overdue")    { filters.status = "open"; filters.overdue = true; }
+  else if (preset === "resolved30") { filters.status = "Complete"; filters.resolvedWithin = 30; }
+  else if (preset === "financial")  { filters.status = "open"; filters.hasFinancial = true; }
+
+  // Sync the visible filter inputs so users see the active filter and can clear it
+  document.getElementById("searchInput").value = "";
+  document.getElementById("filterStatus").value = filters.status;
+  document.getElementById("filterUrgency").value = "";
+  document.getElementById("filterDept").value = "";
+  document.getElementById("filterIssueType").value = "";
+  document.getElementById("filterOverdue").checked = filters.overdue;
+  renderList();
+  // Scroll the list into view so the result of the click is obvious
+  document.querySelector(".list-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function renderList() {
   const items = applyFilters();
   document.getElementById("listMeta").textContent = `${items.length} of ${escalations.length}`;
@@ -1318,6 +1369,7 @@ function renderList() {
     document.getElementById("clearFiltersBtn")?.addEventListener("click", () => {
       filters.search = ""; filters.status = ""; filters.urgency = "";
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
+      filters.resolvedWithin = null; filters.hasFinancial = false;
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
       document.getElementById("filterUrgency").value = "";
@@ -1572,12 +1624,15 @@ function populateFilterOptions() {
 }
 
 function wireUI() {
+  // When users touch the visible filter inputs directly, clear the "hidden" preset
+  // filters (resolvedWithin, hasFinancial) so the dropdown choice means what it says.
+  const clearHiddenPreset = () => { filters.resolvedWithin = null; filters.hasFinancial = false; };
   document.getElementById("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
-  document.getElementById("filterStatus").addEventListener("change", (e) => { filters.status = e.target.value; renderList(); });
-  document.getElementById("filterUrgency").addEventListener("change", (e) => { filters.urgency = e.target.value; renderList(); });
-  document.getElementById("filterDept").addEventListener("change", (e) => { filters.dept = e.target.value; renderList(); });
-  document.getElementById("filterIssueType").addEventListener("change", (e) => { filters.issueType = e.target.value; renderList(); });
-  document.getElementById("filterOverdue").addEventListener("change", (e) => { filters.overdue = e.target.checked; renderList(); });
+  document.getElementById("filterStatus").addEventListener("change", (e) => { filters.status = e.target.value; clearHiddenPreset(); renderList(); });
+  document.getElementById("filterUrgency").addEventListener("change", (e) => { filters.urgency = e.target.value; clearHiddenPreset(); renderList(); });
+  document.getElementById("filterDept").addEventListener("change", (e) => { filters.dept = e.target.value; clearHiddenPreset(); renderList(); });
+  document.getElementById("filterIssueType").addEventListener("change", (e) => { filters.issueType = e.target.value; clearHiddenPreset(); renderList(); });
+  document.getElementById("filterOverdue").addEventListener("change", (e) => { filters.overdue = e.target.checked; clearHiddenPreset(); renderList(); });
   document.getElementById("refreshBtn").addEventListener("click", () => loadData(true));
   document.getElementById("exportBtn").addEventListener("click", exportCsv);
   document.getElementById("openListBtn").href = CONFIG.trackerWebUrl;
