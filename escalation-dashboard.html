@@ -697,6 +697,29 @@
   <button class="detail-drawer-close" id="detailCloseBtn" title="Close (Esc)" aria-label="Close detail">&times;</button>
 </aside>
 
+<!-- Status Update Modal (used for both "change status with note" and "post update" flows) -->
+<div class="modal-backdrop" id="updateModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head">
+      <div class="modal-title" id="updateModalTitle">Post a status update</div>
+      <button class="btn-ghost" data-close>&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="updateModalContext" style="font-size:13px;color:var(--text-muted);margin-bottom:14px;display:none"></div>
+      <div class="form-row">
+        <label>Update <span class="req">*</span></label>
+        <textarea id="updateModalText" required placeholder="What changed? What did you do? Required."></textarea>
+        <div class="form-help">Stamped with your name and the current timestamp, then added to Status Updates. <strong>This entry cannot be edited or removed later.</strong></div>
+      </div>
+      <div class="form-error" id="updateModalError" style="display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary btn" data-close>Cancel</button>
+      <button class="btn" id="updateModalSaveBtn" disabled>Save</button>
+    </div>
+  </div>
+</div>
+
 <!-- Sign-in overlay (only shown while waiting on MSAL) -->
 <div class="signin-overlay" id="signinOverlay">
   <div class="signin-card">
@@ -1252,6 +1275,40 @@ async function updateEscalationStatus(id, newStatus) {
   );
 }
 
+/* ---------- status updates (append-only commentary) ---------- */
+function formatStatusUpdateEntry(authorName, body) {
+  const now = new Date();
+  const date = `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`;
+  let hours = now.getHours();
+  const mins = String(now.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  const time = `${hours}:${mins} ${ampm}`;
+  const safeBody = escapeHtml(body).replace(/\n+/g, "<br>");
+  return `<p><strong>${escapeHtml(authorName)}</strong> <em>(${date} ${time})</em>:<br>${safeBody}</p>`;
+}
+
+// Single source of truth for both flows: optionally PATCH status + always
+// prepend a new entry to StatusUpdates after re-reading the freshest value.
+async function appendStatusUpdate(id, body, newStatus) {
+  const author = (activeAccount?.name) || (activeAccount?.username) || "Unknown";
+  // Re-read the freshest StatusUpdates so a parallel write doesn't get
+  // overwritten. Cheap (one GET) and dodges a real data-loss footgun.
+  const fresh = await graphGet(`/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}?$expand=fields($select=StatusUpdates,Status)`);
+  const existing = fresh?.fields?.StatusUpdates || "";
+  const newEntry = formatStatusUpdateEntry(author, body.trim());
+  const fields = { StatusUpdates: newEntry + existing };
+  if (newStatus && newStatus !== fresh?.fields?.Status) {
+    fields.Status = newStatus;
+    if (newStatus === "Complete") fields.ResolvedDate = new Date().toISOString();
+    else fields.ResolvedDate = null;
+  }
+  return graphPatch(
+    `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`,
+    fields
+  );
+}
+
 async function reassignEscalationById(id, lookupId) {
   if (!lookupId) throw new Error("Pick a person from the suggestions first.");
   return graphPatch(
@@ -1440,6 +1497,16 @@ document.addEventListener("click", (ev) => {
   if (ev.target.closest("#detailCloseBtn")) closeDetailDrawer();
 });
 
+// Update modal — wire save button + enable-on-input
+document.addEventListener("DOMContentLoaded", () => {
+  const updateText = document.getElementById("updateModalText");
+  const updateSaveBtn = document.getElementById("updateModalSaveBtn");
+  if (updateText) updateText.addEventListener("input", () => {
+    updateSaveBtn.disabled = !updateText.value.trim();
+  });
+  if (updateSaveBtn) updateSaveBtn.addEventListener("click", saveUpdateAndClose);
+});
+
 /* ---------- detail ---------- */
 function renderDetail() {
   const el = document.getElementById("detailCard");
@@ -1588,11 +1655,13 @@ function renderDetail() {
         <div class="rich-html">${sanitizeHtml(e.docCommentary)}</div>
       </div>` : ""}
 
-    ${e.updates ? `
-      <div class="detail-section">
-        <div class="detail-section-head">Status Updates</div>
-        <div class="rich-html">${sanitizeHtml(e.updates)}</div>
-      </div>` : ""}
+    <div class="detail-section">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <div class="detail-section-head" style="margin-bottom:0">Status Updates</div>
+        <button class="btn-sm btn-primary" data-action="post-update" data-id="${e.id}">+ Post update</button>
+      </div>
+      ${e.updates ? `<div class="rich-html">${sanitizeHtml(e.updates)}</div>` : `<div class="muted" style="font-size:13px">No updates yet.</div>`}
+    </div>
   `;
 }
 
@@ -1693,16 +1762,12 @@ function wireDetailEditing() {
       const prev = escalations.find(x => x.id === id)?.status;
       t.closest(".badge-menu").style.display = "none";
       if (newStatus === prev) return;
-      if (newStatus === "Complete" && !confirm(`Mark #${id} Complete? This stamps ResolvedDate and triggers any "on modify" Power Automate flows.`)) return;
-      try {
-        await updateEscalationStatus(id, newStatus);
-        toast(`#${id} → ${newStatus}`);
-        await loadData(false);
-        renderDetail();
-      } catch (err) {
-        console.error(err);
-        toast(`Status update failed: ${err.message}`, 5000);
-      }
+      openUpdateModal({ kind: "statusChange", id, fromStatus: prev, toStatus: newStatus });
+      return;
+    }
+
+    if (action === "post-update") {
+      openUpdateModal({ kind: "postUpdate", id });
       return;
     }
 
@@ -1788,6 +1853,66 @@ function wireDetailEditing() {
     }
     sugg.style.display = "block";
   });
+}
+
+/* ---------- update modal (status change + post-update) ---------- */
+let _pendingUpdate = null;
+function openUpdateModal(ctx) {
+  _pendingUpdate = ctx;
+  const modal = document.getElementById("updateModal");
+  const title = document.getElementById("updateModalTitle");
+  const contextEl = document.getElementById("updateModalContext");
+  const text = document.getElementById("updateModalText");
+  const saveBtn = document.getElementById("updateModalSaveBtn");
+  const errEl = document.getElementById("updateModalError");
+  errEl.style.display = "none";
+  errEl.textContent = "";
+  text.value = "";
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Save";
+  if (ctx.kind === "statusChange") {
+    title.textContent = `Change status to "${ctx.toStatus}"`;
+    contextEl.style.display = "block";
+    contextEl.innerHTML = `Moving #${ctx.id} from <strong>${escapeHtml(ctx.fromStatus || "—")}</strong> → <strong>${escapeHtml(ctx.toStatus)}</strong>. A status note is required.`;
+    saveBtn.textContent = "Save change";
+  } else {
+    title.textContent = `Post a status update`;
+    contextEl.style.display = "none";
+  }
+  modal.classList.add("open");
+  setTimeout(() => text.focus(), 50);
+}
+function closeUpdateModal() {
+  document.getElementById("updateModal").classList.remove("open");
+  _pendingUpdate = null;
+}
+async function saveUpdateAndClose() {
+  if (!_pendingUpdate) return;
+  const text = document.getElementById("updateModalText").value.trim();
+  const errEl = document.getElementById("updateModalError");
+  if (!text) {
+    errEl.textContent = "An update note is required.";
+    errEl.style.display = "block";
+    return;
+  }
+  const saveBtn = document.getElementById("updateModalSaveBtn");
+  const originalLabel = saveBtn.textContent;
+  saveBtn.disabled = true;
+  saveBtn.textContent = "Saving…";
+  const ctx = _pendingUpdate;
+  try {
+    await appendStatusUpdate(ctx.id, text, ctx.kind === "statusChange" ? ctx.toStatus : null);
+    toast(ctx.kind === "statusChange" ? `#${ctx.id} → ${ctx.toStatus}` : `Update posted to #${ctx.id}`);
+    closeUpdateModal();
+    await loadData(false);
+    renderDetail();
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = err.message || "Save failed.";
+    errEl.style.display = "block";
+    saveBtn.disabled = false;
+    saveBtn.textContent = originalLabel;
+  }
 }
 
 function closeReassign(form, id) {
