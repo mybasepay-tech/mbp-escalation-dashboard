@@ -231,18 +231,7 @@
   .btn-ghost { background: transparent; color: var(--text-muted); border: none; padding: 6px 8px; }
   .btn-ghost:hover { background: var(--gray-bg); color: var(--text); }
 
-  .content {
-    display: grid;
-    grid-template-columns: 1fr 520px;
-    gap: 18px; align-items: start;
-    transition: grid-template-columns 0.25s ease;
-  }
-  .content.detail-open {
-    grid-template-columns: minmax(380px, 1fr) minmax(620px, 1.6fr);
-  }
-  @media (max-width: 1200px) {
-    .content, .content.detail-open { grid-template-columns: 1fr; }
-  }
+  .content { display: block; }
 
   .list-card, .ref-card, .detail-card {
     background: var(--surface); border: 0;
@@ -313,7 +302,30 @@
   .badge.u-low { background: var(--gray-bg); color: var(--gray); }
   .badge.alert { background: var(--red-bg); color: var(--red); }
 
-  .detail-card { position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto; }
+  /* Drawer-style detail panel (slides in from right) */
+  .detail-drawer {
+    position: fixed; top: 0; right: 0; bottom: 0;
+    width: 680px; max-width: calc(100vw - 32px);
+    background: var(--surface);
+    border-left: 1px solid var(--border);
+    box-shadow: var(--shadow-lg);
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+    z-index: 80;
+  }
+  .detail-drawer.open { transform: translateX(0); }
+  .detail-drawer-close {
+    position: absolute; top: 18px; right: 18px;
+    background: var(--gray-bg); border: 0;
+    width: 30px; height: 30px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; color: var(--text-muted); font-size: 18px;
+    line-height: 1;
+    transition: background 0.12s ease, color 0.12s ease;
+    z-index: 1;
+  }
+  .detail-drawer-close:hover { background: var(--prussian); color: #fff; }
   .detail-empty { padding: 56px 24px; text-align: center; color: var(--text-faint); font-size: 13px; }
   .detail-head { padding: 24px 28px 20px; border-bottom: 1px solid var(--border); }
   .detail-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--text-muted); font-weight: 600; letter-spacing: 0.2px; }
@@ -647,35 +659,31 @@
   </div>
 
   <section class="content">
-    <div>
-      <div class="list-card">
-        <div class="list-head">
-          <span>Escalations</span>
-          <span class="list-head-meta" id="listMeta">—</span>
-        </div>
-        <div class="list-items" id="listItems">
-          <div class="loading"><span class="spinner"></span>Loading…</div>
-        </div>
+    <div class="list-card">
+      <div class="list-head">
+        <span>Escalations</span>
+        <span class="list-head-meta" id="listMeta">—</span>
       </div>
-
-      <div class="ref-card">
-        <div class="ref-head">Department Leads</div>
-        <div class="ref-body">
-          <table class="leads-table" id="leadsTable">
-            <thead><tr><th>Department</th><th>Primary Lead</th><th>Backup Lead</th></tr></thead>
-            <tbody></tbody>
-          </table>
-        </div>
+      <div class="list-items" id="listItems">
+        <div class="loading"><span class="spinner"></span>Loading…</div>
       </div>
     </div>
 
-    <aside>
-      <div class="detail-card" id="detailCard">
-        <div class="detail-empty">Select an escalation to view full details, commentary, and status history.</div>
+    <div class="ref-card">
+      <div class="ref-head">Department Leads</div>
+      <div class="ref-body">
+        <table class="leads-table" id="leadsTable">
+          <thead><tr><th>Department</th><th>Primary Lead</th><th>Backup Lead</th></tr></thead>
+          <tbody></tbody>
+        </table>
       </div>
-    </aside>
+    </div>
   </section>
 </main>
+
+<aside class="detail-drawer" id="detailCard" aria-hidden="true">
+  <button class="detail-drawer-close" id="detailCloseBtn" title="Close (Esc)" aria-label="Close detail">&times;</button>
+</aside>
 
 <!-- Sign-in overlay (only shown while waiting on MSAL) -->
 <div class="signin-overlay" id="signinOverlay">
@@ -1353,24 +1361,46 @@ function renderList() {
   }).join("");
   el.querySelectorAll(".esc-row").forEach(row => {
     row.addEventListener("click", () => {
-      selectedId = Number(row.dataset.id);
+      const clickedId = Number(row.dataset.id);
+      selectedId = (selectedId === clickedId) ? null : clickedId;
       renderList();
       renderDetail();
     });
   });
 }
 
+/* ---------- drawer close handlers ---------- */
+function closeDetailDrawer() {
+  if (selectedId == null) return;
+  selectedId = null;
+  renderList();
+  renderDetail();
+}
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && selectedId != null) {
+    // Don't hijack Esc when a typeahead or menu is open inside the drawer
+    if (document.querySelector(".badge-menu[style*='block']") ||
+        document.querySelector(".typeahead-suggestions[style*='block']")) return;
+    closeDetailDrawer();
+  }
+});
+document.addEventListener("click", (ev) => {
+  if (ev.target.closest("#detailCloseBtn")) closeDetailDrawer();
+});
+
 /* ---------- detail ---------- */
 function renderDetail() {
   const el = document.getElementById("detailCard");
-  const content = document.querySelector(".content");
+  const closeBtn = `<button class="detail-drawer-close" id="detailCloseBtn" title="Close (Esc)" aria-label="Close detail">&times;</button>`;
   const e = escalations.find(x => x.id === selectedId);
   if (!e) {
-    if (content) content.classList.remove("detail-open");
-    el.innerHTML = `<div class="detail-empty">Select an escalation to view full details, commentary, and status history.</div>`;
+    el.classList.remove("open");
+    el.setAttribute("aria-hidden", "true");
+    el.innerHTML = closeBtn + `<div class="detail-empty">Select an escalation to view full details, commentary, and status history.</div>`;
     return;
   }
-  if (content) content.classList.add("detail-open");
+  el.classList.add("open");
+  el.setAttribute("aria-hidden", "false");
 
   const lead = deptLeads.find(d => d.dept === e.assignedDept);
   const overdue = STATUS_OPEN.has(e.status) && e.expectedDate && new Date(e.expectedDate) < new Date();
@@ -1379,7 +1409,7 @@ function renderDetail() {
   const daysOpenClass = e.status === "Complete" ? "good" : (daysOpen != null && daysOpen >= 14 ? "warn" : "");
   const expectedClass = overdue ? "over" : "";
 
-  el.innerHTML = `
+  el.innerHTML = closeBtn + `
     <div class="detail-head">
       <div class="detail-id">#${e.id} · submitted ${fmtDate(e.escalationDate)} by ${escapeHtml(e.submitter)}</div>
       <div class="detail-title">${escapeHtml(e.title)}</div>
