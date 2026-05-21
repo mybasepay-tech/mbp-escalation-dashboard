@@ -209,10 +209,12 @@
     border-radius: 999px; text-transform: uppercase; letter-spacing: 0.3px;
     line-height: 1.4;
   }
-  .badge.s-assigned { background: var(--blue-bg); color: var(--blue); }
+  .badge.s-notyetassigned { background: var(--red-bg); color: var(--red); }
+  .badge.s-assigned { background: var(--amber-bg); color: var(--amber); }
   .badge.s-inprocess { background: var(--blue-bg); color: var(--blue); }
   .badge.s-pendingmember { background: var(--purple-bg); color: var(--purple); }
   .badge.s-pendingresearch { background: var(--purple-bg); color: var(--purple); }
+  .badge.s-pendingcustomer { background: var(--purple-bg); color: var(--purple); }
   .badge.s-complete { background: var(--green-bg); color: var(--green); }
   .badge.s-default { background: var(--gray-bg); color: var(--gray); }
   .badge.u-critical { background: var(--red-bg); color: var(--red); }
@@ -678,7 +680,7 @@ const CONFIG = {
   hideLeadDepts: ["Testing"]
 };
 
-const STATUS_OPEN = new Set(["Assigned","In Process","Pending Member","Pending Research"]);
+const STATUS_OPEN = new Set(["Not yet assigned","Assigned","In Process","Pending Member","Pending Research","Pending Customer"]);
 
 /* ---------- environment detection ---------- */
 const isFile = location.protocol === "file:" || location.protocol === "data:";
@@ -717,7 +719,7 @@ function escapeHtml(s) {
   return (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"})[c]);
 }
 function badgeClassStatus(s) {
-  return ({"Assigned":"s-assigned","In Process":"s-inprocess","Pending Member":"s-pendingmember","Pending Research":"s-pendingresearch","Complete":"s-complete"})[s] || "s-default";
+  return ({"Not yet assigned":"s-notyetassigned","Assigned":"s-assigned","In Process":"s-inprocess","Pending Member":"s-pendingmember","Pending Research":"s-pendingresearch","Pending Customer":"s-pendingcustomer","Complete":"s-complete"})[s] || "s-default";
 }
 function badgeClassUrgency(u) {
   return ({ Critical:"u-critical", High:"u-high", Medium:"u-medium", Low:"u-low" })[u] || "s-default";
@@ -1037,7 +1039,7 @@ async function createEscalation(fields) {
 }
 
 /* ---------- update ---------- */
-const STATUS_OPTIONS = ["Assigned", "In Process", "Pending Member", "Pending Research", "Complete"];
+const STATUS_OPTIONS = ["Not yet assigned", "Assigned", "In Process", "Pending Member", "Pending Research", "Pending Customer", "Complete"];
 
 async function updateEscalationStatus(id, newStatus) {
   const fields = { Status: newStatus };
@@ -1521,7 +1523,10 @@ async function submitNew() {
 
     const fields = {
       Title: data.title.trim(),
-      Status: "Assigned",
+      // No assignee at submission, so start in the same state the PA flow would
+      // put us in anyway. This avoids the brief "Assigned → Not yet assigned"
+      // flicker that left the test escalation looking like it had vanished.
+      Status: "Not yet assigned",
       Urgency: data.urgency,
       EscalationDate: new Date().toISOString(),
       RequestingDept: data.requestingDept,
