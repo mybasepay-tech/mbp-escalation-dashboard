@@ -822,21 +822,30 @@ async function graphPost(path, body) {
 
 /* ---------- list ID resolution ---------- */
 async function resolveListIds() {
-  // Look up the three lists by title in one call
-  const r = await graphGet(`/sites/${CONFIG.graph.siteId}/lists?$select=id,displayName,name`);
-  const byName = {};
-  for (const l of (r.value || [])) byName[l.displayName] = l.id;
-  trackerListId = byName[CONFIG.graph.trackerListTitle];
-  leadsListId = byName[CONFIG.graph.leadsListTitle];
-  userInfoListId = byName[CONFIG.graph.userInfoListTitle];
-  // User Information List is a hidden system list, so the /lists endpoint
-  // typically omits it. Fetch it directly by its internal name as a fallback —
-  // without this, person fields (AssignedTo, Author) can't be resolved to names.
+  const r = await graphGet(`/sites/${CONFIG.graph.siteId}/lists?$select=id,displayName,name,list`);
+  const byDisplay = {};
+  const byInternal = {};
+  for (const l of (r.value || [])) {
+    if (l.displayName) byDisplay[l.displayName] = l.id;
+    if (l.name) byInternal[l.name.toLowerCase()] = l.id;
+  }
+  trackerListId = byDisplay[CONFIG.graph.trackerListTitle];
+  leadsListId   = byDisplay[CONFIG.graph.leadsListTitle];
+  userInfoListId =
+    byDisplay[CONFIG.graph.userInfoListTitle] ||
+    byInternal["users"] ||
+    byInternal["user information list"];
   if (!userInfoListId) {
-    try {
-      const u = await graphGet(`/sites/${CONFIG.graph.siteId}/lists/users`);
-      userInfoListId = u.id;
-    } catch (e) { /* leave null; person fields will render as dashes */ }
+    for (const candidate of ["users", "User Information List"]) {
+      try {
+        const u = await graphGet(`/sites/${CONFIG.graph.siteId}/lists/${encodeURIComponent(candidate)}`);
+        if (u && u.id) { userInfoListId = u.id; break; }
+      } catch (e) { /* try next */ }
+    }
+  }
+  if (!userInfoListId) {
+    console.warn("[escalation-dashboard] User Information List not found. Lists returned by Graph:",
+      (r.value || []).map(l => ({ displayName: l.displayName, name: l.name })));
   }
   if (!trackerListId) throw new Error(`List not found: ${CONFIG.graph.trackerListTitle}`);
 }
