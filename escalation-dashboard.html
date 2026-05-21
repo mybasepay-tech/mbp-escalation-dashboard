@@ -226,7 +226,15 @@
   .detail-head { padding: 16px; border-bottom: 1px solid var(--border); }
   .detail-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--text-muted); font-weight: 600; }
   .detail-title { font-size: 16px; font-weight: 600; margin: 4px 0 8px; }
-  .detail-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .detail-badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .inline-edit { font: inherit; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--border-strong); background: #fff; cursor: pointer; }
+  .status-select { font-size: 11px; font-weight: 600; }
+  .link-btn { background: none; border: 0; color: var(--navy); cursor: pointer; padding: 0 4px; font: inherit; text-decoration: underline; }
+  .link-btn:hover { color: var(--navy-dark); }
+  .reassign-form { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; flex-wrap: wrap; }
+  .reassign-input { padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 12px; min-width: 220px; }
+  .reassign-error { color: #b91c1c; font-size: 11px; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; }
   .detail-actions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
   .detail-body { padding: 16px; }
   .field { margin-bottom: 12px; }
@@ -803,6 +811,23 @@ async function graphGet(path) {
   return res.json();
 }
 
+async function graphPatch(path, body) {
+  const token = await getToken();
+  const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`Graph PATCH ${res.status}: ${txt.slice(0, 400)}`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
 async function graphPost(path, body) {
   const token = await getToken();
   const res = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
@@ -964,6 +989,32 @@ async function createEscalation(fields) {
   );
 }
 
+/* ---------- update ---------- */
+const STATUS_OPTIONS = ["Assigned", "In Process", "Pending Member", "Pending Research", "Complete"];
+
+async function updateEscalationStatus(id, newStatus) {
+  const fields = { Status: newStatus };
+  // Going to Complete also stamps ResolvedDate; coming back out clears it
+  // so the SP record stays consistent with the status.
+  if (newStatus === "Complete") fields.ResolvedDate = new Date().toISOString();
+  else fields.ResolvedDate = null;
+  return graphPatch(
+    `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`,
+    fields
+  );
+}
+
+async function reassignEscalation(id, email) {
+  const norm = (email || "").trim().toLowerCase();
+  if (!norm) throw new Error("Enter the new assignee's email.");
+  const lookupId = userByEmail[norm];
+  if (!lookupId) throw new Error(`No SharePoint user found for ${norm}. They may need to access the Escalation list once (Open List → click a row) before being assignable from here.`);
+  return graphPatch(
+    `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`,
+    { AssignedToLookupId: String(lookupId) }
+  );
+}
+
 /* ---------- KPIs ---------- */
 function renderKpis() {
   const open = escalations.filter(e => STATUS_OPEN.has(e.status));
@@ -1089,7 +1140,9 @@ function renderDetail() {
       <div class="detail-id">#${e.id} · submitted ${fmtDate(e.escalationDate)} by ${escapeHtml(e.submitter)}</div>
       <div class="detail-title">${escapeHtml(e.title)}</div>
       <div class="detail-badges">
-        <span class="badge ${badgeClassStatus(e.status)}">${escapeHtml(e.status)}</span>
+        <select class="inline-edit status-select ${badgeClassStatus(e.status)}" data-action="change-status" data-id="${e.id}" title="Change status — saves to SharePoint and triggers any 'on modify' Power Automate flow">
+          ${STATUS_OPTIONS.map(s => `<option value="${escapeHtml(s)}"${s === e.status ? " selected" : ""}>${escapeHtml(s)}</option>`).join("")}
+        </select>
         <span class="badge ${badgeClassUrgency(e.urgency)}">${escapeHtml(e.urgency)}</span>
         ${overdue ? `<span class="badge alert">Past expected date</span>` : ""}
         ${e.docNeeded === "Yes" ? `<span class="badge u-medium">Doc needed</span>` : ""}
@@ -1103,7 +1156,19 @@ function renderDetail() {
       <div class="grid-2">
         <div class="field"><div class="field-label">Assigned Dept</div><div class="field-value">${escapeHtml(e.assignedDept)}${e.originalDept && e.originalDept !== e.assignedDept ? ` <span class="muted">(was ${escapeHtml(e.originalDept)})</span>` : ""}</div></div>
         <div class="field"><div class="field-label">Requesting Dept</div><div class="field-value">${escapeHtml(e.requestingDept)}</div></div>
-        <div class="field"><div class="field-label">Assignee</div><div class="field-value">${e.assignee ? escapeHtml(e.assignee) : `<span class="muted">unassigned</span>`}</div></div>
+        <div class="field">
+          <div class="field-label">Assignee</div>
+          <div class="field-value">
+            <span class="assignee-name">${e.assignee ? escapeHtml(e.assignee) : `<span class="muted">unassigned</span>`}</span>
+            <button class="link-btn" data-action="reassign-open" data-id="${e.id}">${e.assignee ? "Reassign" : "Assign"}</button>
+            <span class="reassign-form" data-id="${e.id}" style="display:none">
+              <input type="email" class="reassign-input" placeholder="new.assignee@mybasepay.com">
+              <button class="btn-secondary btn-sm" data-action="reassign-save" data-id="${e.id}">Save</button>
+              <button class="btn-secondary btn-sm" data-action="reassign-cancel" data-id="${e.id}">Cancel</button>
+              <span class="reassign-error muted"></span>
+            </span>
+          </div>
+        </div>
         <div class="field"><div class="field-label">Days in current dept</div><div class="field-value">${e.daysCurrentDept ?? "—"}${e.dateAssignedCurrent ? ` <span class="muted">(since ${fmtDate(e.dateAssignedCurrent)})</span>` : ""}</div></div>
         <div class="field"><div class="field-label">Issue Type</div><div class="field-value">${escapeHtml(e.issueType||"—")}</div></div>
         <div class="field"><div class="field-label">Issue Category</div><div class="field-value">${escapeHtml(e.issueCategory||"—")}</div></div>
@@ -1202,6 +1267,71 @@ function wireUI() {
   document.addEventListener("click", (e) => {
     if (e.target.matches("[data-close]") || e.target.classList.contains("modal-backdrop")) {
       document.querySelectorAll(".modal-backdrop.open").forEach(m => m.classList.remove("open"));
+    }
+  });
+
+  // Detail-panel edit actions (delegated, since renderDetail() replaces the inner HTML)
+  document.getElementById("detailCard").addEventListener("change", async (ev) => {
+    const t = ev.target;
+    if (t.matches("[data-action='change-status']")) {
+      const id = Number(t.dataset.id);
+      const newStatus = t.value;
+      const prev = escalations.find(x => x.id === id)?.status;
+      if (newStatus === prev) return;
+      if (newStatus === "Complete" && !confirm(`Mark #${id} Complete? This stamps ResolvedDate and triggers any "on modify" Power Automate flows.`)) {
+        t.value = prev; return;
+      }
+      t.disabled = true;
+      try {
+        await updateEscalationStatus(id, newStatus);
+        toast(`#${id} → ${newStatus}`);
+        await loadData(false);
+        renderDetail();
+      } catch (err) {
+        console.error(err);
+        toast(`Status update failed: ${err.message}`, 5000);
+        t.value = prev;
+      } finally {
+        t.disabled = false;
+      }
+    }
+  });
+
+  document.getElementById("detailCard").addEventListener("click", async (ev) => {
+    const t = ev.target;
+    const id = Number(t.dataset.id);
+    if (t.matches("[data-action='reassign-open']")) {
+      const form = document.querySelector(`.reassign-form[data-id='${id}']`);
+      if (form) {
+        form.style.display = "inline-flex";
+        form.querySelector(".reassign-input").focus();
+        t.style.display = "none";
+      }
+    } else if (t.matches("[data-action='reassign-cancel']")) {
+      const form = t.closest(".reassign-form");
+      if (form) {
+        form.style.display = "none";
+        form.querySelector(".reassign-input").value = "";
+        form.querySelector(".reassign-error").textContent = "";
+        const openBtn = document.querySelector(`[data-action='reassign-open'][data-id='${id}']`);
+        if (openBtn) openBtn.style.display = "";
+      }
+    } else if (t.matches("[data-action='reassign-save']")) {
+      const form = t.closest(".reassign-form");
+      const input = form.querySelector(".reassign-input");
+      const errEl = form.querySelector(".reassign-error");
+      errEl.textContent = "";
+      t.disabled = true;
+      try {
+        await reassignEscalation(id, input.value);
+        toast(`#${id} reassigned to ${input.value.trim().toLowerCase()}`);
+        await loadData(false);
+        renderDetail();
+      } catch (err) {
+        errEl.textContent = err.message;
+      } finally {
+        t.disabled = false;
+      }
     }
   });
 }
