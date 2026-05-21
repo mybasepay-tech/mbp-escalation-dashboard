@@ -227,14 +227,61 @@
   .detail-id { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 11px; color: var(--text-muted); font-weight: 600; }
   .detail-title { font-size: 16px; font-weight: 600; margin: 4px 0 8px; }
   .detail-badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-  .inline-edit { font: inherit; padding: 2px 6px; border-radius: 6px; border: 1px solid var(--border-strong); background: #fff; cursor: pointer; }
-  .status-select { font-size: 11px; font-weight: 600; }
-  .link-btn { background: none; border: 0; color: var(--navy); cursor: pointer; padding: 0 4px; font: inherit; text-decoration: underline; }
+
+  /* Badge dropdown — looks like a badge, behaves like a select */
+  .badge-edit { position: relative; display: inline-block; }
+  .badge-edit .badge { cursor: pointer; user-select: none; padding-right: 6px; }
+  .badge-edit .badge::after {
+    content: ""; display: inline-block; margin-left: 6px;
+    border-left: 4px solid transparent; border-right: 4px solid transparent;
+    border-top: 4px solid currentColor; opacity: 0.6; transform: translateY(-1px);
+  }
+  .badge-edit .badge:hover { filter: brightness(0.95); }
+  .badge-menu {
+    position: absolute; top: calc(100% + 4px); left: 0; z-index: 50;
+    background: #fff; border: 1px solid var(--border-strong); border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+    padding: 4px; min-width: 160px;
+  }
+  .badge-option {
+    display: block; width: 100%; text-align: left; padding: 6px 8px;
+    border-radius: 6px; cursor: pointer; font-size: 12px;
+    background: transparent; border: 0; font-family: inherit;
+  }
+  .badge-option:hover { background: var(--gray-bg); }
+  .badge-option .badge { pointer-events: none; padding: 2px 8px; }
+  .badge-option .badge::after { display: none; }
+  .badge-option.is-current { background: var(--gray-bg); }
+
+  /* Inline reassign — stays inside the field column */
+  .assignee-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .link-btn { background: none; border: 0; color: var(--navy); cursor: pointer; padding: 0; font: inherit; text-decoration: underline; font-size: 12px; }
   .link-btn:hover { color: var(--navy-dark); }
-  .reassign-form { display: inline-flex; gap: 6px; align-items: center; margin-left: 8px; flex-wrap: wrap; }
-  .reassign-input { padding: 4px 8px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 12px; min-width: 220px; }
+  .reassign-form { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; width: 100%; max-width: 320px; position: relative; }
+  .reassign-row { display: flex; gap: 6px; align-items: center; }
+  .reassign-input { padding: 6px 10px; border: 1px solid var(--border-strong); border-radius: 6px; font-size: 13px; flex: 1; min-width: 0; }
+  .reassign-input:focus { outline: none; border-color: var(--navy); }
   .reassign-error { color: #b91c1c; font-size: 11px; }
-  .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: 6px; cursor: pointer; border: 1px solid var(--border-strong); background: #fff; }
+  .btn-sm:hover { background: var(--gray-bg); }
+  .btn-sm.btn-primary { background: var(--navy); color: #fff; border-color: var(--navy); }
+  .btn-sm.btn-primary:hover { background: var(--navy-dark); }
+  .btn-sm:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  /* Name typeahead */
+  .typeahead-suggestions {
+    position: absolute; top: 100%; left: 0; right: 0; z-index: 50;
+    background: #fff; border: 1px solid var(--border-strong); border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(15, 23, 42, 0.12);
+    max-height: 220px; overflow-y: auto; margin-top: 2px;
+  }
+  .typeahead-suggestion {
+    padding: 6px 10px; cursor: pointer; font-size: 13px;
+    border-bottom: 1px solid var(--border);
+  }
+  .typeahead-suggestion:last-child { border-bottom: 0; }
+  .typeahead-suggestion:hover, .typeahead-suggestion.active { background: var(--gray-bg); }
+  .typeahead-suggestion .ta-email { color: var(--text-muted); font-size: 11px; }
   .detail-actions { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
   .detail-body { padding: 16px; }
   .field { margin-bottom: 12px; }
@@ -1004,11 +1051,8 @@ async function updateEscalationStatus(id, newStatus) {
   );
 }
 
-async function reassignEscalation(id, email) {
-  const norm = (email || "").trim().toLowerCase();
-  if (!norm) throw new Error("Enter the new assignee's email.");
-  const lookupId = userByEmail[norm];
-  if (!lookupId) throw new Error(`No SharePoint user found for ${norm}. They may need to access the Escalation list once (Open List → click a row) before being assignable from here.`);
+async function reassignEscalationById(id, lookupId) {
+  if (!lookupId) throw new Error("Pick a person from the suggestions first.");
   return graphPatch(
     `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`,
     { AssignedToLookupId: String(lookupId) }
@@ -1140,9 +1184,12 @@ function renderDetail() {
       <div class="detail-id">#${e.id} · submitted ${fmtDate(e.escalationDate)} by ${escapeHtml(e.submitter)}</div>
       <div class="detail-title">${escapeHtml(e.title)}</div>
       <div class="detail-badges">
-        <select class="inline-edit status-select ${badgeClassStatus(e.status)}" data-action="change-status" data-id="${e.id}" title="Change status — saves to SharePoint and triggers any 'on modify' Power Automate flow">
-          ${STATUS_OPTIONS.map(s => `<option value="${escapeHtml(s)}"${s === e.status ? " selected" : ""}>${escapeHtml(s)}</option>`).join("")}
-        </select>
+        <span class="badge-edit" data-id="${e.id}">
+          <span class="badge ${badgeClassStatus(e.status)}" data-action="status-toggle" title="Change status — saves to SharePoint and triggers any 'on modify' Power Automate flow">${escapeHtml(e.status)}</span>
+          <div class="badge-menu" style="display:none">
+            ${STATUS_OPTIONS.map(s => `<button type="button" class="badge-option ${s === e.status ? "is-current" : ""}" data-action="status-pick" data-value="${escapeHtml(s)}"><span class="badge ${badgeClassStatus(s)}">${escapeHtml(s)}</span></button>`).join("")}
+          </div>
+        </span>
         <span class="badge ${badgeClassUrgency(e.urgency)}">${escapeHtml(e.urgency)}</span>
         ${overdue ? `<span class="badge alert">Past expected date</span>` : ""}
         ${e.docNeeded === "Yes" ? `<span class="badge u-medium">Doc needed</span>` : ""}
@@ -1159,14 +1206,19 @@ function renderDetail() {
         <div class="field">
           <div class="field-label">Assignee</div>
           <div class="field-value">
-            <span class="assignee-name">${e.assignee ? escapeHtml(e.assignee) : `<span class="muted">unassigned</span>`}</span>
-            <button class="link-btn" data-action="reassign-open" data-id="${e.id}">${e.assignee ? "Reassign" : "Assign"}</button>
-            <span class="reassign-form" data-id="${e.id}" style="display:none">
-              <input type="email" class="reassign-input" placeholder="new.assignee@mybasepay.com">
-              <button class="btn-secondary btn-sm" data-action="reassign-save" data-id="${e.id}">Save</button>
-              <button class="btn-secondary btn-sm" data-action="reassign-cancel" data-id="${e.id}">Cancel</button>
-              <span class="reassign-error muted"></span>
-            </span>
+            <div class="assignee-row">
+              <span class="assignee-name">${e.assignee ? escapeHtml(e.assignee) : `<span class="muted">unassigned</span>`}</span>
+              <button class="link-btn" data-action="reassign-open" data-id="${e.id}">${e.assignee ? "Reassign" : "Assign"}</button>
+            </div>
+            <div class="reassign-form" data-id="${e.id}" style="display:none">
+              <div class="reassign-row">
+                <input type="text" class="reassign-input" placeholder="Type a name…" autocomplete="off" data-action="reassign-input">
+                <button class="btn-sm btn-primary" data-action="reassign-save" data-id="${e.id}" disabled>Save</button>
+                <button class="btn-sm" data-action="reassign-cancel" data-id="${e.id}">Cancel</button>
+              </div>
+              <div class="typeahead-suggestions" style="display:none"></div>
+              <span class="reassign-error"></span>
+            </div>
           </div>
         </div>
         <div class="field"><div class="field-label">Days in current dept</div><div class="field-value">${e.daysCurrentDept ?? "—"}${e.dateAssignedCurrent ? ` <span class="muted">(since ${fmtDate(e.dateAssignedCurrent)})</span>` : ""}</div></div>
@@ -1270,18 +1322,45 @@ function wireUI() {
     }
   });
 
-  // Detail-panel edit actions (delegated, since renderDetail() replaces the inner HTML)
-  document.getElementById("detailCard").addEventListener("change", async (ev) => {
-    const t = ev.target;
-    if (t.matches("[data-action='change-status']")) {
-      const id = Number(t.dataset.id);
-      const newStatus = t.value;
+  wireDetailEditing();
+}
+
+/* ---------- detail panel edit handlers (delegated) ---------- */
+let _reassignPick = null; // { id, name, email, lookupId } chosen from the typeahead
+
+function wireDetailEditing() {
+  const root = document.getElementById("detailCard");
+
+  // Close any open badge menu when clicking outside
+  document.addEventListener("click", (ev) => {
+    const inside = ev.target.closest(".badge-edit");
+    document.querySelectorAll(".badge-menu").forEach(m => {
+      if (!inside || !inside.contains(m)) m.style.display = "none";
+    });
+  });
+
+  root.addEventListener("click", async (ev) => {
+    const t = ev.target.closest("[data-action]");
+    if (!t) return;
+    const action = t.dataset.action;
+    const wrapId = (t.closest(".badge-edit") || t).dataset.id;
+    const id = Number(t.dataset.id || wrapId);
+
+    if (action === "status-toggle") {
+      const menu = t.parentElement.querySelector(".badge-menu");
+      const wasOpen = menu.style.display === "block";
+      document.querySelectorAll(".badge-menu").forEach(m => m.style.display = "none");
+      menu.style.display = wasOpen ? "none" : "block";
+      ev.stopPropagation();
+      return;
+    }
+
+    if (action === "status-pick") {
+      const newStatus = t.dataset.value;
       const prev = escalations.find(x => x.id === id)?.status;
+      t.closest(".badge-menu").style.display = "none";
       if (newStatus === prev) return;
-      if (newStatus === "Complete" && !confirm(`Mark #${id} Complete? This stamps ResolvedDate and triggers any "on modify" Power Automate flows.`)) {
-        t.value = prev; return;
-      }
-      t.disabled = true;
+      if (newStatus === "Complete" && !confirm(`Mark #${id} Complete? This stamps ResolvedDate and triggers any "on modify" Power Automate flows.`)) return;
       try {
         await updateEscalationStatus(id, newStatus);
         toast(`#${id} → ${newStatus}`);
@@ -1290,41 +1369,38 @@ function wireUI() {
       } catch (err) {
         console.error(err);
         toast(`Status update failed: ${err.message}`, 5000);
-        t.value = prev;
-      } finally {
-        t.disabled = false;
       }
+      return;
     }
-  });
 
-  document.getElementById("detailCard").addEventListener("click", async (ev) => {
-    const t = ev.target;
-    const id = Number(t.dataset.id);
-    if (t.matches("[data-action='reassign-open']")) {
-      const form = document.querySelector(`.reassign-form[data-id='${id}']`);
+    if (action === "reassign-open") {
+      const form = root.querySelector(`.reassign-form[data-id='${id}']`);
       if (form) {
-        form.style.display = "inline-flex";
-        form.querySelector(".reassign-input").focus();
+        form.style.display = "flex";
         t.style.display = "none";
+        form.querySelector(".reassign-input").focus();
+        _reassignPick = null;
+        updateReassignSaveState(form);
       }
-    } else if (t.matches("[data-action='reassign-cancel']")) {
+      return;
+    }
+
+    if (action === "reassign-cancel") {
       const form = t.closest(".reassign-form");
-      if (form) {
-        form.style.display = "none";
-        form.querySelector(".reassign-input").value = "";
-        form.querySelector(".reassign-error").textContent = "";
-        const openBtn = document.querySelector(`[data-action='reassign-open'][data-id='${id}']`);
-        if (openBtn) openBtn.style.display = "";
-      }
-    } else if (t.matches("[data-action='reassign-save']")) {
+      if (form) closeReassign(form, id);
+      return;
+    }
+
+    if (action === "reassign-save") {
+      if (!_reassignPick || _reassignPick.id !== id) return;
       const form = t.closest(".reassign-form");
-      const input = form.querySelector(".reassign-input");
       const errEl = form.querySelector(".reassign-error");
       errEl.textContent = "";
       t.disabled = true;
       try {
-        await reassignEscalation(id, input.value);
-        toast(`#${id} reassigned to ${input.value.trim().toLowerCase()}`);
+        await reassignEscalationById(id, _reassignPick.lookupId);
+        toast(`#${id} reassigned to ${_reassignPick.name}`);
+        _reassignPick = null;
         await loadData(false);
         renderDetail();
       } catch (err) {
@@ -1332,8 +1408,70 @@ function wireUI() {
       } finally {
         t.disabled = false;
       }
+      return;
+    }
+
+    // Typeahead suggestion click
+    if (t.classList.contains("typeahead-suggestion")) {
+      const form = t.closest(".reassign-form");
+      const formId = Number(form.dataset.id);
+      _reassignPick = {
+        id: formId,
+        name: t.dataset.name,
+        email: t.dataset.email,
+        lookupId: t.dataset.lookup
+      };
+      form.querySelector(".reassign-input").value = t.dataset.name;
+      form.querySelector(".typeahead-suggestions").style.display = "none";
+      updateReassignSaveState(form);
+      return;
     }
   });
+
+  // Typeahead input filtering
+  root.addEventListener("input", (ev) => {
+    if (!ev.target.matches("[data-action='reassign-input']")) return;
+    const input = ev.target;
+    const form = input.closest(".reassign-form");
+    const sugg = form.querySelector(".typeahead-suggestions");
+    const q = input.value.trim().toLowerCase();
+    _reassignPick = null;
+    updateReassignSaveState(form);
+    if (q.length < 2) { sugg.style.display = "none"; sugg.innerHTML = ""; return; }
+    const matches = [];
+    for (const [lookupId, u] of Object.entries(userMap)) {
+      if (!u.name) continue;
+      const name = u.name.toLowerCase();
+      const email = (u.email || "").toLowerCase();
+      if (name.includes(q) || email.includes(q)) {
+        matches.push({ lookupId, name: u.name, email: u.email || "" });
+        if (matches.length >= 8) break;
+      }
+    }
+    if (!matches.length) {
+      sugg.innerHTML = `<div class="typeahead-suggestion muted" style="cursor:default">No matches. They may need to access the list once first.</div>`;
+    } else {
+      sugg.innerHTML = matches.map(m => `<div class="typeahead-suggestion" data-action="ta-pick" data-name="${escapeHtml(m.name)}" data-email="${escapeHtml(m.email)}" data-lookup="${escapeHtml(m.lookupId)}">${escapeHtml(m.name)}${m.email ? ` <span class="ta-email">${escapeHtml(m.email)}</span>` : ""}</div>`).join("");
+    }
+    sugg.style.display = "block";
+  });
+}
+
+function closeReassign(form, id) {
+  form.style.display = "none";
+  form.querySelector(".reassign-input").value = "";
+  form.querySelector(".reassign-error").textContent = "";
+  const sugg = form.querySelector(".typeahead-suggestions");
+  sugg.style.display = "none";
+  sugg.innerHTML = "";
+  _reassignPick = null;
+  const openBtn = document.querySelector(`[data-action='reassign-open'][data-id='${id}']`);
+  if (openBtn) openBtn.style.display = "";
+}
+
+function updateReassignSaveState(form) {
+  const saveBtn = form.querySelector("[data-action='reassign-save']");
+  saveBtn.disabled = !_reassignPick;
 }
 
 /* ---------- new escalation ---------- */
