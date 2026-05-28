@@ -2333,7 +2333,10 @@ async function submitNew() {
       fields.AmountRemaining = Number(data.financialImpact);
     }
     if (tagIds.length) {
-      fields.AddTagsLookupId = tagIds;
+      // Graph requires the @odata.type annotation for multi-value lookup fields.
+      // Without it, POST returns 400 invalidRequest with no useful detail.
+      fields["AddTagsLookupId@odata.type"] = "Collection(Edm.Int32)";
+      fields.AddTagsLookupId = tagIds.map(Number);
     }
 
     const created = await createEscalation(fields);
