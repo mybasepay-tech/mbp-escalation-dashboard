@@ -187,6 +187,56 @@
   .kpi-warn .kpi-value { color: var(--amber); }
   .kpi-good .kpi-value { color: var(--green); }
   .kpi-info .kpi-value { color: var(--blue); }
+  .kpi-stale .kpi-value { color: #c2410c; }
+  .kpi-stale { border-left: 3px solid #f59e0b; }
+
+  /* Secondary filter row: dept chips + assignee picker */
+  .filter-bar {
+    background: var(--surface); border-radius: var(--radius);
+    padding: 10px 14px; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    box-shadow: var(--shadow-sm);
+  }
+  .filter-bar-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--text-muted); font-weight: 700;
+  }
+  .dept-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
+  .dept-chip {
+    background: var(--gray-bg); border: 1px solid transparent;
+    color: var(--text); padding: 5px 10px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; cursor: pointer;
+    display: inline-flex; align-items: center; gap: 6px;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .dept-chip:hover { background: #e5e7eb; }
+  .dept-chip.active {
+    background: var(--emerald); color: #fff;
+    border-color: var(--emerald-dark);
+  }
+  .dept-chip-count {
+    background: rgba(0,0,0,0.08); color: inherit;
+    padding: 1px 6px; border-radius: 999px;
+    font-size: 11px; font-weight: 700;
+  }
+  .dept-chip.active .dept-chip-count { background: rgba(255,255,255,0.25); }
+  .assignee-picker {
+    display: flex; align-items: center; gap: 6px;
+    border-left: 1px solid var(--border); padding-left: 12px;
+  }
+  .assignee-picker label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--text-muted); font-weight: 700;
+  }
+  .assignee-picker select {
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    padding: 6px 10px; background: #fff; color: var(--text);
+    font-size: 13px; min-width: 200px; outline: none;
+  }
+  .assignee-picker select:focus { border-color: var(--emerald); }
+  @media (max-width: 720px) {
+    .assignee-picker { border-left: 0; padding-left: 0; width: 100%; }
+  }
 
   .toolbar {
     background: var(--surface); border: 0;
@@ -310,6 +360,45 @@
   .badge.u-medium { background: var(--blue-bg); color: var(--blue); }
   .badge.u-low { background: var(--gray-bg); color: var(--gray); }
   .badge.alert { background: var(--red-bg); color: var(--red); }
+  .badge.stale-badge { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+
+  /* Stale row styling: subtle left-edge marker so it's visible without
+     being noisy when stale items are mixed with non-stale */
+  .esc-row.is-stale { box-shadow: inset 4px 0 0 #f59e0b; }
+  .esc-row.is-stale:hover { box-shadow: inset 4px 0 0 #ea580c; }
+
+  /* Pills shown in the list row meta */
+  .pill.last-update { background: var(--gray-bg); color: var(--text-muted); }
+  .pill.last-update.warn { background: #fef3c7; color: #b45309; }
+  .pill.last-update.stale { background: #ffedd5; color: #c2410c; font-weight: 600; }
+  .pill.followup-pill { background: var(--blue-bg); color: var(--blue); }
+
+  /* Stale text shown above the status-updates timeline */
+  .stale-text { color: #c2410c; font-weight: 600; }
+  .updates-meta {
+    font-size: 12px; color: var(--text-muted);
+    margin-bottom: 10px; padding: 6px 10px;
+    background: var(--gray-bg); border-radius: var(--radius-sm);
+    display: flex; flex-wrap: wrap; gap: 4px;
+  }
+
+  /* Visual distinction for follow-up vs status-update entries inside the
+     StatusUpdates rich-text timeline. Legacy entries (no class) render plain. */
+  .updates-history .esc-followup {
+    background: #eff6ff;
+    border-left: 3px solid #3b82f6;
+    padding: 8px 10px;
+    margin: 6px 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: 13px;
+  }
+  .updates-history .esc-update {
+    background: #f0fdf4;
+    border-left: 3px solid var(--emerald);
+    padding: 8px 10px;
+    margin: 6px 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
 
   /* Drawer-style detail panel (slides in from right) */
   .detail-drawer {
@@ -633,6 +722,17 @@
 
   <section class="kpi-row" id="kpiRow"></section>
 
+  <section class="filter-bar" id="filterBar">
+    <div class="filter-bar-label">Filter by:</div>
+    <div class="dept-chips" id="deptChips"><!-- populated by JS --></div>
+    <div class="assignee-picker">
+      <label for="filterAssignee">Assignee:</label>
+      <select id="filterAssignee">
+        <option value="">All assignees</option>
+      </select>
+    </div>
+  </section>
+
   <div class="toolbar">
     <input type="search" id="searchInput" placeholder="Search by title, ID, customer, member, assignee…">
     <select id="filterStatus">
@@ -918,7 +1018,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "" };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -968,6 +1068,62 @@ function hideBanner() { document.getElementById("banner").classList.remove("show
 function initials(name) {
   if (!name) return "?";
   return name.split(/\s+/).slice(0,2).map(s => s[0] || "").join("").toUpperCase();
+}
+
+/* ---------- stale detection + marker parsing ----------
+   Status updates from the dashboard are appended as <p class="esc-update"
+   data-update-date data-update-by> and follow-ups as <p class="esc-followup"
+   data-followup-date data-followup-by data-followup-note>. Both live inside
+   the StatusUpdates rich-text field. Legacy SP-form entries have no markers.
+   Strict rule (per Sarah): follow-ups do NOT reset the stale clock; only
+   real assignee status updates do. */
+function _parseDataAttrs(html, selector, attrs) {
+  if (!html) return [];
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  const out = [];
+  tpl.content.querySelectorAll(selector).forEach(el => {
+    const o = {};
+    attrs.forEach(a => o[a.key] = el.getAttribute(a.attr) || "");
+    if (o.date) out.push(o);
+  });
+  return out.sort((a, b) => new Date(b.date) - new Date(a.date));
+}
+function parseUpdateMarkers(html) {
+  return _parseDataAttrs(html, "[data-update-date]",
+    [{ key: "date", attr: "data-update-date" }, { key: "by", attr: "data-update-by" }]);
+}
+function parseFollowUpMarkers(html) {
+  return _parseDataAttrs(html, "[data-followup-date]",
+    [{ key: "date", attr: "data-followup-date" }, { key: "by", attr: "data-followup-by" }, { key: "note", attr: "data-followup-note" }]);
+}
+
+/* Returns { date: ISO, source: "marker"|"modified"|"created", by?: string }.
+   Used by both the stale rule and the "last update" display. */
+function getLastAssigneeActivity(esc) {
+  const updates = parseUpdateMarkers(esc.updates);
+  if (updates.length) return { date: updates[0].date, source: "marker", by: updates[0].by };
+  // No dashboard-logged updates. If follow-ups exist, Modified is dirty
+  // (bumped by the follow-up write), so we can't trust it as a real-update
+  // signal. Fall back to creation date — flags item as stale, which is
+  // Sarah's intent: better to over-flag than miss something that's slipping.
+  if (parseFollowUpMarkers(esc.updates).length) {
+    return { date: esc.escalationDate, source: "created" };
+  }
+  if (esc.modified) return { date: esc.modified, source: "modified" };
+  return { date: esc.escalationDate, source: "created" };
+}
+function getLastFollowUp(esc) {
+  return parseFollowUpMarkers(esc.updates)[0] || null;
+}
+function isStale(esc) {
+  if (!STATUS_OPEN.has(esc.status)) return false;
+  const { date, source } = getLastAssigneeActivity(esc);
+  const daysSince = daysBetween(date);
+  if (daysSince == null) return false;
+  // No real update yet (source === "created"): 10-day grace.
+  // Any real update: 7-day threshold from that update.
+  return source === "created" ? daysSince > 10 : daysSince > 7;
 }
 
 /* ---------- HTML sanitizer ---------- */
@@ -1285,7 +1441,36 @@ function formatStatusUpdateEntry(authorName, body) {
   hours = hours % 12 || 12;
   const time = `${hours}:${mins} ${ampm}`;
   const safeBody = escapeHtml(body).replace(/\n+/g, "<br>");
-  return `<p><strong>${escapeHtml(authorName)}</strong> <em>(${date} ${time})</em>:<br>${safeBody}</p>`;
+  // .esc-update marker + data attrs let the stale rule and "last update"
+  // display distinguish dashboard updates from legacy SP-form entries
+  // and from follow-ups (which don't reset the stale clock).
+  return `<p class="esc-update" data-update-date="${now.toISOString()}" data-update-by="${escapeHtml(authorName)}"><strong>${escapeHtml(authorName)}</strong> <em>(${date} ${time})</em>:<br>${safeBody}</p>`;
+}
+
+function formatFollowUpEntry(authorName, note) {
+  const now = new Date();
+  const date = `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`;
+  let hours = now.getHours();
+  const mins = String(now.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  const time = `${hours}:${mins} ${ampm}`;
+  const noteHtml = note ? `<br>${escapeHtml(note).replace(/\n+/g, "<br>")}` : "";
+  return `<p class="esc-followup" data-followup-date="${now.toISOString()}" data-followup-by="${escapeHtml(authorName)}" data-followup-note="${escapeHtml(note || "")}"><em>📞 Follow-up by <strong>${escapeHtml(authorName)}</strong> (${date} ${time})</em>${noteHtml}</p>`;
+}
+
+// Append a follow-up entry. Parallels appendStatusUpdate but writes
+// a .esc-followup marker (which is IGNORED by the stale rule on purpose —
+// Jenn chasing the assignee doesn't mean the assignee has done anything).
+async function appendFollowUp(id, note) {
+  const author = (activeAccount?.name) || (activeAccount?.username) || "Unknown";
+  const fresh = await graphGet(`/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}?$expand=fields($select=StatusUpdates)`);
+  const existing = fresh?.fields?.StatusUpdates || "";
+  const newEntry = formatFollowUpEntry(author, (note || "").trim());
+  return graphPatch(
+    `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`,
+    { StatusUpdates: newEntry + existing }
+  );
 }
 
 // Single source of truth for both flows: optionally PATCH status + always
@@ -1322,6 +1507,7 @@ function renderKpis() {
   const open = escalations.filter(e => STATUS_OPEN.has(e.status));
   const unassigned = open.filter(e => !e.assignee);
   const overdue = open.filter(e => e.expectedDate && new Date(e.expectedDate) < new Date());
+  const stale = open.filter(isStale);
   const last30 = escalations.filter(e => e.status === "Complete" && e.resolvedDate && daysBetween(e.resolvedDate) <= 30);
   const totalImpact = open.reduce((s,e) => s + (Number(e.financialImpact) || 0), 0);
 
@@ -1335,6 +1521,11 @@ function renderKpis() {
       <div class="kpi-label">Unassigned · Open</div>
       <div class="kpi-value">${unassigned.length}</div>
       <div class="kpi-foot">awaiting owner</div>
+    </div>
+    <div class="kpi kpi-stale" data-preset="stale" title="Active escalations with no assignee update in 7+ days (or 10+ days old with no updates)">
+      <div class="kpi-label">Stale · Needs nudge</div>
+      <div class="kpi-value">${stale.length}</div>
+      <div class="kpi-foot">no recent update</div>
     </div>
     <div class="kpi kpi-accent" data-preset="overdue" title="Show active escalations past their expected date">
       <div class="kpi-label">Past Expected Date</div>
@@ -1381,6 +1572,14 @@ function applyFilters() {
       if (d == null || d > filters.resolvedWithin) return false;
     }
     if (filters.hasFinancial && !(Number(e.financialImpact) > 0)) return false;
+    if (filters.stale && !isStale(e)) return false;
+    if (filters.assignee) {
+      if (filters.assignee === "__unassigned__") {
+        if (e.assignee) return false;
+      } else if (e.assignee !== filters.assignee) {
+        return false;
+      }
+    }
     if (q) {
       const hay = `${e.id} ${e.title} ${e.customer||""} ${e.member||""} ${e.worker||""} ${e.assignee||""} ${e.submitter||""} ${e.assignedDept}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -1398,9 +1597,11 @@ function applyKpiPreset(preset) {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
+  filters.stale = false; filters.assignee = "";
 
   if (preset === "open")        filters.status = "open";
   else if (preset === "unassigned") filters.status = "unassigned";
+  else if (preset === "stale")      { filters.status = "open"; filters.stale = true; }
   else if (preset === "overdue")    { filters.status = "open"; filters.overdue = true; }
   else if (preset === "resolved30") { filters.status = "Complete"; filters.resolvedWithin = 30; }
   else if (preset === "financial")  { filters.status = "open"; filters.hasFinancial = true; }
@@ -1412,6 +1613,8 @@ function applyKpiPreset(preset) {
   document.getElementById("filterDept").value = "";
   document.getElementById("filterIssueType").value = "";
   document.getElementById("filterOverdue").checked = filters.overdue;
+  renderDeptChips();
+  populateAssigneeFilter();
   renderList();
   // Scroll the list into view so the result of the click is obvious
   document.querySelector(".list-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1427,12 +1630,15 @@ function renderList() {
       filters.search = ""; filters.status = ""; filters.urgency = "";
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
       filters.resolvedWithin = null; filters.hasFinancial = false;
+      filters.stale = false; filters.assignee = "";
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
       document.getElementById("filterUrgency").value = "";
       document.getElementById("filterDept").value = "";
       document.getElementById("filterIssueType").value = "";
       document.getElementById("filterOverdue").checked = false;
+      renderDeptChips();
+      populateAssigneeFilter();
       renderList();
     });
     return;
@@ -1441,11 +1647,27 @@ function renderList() {
     const age = daysBetween(e.escalationDate);
     const isOpen = STATUS_OPEN.has(e.status);
     const overdue = isOpen && e.expectedDate && new Date(e.expectedDate) < new Date();
+    const stale = isStale(e);
+    const lastActivity = getLastAssigneeActivity(e);
+    const daysSinceUpdate = daysBetween(lastActivity.date);
     const ageClass = overdue ? "over" : (age != null && age >= 14 && isOpen ? "warn" : "");
     const ageText = age == null ? "—" : (age === 0 ? "today" : age + "d ago");
     const who = e.customer || e.member || e.worker;
+    // "Last update" pill: only show for open items. Wording reflects whether
+    // we're showing a real update vs. just the item being untouched since creation.
+    let lastUpdatePill = "";
+    if (isOpen && daysSinceUpdate != null) {
+      const lastText = daysSinceUpdate === 0 ? "today" : `${daysSinceUpdate}d ago`;
+      const lastLabel = lastActivity.source === "created" ? "no updates" : "last update";
+      const cls = stale ? "stale" : (daysSinceUpdate >= 5 ? "warn" : "");
+      lastUpdatePill = `<span class="pill last-update ${cls}" title="${lastActivity.source === "created" ? "No status updates logged yet" : "Most recent assignee status update"}">⏱ ${lastLabel}: ${lastText}</span>`;
+    }
+    const followUp = isOpen ? getLastFollowUp(e) : null;
+    const followUpPill = followUp
+      ? `<span class="pill followup-pill" title="Most recent follow-up logged by Jenn or whoever is chasing">📞 nudged ${daysBetween(followUp.date)}d ago${followUp.by ? ` by ${escapeHtml(followUp.by)}` : ""}</span>`
+      : "";
     return `
-      <div class="esc-row ${badgeClassUrgency(e.urgency)} ${selectedId === e.id ? "selected" : ""}" data-id="${e.id}">
+      <div class="esc-row ${badgeClassUrgency(e.urgency)} ${selectedId === e.id ? "selected" : ""} ${stale ? "is-stale" : ""}" data-id="${e.id}">
         <div class="esc-id-block">
           <div class="esc-id">#${e.id}</div>
           <div class="esc-age ${ageClass}">${ageText}</div>
@@ -1458,11 +1680,14 @@ function renderList() {
             ${who ? `<span class="pill">${escapeHtml(who)}</span>` : ""}
             ${e.financialImpact ? `<span class="pill">${fmtMoney(e.financialImpact)}</span>` : ""}
             ${e.issueType ? `<span class="pill muted">${escapeHtml(e.issueType)}</span>` : ""}
+            ${lastUpdatePill}
+            ${followUpPill}
           </div>
         </div>
         <div class="esc-right">
           <span class="badge ${badgeClassStatus(e.status)}">${escapeHtml(e.status)}</span>
           <span class="badge ${badgeClassUrgency(e.urgency)}">${escapeHtml(e.urgency)}</span>
+          ${stale ? `<span class="badge stale-badge" title="No assignee update in 7+ days (or 10+ days old with no updates)">Stale · needs nudge</span>` : ""}
           ${overdue ? `<span class="badge alert">Past expected</span>` : ""}
         </div>
       </div>
@@ -1656,11 +1881,30 @@ function renderDetail() {
       </div>` : ""}
 
     <div class="detail-section">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
         <div class="detail-section-head" style="margin-bottom:0">Status Updates</div>
-        <button class="btn-sm btn-primary" data-action="post-update" data-id="${e.id}">+ Post update</button>
+        <div style="display:flex;gap:8px">
+          <button class="btn-sm" data-action="log-followup" data-id="${e.id}" title="Log that someone reached out to nudge the assignee. Does NOT reset the stale clock.">📞 Log follow-up</button>
+          <button class="btn-sm btn-primary" data-action="post-update" data-id="${e.id}">+ Post update</button>
+        </div>
       </div>
-      ${e.updates ? `<div class="rich-html">${sanitizeHtml(e.updates)}</div>` : `<div class="muted" style="font-size:13px">No updates yet.</div>`}
+      ${(() => {
+        const last = getLastAssigneeActivity(e);
+        const lastFu = getLastFollowUp(e);
+        const lastDays = daysBetween(last.date);
+        const stale = isStale(e);
+        const bits = [];
+        if (lastDays != null) {
+          const label = last.source === "created" ? "No real status updates yet — created" : "Last status update";
+          bits.push(`<span class="${stale ? "stale-text" : "muted"}">${label} ${lastDays === 0 ? "today" : lastDays + "d ago"}</span>`);
+        }
+        if (lastFu) {
+          const fuDays = daysBetween(lastFu.date);
+          bits.push(`<span class="muted">Last follow-up: ${lastFu.by || "—"}${fuDays != null ? `, ${fuDays === 0 ? "today" : fuDays + "d ago"}` : ""}${lastFu.note ? ` — "${escapeHtml(lastFu.note)}"` : ""}</span>`);
+        }
+        return bits.length ? `<div class="updates-meta">${bits.join(" · ")}</div>` : "";
+      })()}
+      ${e.updates ? `<div class="rich-html updates-history">${sanitizeHtml(e.updates)}</div>` : `<div class="muted" style="font-size:13px">No updates yet.</div>`}
     </div>
   `;
 }
@@ -1690,6 +1934,54 @@ function populateFilterOptions() {
   const typeSel = document.getElementById("filterIssueType");
   const types = [...new Set(escalations.map(e => e.issueType).filter(Boolean))].sort();
   typeSel.innerHTML = `<option value="">All issue types</option>` + types.map(t => `<option>${escapeHtml(t)}</option>`).join("");
+
+  renderDeptChips();
+  populateAssigneeFilter();
+}
+
+// Renders the dept chip row. Active chip reflects filters.dept.
+function renderDeptChips() {
+  const open = escalations.filter(e => STATUS_OPEN.has(e.status));
+  const counts = {};
+  open.forEach(e => { if (e.assignedDept) counts[e.assignedDept] = (counts[e.assignedDept] || 0) + 1; });
+  // Preserve a canonical dept order matching the Dept Leads list when available;
+  // fall back to alphabetical for any extras.
+  const ordered = deptLeads.length
+    ? [...deptLeads.map(d => d.dept), ...Object.keys(counts).filter(d => !deptLeads.some(l => l.dept === d))]
+    : Object.keys(counts).sort();
+  const chips = document.getElementById("deptChips");
+  chips.innerHTML = [
+    `<button type="button" class="dept-chip ${!filters.dept ? "active" : ""}" data-dept="">All <span class="dept-chip-count">${open.length}</span></button>`,
+    ...ordered.map(d => `<button type="button" class="dept-chip ${filters.dept === d ? "active" : ""}" data-dept="${escapeHtml(d)}">${escapeHtml(d)} <span class="dept-chip-count">${counts[d] || 0}</span></button>`)
+  ].join("");
+}
+
+// Cascades from filters.dept: only shows assignees who own at least one open
+// escalation in the selected dept (or all assignees if no dept selected).
+function populateAssigneeFilter() {
+  const sel = document.getElementById("filterAssignee");
+  const open = escalations.filter(e => STATUS_OPEN.has(e.status));
+  const inScope = filters.dept ? open.filter(e => e.assignedDept === filters.dept) : open;
+  const assigneeCounts = {};
+  let unassignedCount = 0;
+  inScope.forEach(e => {
+    if (e.assignee) assigneeCounts[e.assignee] = (assigneeCounts[e.assignee] || 0) + 1;
+    else unassignedCount++;
+  });
+  const names = Object.keys(assigneeCounts).sort();
+  const current = filters.assignee;
+  sel.innerHTML = [
+    `<option value="">All assignees${filters.dept ? ` in ${filters.dept}` : ""} (${inScope.length})</option>`,
+    unassignedCount ? `<option value="__unassigned__">(unassigned) (${unassignedCount})</option>` : "",
+    ...names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)} (${assigneeCounts[n]})</option>`)
+  ].filter(Boolean).join("");
+  // If the previously-selected assignee isn't in scope anymore, clear it.
+  if (current && current !== "__unassigned__" && !names.includes(current)) {
+    filters.assignee = "";
+    sel.value = "";
+  } else {
+    sel.value = current || "";
+  }
 }
 
 function wireUI() {
@@ -1699,7 +1991,29 @@ function wireUI() {
   document.getElementById("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
   document.getElementById("filterStatus").addEventListener("change", (e) => { filters.status = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterUrgency").addEventListener("change", (e) => { filters.urgency = e.target.value; clearHiddenPreset(); renderList(); });
-  document.getElementById("filterDept").addEventListener("change", (e) => { filters.dept = e.target.value; clearHiddenPreset(); renderList(); });
+  document.getElementById("filterDept").addEventListener("change", (e) => {
+    filters.dept = e.target.value;
+    clearHiddenPreset();
+    renderDeptChips();
+    populateAssigneeFilter();
+    renderList();
+  });
+  // Dept chip clicks (delegated)
+  document.getElementById("deptChips").addEventListener("click", (ev) => {
+    const chip = ev.target.closest(".dept-chip");
+    if (!chip) return;
+    filters.dept = chip.dataset.dept || "";
+    document.getElementById("filterDept").value = filters.dept;
+    clearHiddenPreset();
+    renderDeptChips();
+    populateAssigneeFilter();
+    renderList();
+  });
+  document.getElementById("filterAssignee").addEventListener("change", (e) => {
+    filters.assignee = e.target.value;
+    clearHiddenPreset();
+    renderList();
+  });
   document.getElementById("filterIssueType").addEventListener("change", (e) => { filters.issueType = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterOverdue").addEventListener("change", (e) => { filters.overdue = e.target.checked; clearHiddenPreset(); renderList(); });
   document.getElementById("refreshBtn").addEventListener("click", () => loadData(true));
@@ -1768,6 +2082,11 @@ function wireDetailEditing() {
 
     if (action === "post-update") {
       openUpdateModal({ kind: "postUpdate", id });
+      return;
+    }
+
+    if (action === "log-followup") {
+      openUpdateModal({ kind: "followUp", id });
       return;
     }
 
@@ -1875,6 +2194,12 @@ function openUpdateModal(ctx) {
     contextEl.style.display = "block";
     contextEl.innerHTML = `Moving #${ctx.id} from <strong>${escapeHtml(ctx.fromStatus || "—")}</strong> → <strong>${escapeHtml(ctx.toStatus)}</strong>. A status note is required.`;
     saveBtn.textContent = "Save change";
+  } else if (ctx.kind === "followUp") {
+    title.textContent = `Log follow-up on #${ctx.id}`;
+    contextEl.style.display = "block";
+    contextEl.innerHTML = `Recording that <strong>you</strong> reached out about this escalation. The note is optional. This does <strong>not</strong> reset the stale-clock — only a real status update from the assignee does that.`;
+    saveBtn.textContent = "Log follow-up";
+    text.placeholder = "Optional: how you reached out, what they said, etc.";
   } else {
     title.textContent = `Post a status update`;
     contextEl.style.display = "none";
@@ -1890,7 +2215,9 @@ async function saveUpdateAndClose() {
   if (!_pendingUpdate) return;
   const text = document.getElementById("updateModalText").value.trim();
   const errEl = document.getElementById("updateModalError");
-  if (!text) {
+  const ctx = _pendingUpdate;
+  // Follow-up notes are optional; other update kinds require text.
+  if (!text && ctx.kind !== "followUp") {
     errEl.textContent = "An update note is required.";
     errEl.style.display = "block";
     return;
@@ -1899,10 +2226,14 @@ async function saveUpdateAndClose() {
   const originalLabel = saveBtn.textContent;
   saveBtn.disabled = true;
   saveBtn.textContent = "Saving…";
-  const ctx = _pendingUpdate;
   try {
-    await appendStatusUpdate(ctx.id, text, ctx.kind === "statusChange" ? ctx.toStatus : null);
-    toast(ctx.kind === "statusChange" ? `#${ctx.id} → ${ctx.toStatus}` : `Update posted to #${ctx.id}`);
+    if (ctx.kind === "followUp") {
+      await appendFollowUp(ctx.id, text);
+      toast(`Follow-up logged on #${ctx.id}`);
+    } else {
+      await appendStatusUpdate(ctx.id, text, ctx.kind === "statusChange" ? ctx.toStatus : null);
+      toast(ctx.kind === "statusChange" ? `#${ctx.id} → ${ctx.toStatus}` : `Update posted to #${ctx.id}`);
+    }
     closeUpdateModal();
     await loadData(false);
     renderDetail();
