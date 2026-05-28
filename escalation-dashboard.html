@@ -1956,27 +1956,42 @@ function renderDeptChips() {
   ].join("");
 }
 
-// Cascades from filters.dept: only shows assignees who own at least one open
-// escalation in the selected dept (or all assignees if no dept selected).
+// Cascades from filters.dept: the dropdown lists everyone who has EVER been
+// assigned to any escalation in the dept (open or closed). Source of truth is
+// actual assignments on items, not any org-chart concept of "dept membership."
+// This catches cross-dept work — e.g. Francis is org'd under Corp Finance but
+// has worked on a Billing escalation, so he appears when filtering by Billing.
+// The "(N open)" count next to each name reflects only current open items in
+// the dept, so users can prioritize without losing historical assignees.
 function populateAssigneeFilter() {
   const sel = document.getElementById("filterAssignee");
   const open = escalations.filter(e => STATUS_OPEN.has(e.status));
-  const inScope = filters.dept ? open.filter(e => e.assignedDept === filters.dept) : open;
-  const assigneeCounts = {};
-  let unassignedCount = 0;
-  inScope.forEach(e => {
-    if (e.assignee) assigneeCounts[e.assignee] = (assigneeCounts[e.assignee] || 0) + 1;
-    else unassignedCount++;
+  const inScopeAll  = filters.dept ? escalations.filter(e => e.assignedDept === filters.dept) : escalations;
+  const inScopeOpen = filters.dept ? open.filter(e => e.assignedDept === filters.dept) : open;
+
+  const allAssignees = new Set();
+  inScopeAll.forEach(e => { if (e.assignee) allAssignees.add(e.assignee); });
+
+  const openCounts = {};
+  let unassignedOpenCount = 0;
+  inScopeOpen.forEach(e => {
+    if (e.assignee) openCounts[e.assignee] = (openCounts[e.assignee] || 0) + 1;
+    else unassignedOpenCount++;
   });
-  const names = Object.keys(assigneeCounts).sort();
+
+  const names = [...allAssignees].sort();
   const current = filters.assignee;
   sel.innerHTML = [
-    `<option value="">All assignees${filters.dept ? ` in ${filters.dept}` : ""} (${inScope.length})</option>`,
-    unassignedCount ? `<option value="__unassigned__">(unassigned) (${unassignedCount})</option>` : "",
-    ...names.map(n => `<option value="${escapeHtml(n)}">${escapeHtml(n)} (${assigneeCounts[n]})</option>`)
+    `<option value="">All assignees${filters.dept ? ` with ${filters.dept} work` : ""} (${inScopeOpen.length} open)</option>`,
+    unassignedOpenCount ? `<option value="__unassigned__">(unassigned) (${unassignedOpenCount} open)</option>` : "",
+    ...names.map(n => {
+      const c = openCounts[n] || 0;
+      return `<option value="${escapeHtml(n)}">${escapeHtml(n)} (${c} open)</option>`;
+    })
   ].filter(Boolean).join("");
+
   // If the previously-selected assignee isn't in scope anymore, clear it.
-  if (current && current !== "__unassigned__" && !names.includes(current)) {
+  if (current && current !== "__unassigned__" && !allAssignees.has(current)) {
     filters.assignee = "";
     sel.value = "";
   } else {
