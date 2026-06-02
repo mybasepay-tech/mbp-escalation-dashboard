@@ -362,6 +362,54 @@
   .badge.alert { background: var(--red-bg); color: var(--red); }
   .badge.stale-badge { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
 
+  /* AI summary box (Phase 1 — summarize-on-click) */
+  .btn-ai {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    color: #fff !important;
+    border: none;
+  }
+  .btn-ai:hover { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
+  .btn-ai .spinner {
+    border-color: rgba(255,255,255,0.4);
+    border-top-color: #fff;
+  }
+  .ai-summary {
+    margin: 16px 16px 0;
+    background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
+    border: 1px solid #c7d2fe;
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 13px;
+    line-height: 1.55;
+  }
+  .ai-summary-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .ai-summary-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 700; color: #6366f1;
+  }
+  .ai-summary-actions { display: flex; gap: 4px; }
+  .ai-summary-actions .btn-sm {
+    background: transparent;
+    border: 1px solid #c7d2fe;
+    color: #4f46e5;
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+  .ai-summary-actions .btn-sm:hover { background: rgba(99, 102, 241, 0.08); }
+  .ai-summary-body {
+    color: var(--text);
+    white-space: pre-wrap;
+  }
+  .ai-summary-disclaimer {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #6b7280;
+    font-style: italic;
+  }
+
   /* Stale row styling: subtle left-edge marker so it's visible without
      being noisy when stale items are mixed with non-stale */
   .esc-row.is-stale { box-shadow: inset 4px 0 0 #f59e0b; }
@@ -985,7 +1033,15 @@ const CONFIG = {
     // Redirect URI must match exactly what's registered on the Entra app.
     // location.origin + pathname strips the query/fragment, which is what we want.
     redirectUri: window.location.origin + window.location.pathname,
-    scopes: ["Sites.Read.All", "Sites.ReadWrite.All", "User.Read"]
+    scopes: ["Sites.Read.All", "Sites.ReadWrite.All", "User.Read"],
+    // AI scope is for a different resource (our Azure Function API),
+    // so MSAL hands out a separate access token. Listed in login scopes
+    // below so the user consents to everything in one dialog.
+    aiScopes: ["api://c1b03319-1968-46f9-9922-589376ca272d/access_as_user"]
+  },
+  ai: {
+    // Azure Function URL (the secure-hostname format includes the random suffix)
+    baseUrl: "https://mbp-escalation-ai-fn-b2dsa2axdbdrcedp.eastus2-01.azurewebsites.net"
   },
   graph: {
     // Site lookup path for Teri's OneDrive — Graph format: {host}:/{server-relative-path}:
@@ -1196,7 +1252,7 @@ async function ensureSignedIn() {
     document.getElementById("signinSubtitle").textContent = "Use your myBasePay account to continue.";
     const btn = document.getElementById("signinBtn");
     btn.style.display = "inline-flex";
-    btn.onclick = () => pca.loginRedirect({ scopes: CONFIG.msal.scopes });
+    btn.onclick = () => pca.loginRedirect({ scopes: [...CONFIG.msal.scopes, ...CONFIG.msal.aiScopes] });
     return false;
   }
   return true;
@@ -1270,6 +1326,49 @@ async function graphPost(path, body) {
     throw new Error(`Graph POST ${res.status}: ${txt.slice(0, 400)}`);
   }
   return res.json();
+}
+
+/* ---------- AI broker (Azure Function) ---------- */
+// Per-escalation summary cache so re-clicking Summarize on the same item
+// doesn't re-call OpenAI. Cleared on data refresh so a freshly-posted
+// update can be reflected by clicking Summarize again.
+const _aiSummaryCache = {};
+
+async function getAiToken() {
+  if (!activeAccount) throw new Error("Not signed in");
+  try {
+    const result = await pca.acquireTokenSilent({
+      scopes: CONFIG.msal.aiScopes,
+      account: activeAccount
+    });
+    return result.accessToken;
+  } catch (err) {
+    if (err && (err.name === "InteractionRequiredAuthError" || /interaction_required|login_required|consent_required/i.test(err.message || ""))) {
+      // First-time use: pop up for AI consent. Login already requests this scope,
+      // so this branch should only fire for users who signed in before the AI feature shipped.
+      const result = await pca.acquireTokenPopup({ scopes: CONFIG.msal.aiScopes });
+      return result.accessToken;
+    }
+    throw err;
+  }
+}
+
+async function callAi(operation, data) {
+  const token = await getAiToken();
+  const res = await fetch(`${CONFIG.ai.baseUrl}/api/ai`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ operation, data })
+  });
+  if (!res.ok) {
+    let detail = "";
+    try { detail = (await res.json()).error || ""; } catch {}
+    throw new Error(`AI request failed (${res.status})${detail ? `: ${detail}` : ""}`);
+  }
+  return res.json();  // { text, usage }
 }
 
 /* ---------- list ID resolution ---------- */
@@ -1769,10 +1868,24 @@ function renderDetail() {
         ${e.docNeeded === "Yes" ? `<span class="badge u-medium">Doc needed</span>` : ""}
       </div>
       <div class="detail-actions">
+        <button class="btn btn-ai" data-action="summarize" data-id="${e.id}" title="Generate a short AI summary of this escalation">✨ Summarize</button>
         <a class="btn" target="_blank" rel="noopener" href="${dispFormUrl}">Open in SharePoint ↗</a>
         ${e.teamsPost ? `<a class="btn-secondary btn" target="_blank" rel="noopener" href="${escapeHtml(e.teamsPost)}">Teams thread ↗</a>` : ""}
       </div>
     </div>
+
+    ${_aiSummaryCache[e.id] ? `
+      <div class="ai-summary" data-id="${e.id}">
+        <div class="ai-summary-head">
+          <span class="ai-summary-label">✨ AI summary</span>
+          <div class="ai-summary-actions">
+            <button class="btn-sm" data-action="summarize-regenerate" data-id="${e.id}" title="Regenerate (re-call OpenAI)">↻ Regenerate</button>
+            <button class="btn-sm" data-action="summarize-dismiss" data-id="${e.id}" title="Dismiss">×</button>
+          </div>
+        </div>
+        <div class="ai-summary-body">${escapeHtml(_aiSummaryCache[e.id])}</div>
+        <div class="ai-summary-disclaimer">AI-generated — verify before acting on financial or compliance details.</div>
+      </div>` : ""}
 
     <div class="detail-stats">
       <div>
@@ -2102,6 +2215,44 @@ function wireDetailEditing() {
 
     if (action === "log-followup") {
       openUpdateModal({ kind: "followUp", id });
+      return;
+    }
+
+    if (action === "summarize" || action === "summarize-regenerate") {
+      const force = action === "summarize-regenerate";
+      const esc = escalations.find(x => x.id === id);
+      if (!esc) return;
+      // Re-cached hit: just render (no API call). Force = clear cache then re-call.
+      if (force) delete _aiSummaryCache[id];
+      if (_aiSummaryCache[id] && !force) { renderDetail(); return; }
+      // Disable the trigger button + show spinner inline
+      t.disabled = true;
+      const originalLabel = t.textContent;
+      t.innerHTML = '<span class="spinner"></span>Thinking…';
+      try {
+        const payload = {
+          title: esc.title,
+          commentary: esc.commentary,
+          updates: esc.updates,
+          status: esc.status,
+          assignee: esc.assignee,
+          daysOpen: esc.daysOpen != null ? esc.daysOpen : daysBetween(esc.escalationDate)
+        };
+        const result = await callAi("summarize", payload);
+        _aiSummaryCache[id] = result.text || "(empty response)";
+        renderDetail();
+      } catch (err) {
+        console.error(err);
+        toast("Summary failed: " + err.message, 4000);
+        t.disabled = false;
+        t.textContent = originalLabel;
+      }
+      return;
+    }
+
+    if (action === "summarize-dismiss") {
+      delete _aiSummaryCache[id];
+      renderDetail();
       return;
     }
 
