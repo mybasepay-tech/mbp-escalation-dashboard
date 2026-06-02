@@ -410,6 +410,32 @@
     font-style: italic;
   }
 
+  /* AI Draft button row inside the Post Update modal */
+  .ai-draft-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 8px;
+  }
+  .ai-draft-row .btn-sm.btn-ai {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    color: #fff;
+    border: none;
+    padding: 5px 12px;
+    font-weight: 600;
+  }
+  .ai-draft-row .btn-sm.btn-ai:hover { background: linear-gradient(135deg, #7c3aed, #4f46e5); }
+  .ai-draft-row .btn-sm.btn-ai:disabled { opacity: 0.6; cursor: wait; }
+  .ai-draft-row .btn-sm.btn-ai .spinner {
+    border-color: rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    width: 11px; height: 11px;
+    margin-right: 4px;
+  }
+  .ai-draft-help {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
   /* Stale row styling: subtle left-edge marker so it's visible without
      being noisy when stale items are mixed with non-stale */
   .esc-row.is-stale { box-shadow: inset 4px 0 0 #f59e0b; }
@@ -857,6 +883,10 @@
       <div class="form-row">
         <label>Update <span class="req">*</span></label>
         <textarea id="updateModalText" required placeholder="What changed? What did you do? Required."></textarea>
+        <div class="ai-draft-row" id="updateModalDraftRow" style="display:none">
+          <button type="button" class="btn-sm btn-ai" id="updateModalDraftBtn" title="Type rough notes above, then click to expand into a polished update">✨ Draft with AI</button>
+          <span class="ai-draft-help">Type rough notes, then click Draft to polish.</span>
+        </div>
         <div class="form-help">Stamped with your name and the current timestamp, then added to Status Updates. <strong>This entry cannot be edited or removed later.</strong></div>
       </div>
       <div class="form-error" id="updateModalError" style="display:none"></div>
@@ -1829,6 +1859,8 @@ document.addEventListener("DOMContentLoaded", () => {
     updateSaveBtn.disabled = !updateText.value.trim();
   });
   if (updateSaveBtn) updateSaveBtn.addEventListener("click", saveUpdateAndClose);
+  const draftBtn = document.getElementById("updateModalDraftBtn");
+  if (draftBtn) draftBtn.addEventListener("click", draftUpdateWithAi);
 });
 
 /* ---------- detail ---------- */
@@ -2355,20 +2387,24 @@ function openUpdateModal(ctx) {
   text.value = "";
   saveBtn.disabled = true;
   saveBtn.textContent = "Save";
+  const draftRow = document.getElementById("updateModalDraftRow");
   if (ctx.kind === "statusChange") {
     title.textContent = `Change status to "${ctx.toStatus}"`;
     contextEl.style.display = "block";
     contextEl.innerHTML = `Moving #${ctx.id} from <strong>${escapeHtml(ctx.fromStatus || "—")}</strong> → <strong>${escapeHtml(ctx.toStatus)}</strong>. A status note is required.`;
     saveBtn.textContent = "Save change";
+    draftRow.style.display = "flex";
   } else if (ctx.kind === "followUp") {
     title.textContent = `Log follow-up on #${ctx.id}`;
     contextEl.style.display = "block";
     contextEl.innerHTML = `Recording that <strong>you</strong> reached out about this escalation. The note is optional. This does <strong>not</strong> reset the stale-clock — only a real status update from the assignee does that.`;
     saveBtn.textContent = "Log follow-up";
     text.placeholder = "Optional: how you reached out, what they said, etc.";
+    draftRow.style.display = "none";  // Follow-ups are quick logs; no AI polish needed.
   } else {
     title.textContent = `Post a status update`;
     contextEl.style.display = "none";
+    draftRow.style.display = "flex";
   }
   modal.classList.add("open");
   setTimeout(() => text.focus(), 50);
@@ -2376,6 +2412,58 @@ function openUpdateModal(ctx) {
 function closeUpdateModal() {
   document.getElementById("updateModal").classList.remove("open");
   _pendingUpdate = null;
+}
+
+async function draftUpdateWithAi() {
+  if (!_pendingUpdate) return;
+  const ctx = _pendingUpdate;
+  const textArea = document.getElementById("updateModalText");
+  const btn = document.getElementById("updateModalDraftBtn");
+  const errEl = document.getElementById("updateModalError");
+  const esc = escalations.find(x => x.id === ctx.id);
+  if (!esc) return;
+
+  const rawNotes = textArea.value.trim();
+  // Don't require notes — a status change with no notes is a valid case
+  // (AI writes a generic "moving to X" update). But for postUpdate, encourage them.
+  if (!rawNotes && ctx.kind === "postUpdate") {
+    errEl.textContent = "Type a few rough words first, then click Draft to polish.";
+    errEl.style.display = "block";
+    return;
+  }
+  errEl.style.display = "none";
+
+  // Grab the most recent prior update as tone reference. Find the first
+  // <p> in the StatusUpdates HTML; that's the newest entry (we prepend).
+  let lastUpdate = "";
+  if (esc.updates) {
+    const m = esc.updates.match(/<p[^>]*>[\s\S]*?<\/p>/i);
+    if (m) lastUpdate = m[0];
+  }
+
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Thinking…';
+  try {
+    const result = await callAi("draftUpdate", {
+      title: esc.title,
+      status: esc.status,
+      newStatus: ctx.kind === "statusChange" ? ctx.toStatus : null,
+      assignee: esc.assignee,
+      lastUpdate,
+      rawNotes
+    });
+    textArea.value = result.text || rawNotes;
+    // Re-enable the Save button (the input handler fires only on user input)
+    document.getElementById("updateModalSaveBtn").disabled = !textArea.value.trim();
+  } catch (err) {
+    console.error(err);
+    errEl.textContent = "Draft failed: " + err.message;
+    errEl.style.display = "block";
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 }
 async function saveUpdateAndClose() {
   if (!_pendingUpdate) return;
