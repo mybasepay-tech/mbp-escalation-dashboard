@@ -410,6 +410,93 @@
     font-style: italic;
   }
 
+  /* Phase 4 — Find similar past escalations */
+  .ai-similar {
+    margin: 16px 16px 0;
+    background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
+    border: 1px solid #c7d2fe;
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-size: 13px;
+  }
+  .ai-similar-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .ai-similar-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 700; color: #6366f1;
+  }
+  .ai-similar-actions { display: flex; gap: 4px; }
+  .ai-similar-actions .btn-sm {
+    background: transparent;
+    border: 1px solid #c7d2fe;
+    color: #4f46e5;
+    padding: 2px 8px;
+    font-size: 11px;
+  }
+  .ai-similar-actions .btn-sm:hover { background: rgba(99,102,241,0.08); }
+  .ai-similar-list {
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .ai-similar-item {
+    background: #fff;
+    border: 1px solid #e0e7ff;
+    border-radius: var(--radius-sm);
+    padding: 8px 10px;
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    gap: 8px;
+    align-items: center;
+    transition: background 0.1s, border-color 0.1s;
+  }
+  .ai-similar-item:hover {
+    background: #f5f3ff;
+    border-color: #c7d2fe;
+  }
+  .ai-similar-item-id {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    font-weight: 600;
+    min-width: 50px;
+  }
+  .ai-similar-item-title {
+    font-size: 13px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .ai-similar-item-meta {
+    display: flex; gap: 6px; align-items: center;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .ai-similar-item-score {
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .ai-similar-empty {
+    padding: 14px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 13px;
+  }
+  .ai-similar-empty .btn { margin-top: 8px; }
+  .ai-similar-disclaimer {
+    margin-top: 8px;
+    font-size: 11px;
+    color: #6b7280;
+    font-style: italic;
+  }
+
   /* AI Draft button row inside the Post Update modal */
   .ai-draft-row {
     display: flex; align-items: center; gap: 10px;
@@ -1654,6 +1741,7 @@ async function graphPost(path, body) {
 // doesn't re-call OpenAI. Cleared on data refresh so a freshly-posted
 // update can be reflected by clicking Summarize again.
 const _aiSummaryCache = {};
+const _aiSimilarCache = {};  // id -> { items: [...], indexedAt, totalIndexed, indexEmpty }
 
 async function getAiToken() {
   if (!activeAccount) throw new Error("Not signed in");
@@ -2413,6 +2501,7 @@ function renderDetail() {
       </div>
       <div class="detail-actions">
         <button class="btn btn-ai" data-action="summarize" data-id="${e.id}" title="Generate a short AI summary of this escalation">✨ Summarize</button>
+        <button class="btn btn-ai" data-action="find-similar" data-id="${e.id}" title="Find past escalations similar to this one — useful for 'what did we do last time?'">✨ Find similar</button>
         <a class="btn" target="_blank" rel="noopener" href="${dispFormUrl}">Open in SharePoint ↗</a>
         ${e.teamsPost ? `<a class="btn-secondary btn" target="_blank" rel="noopener" href="${escapeHtml(e.teamsPost)}">Teams thread ↗</a>` : ""}
       </div>
@@ -2430,6 +2519,8 @@ function renderDetail() {
         <div class="ai-summary-body">${escapeHtml(_aiSummaryCache[e.id])}</div>
         <div class="ai-summary-disclaimer">AI-generated — verify before acting on financial or compliance details.</div>
       </div>` : ""}
+
+    ${_aiSimilarCache[e.id] ? renderSimilarPanel(e.id, _aiSimilarCache[e.id]) : ""}
 
     <div class="detail-stats">
       <div>
@@ -2597,6 +2688,66 @@ function populateFilterOptions() {
 }
 
 // Renders the dept chip row. Active chip reflects filters.dept.
+// Render the "Find similar" results callout in the detail panel.
+// `data` shape: { items: [...], indexedAt, totalIndexed } OR { items: [], note: "..." }
+function renderSimilarPanel(escId, data) {
+  if (!data) return "";
+  const indexEmpty = data.note && data.note.includes("Index is empty");
+  if (indexEmpty) {
+    return `
+      <div class="ai-similar" data-id="${escId}">
+        <div class="ai-similar-head">
+          <span class="ai-similar-label">✨ Similar past escalations</span>
+          <div class="ai-similar-actions">
+            <button class="btn-sm" data-action="similar-dismiss" data-id="${escId}" title="Dismiss">×</button>
+          </div>
+        </div>
+        <div class="ai-similar-empty">
+          The similarity index hasn't been built yet.
+          <br><button class="btn btn-ai" data-action="similar-build-index">Build it now (~30s)</button>
+        </div>
+      </div>`;
+  }
+  if (!data.items || !data.items.length) {
+    return `
+      <div class="ai-similar" data-id="${escId}">
+        <div class="ai-similar-head">
+          <span class="ai-similar-label">✨ Similar past escalations</span>
+          <div class="ai-similar-actions">
+            <button class="btn-sm" data-action="similar-dismiss" data-id="${escId}" title="Dismiss">×</button>
+          </div>
+        </div>
+        <div class="ai-similar-empty">No similar escalations found.</div>
+      </div>`;
+  }
+  return `
+    <div class="ai-similar" data-id="${escId}">
+      <div class="ai-similar-head">
+        <span class="ai-similar-label">✨ Similar past escalations</span>
+        <div class="ai-similar-actions">
+          <button class="btn-sm" data-action="similar-dismiss" data-id="${escId}" title="Dismiss">×</button>
+        </div>
+      </div>
+      <div class="ai-similar-list">
+        ${data.items.map(it => `
+          <div class="ai-similar-item" data-action="similar-open" data-id="${escapeHtml(String(it.id))}">
+            <div class="ai-similar-item-id">#${escapeHtml(String(it.id))}</div>
+            <div>
+              <div class="ai-similar-item-title">${escapeHtml(it.title || "(no title)")}</div>
+              <div class="ai-similar-item-meta">
+                <span class="badge ${badgeClassStatus(it.status)}">${escapeHtml(it.status || "—")}</span>
+                ${it.assignee ? `<span>${escapeHtml(it.assignee)}</span>` : ""}
+                ${it.resolvedDate ? `<span>resolved ${fmtDate(it.resolvedDate)}</span>` : ""}
+              </div>
+            </div>
+            <span class="ai-similar-item-score" title="${Math.round(it.score * 100)}% similarity">${Math.round(it.score * 100)}%</span>
+          </div>
+        `).join("")}
+      </div>
+      <div class="ai-similar-disclaimer">${data.totalIndexed} escalations indexed${data.indexedAt ? ` · last built ${fmtDate(data.indexedAt)}` : ""}. Click any item to open it.</div>
+    </div>`;
+}
+
 function renderDeptChips() {
   const open = escalations.filter(e => STATUS_OPEN.has(e.status));
   const counts = {};
@@ -2874,6 +3025,84 @@ function wireDetailEditing() {
     if (action === "summarize-dismiss") {
       delete _aiSummaryCache[id];
       renderDetail();
+      return;
+    }
+
+    if (action === "find-similar") {
+      const esc = escalations.find(x => x.id === id);
+      if (!esc) return;
+      t.disabled = true;
+      const originalLabel = t.textContent;
+      t.innerHTML = '<span class="spinner"></span>Searching…';
+      try {
+        const result = await callAi("findSimilar", {
+          id: esc.id,
+          title: esc.title,
+          commentary: esc.commentary
+        });
+        _aiSimilarCache[id] = result;
+        renderDetail();
+      } catch (err) {
+        console.error(err);
+        toast("Find similar failed: " + err.message, 4000);
+        t.disabled = false;
+        t.textContent = originalLabel;
+      }
+      return;
+    }
+
+    if (action === "similar-dismiss") {
+      delete _aiSimilarCache[id];
+      renderDetail();
+      return;
+    }
+
+    if (action === "similar-open") {
+      const target = Number(t.dataset.id);
+      if (Number.isInteger(target)) {
+        selectedId = target;
+        renderList();
+        renderDetail();
+        // Scroll the detail drawer back to top so the user sees the new item
+        document.getElementById("detailCard")?.scrollTo({ top: 0 });
+      }
+      return;
+    }
+
+    if (action === "similar-build-index") {
+      t.disabled = true;
+      const originalLabel = t.innerHTML;
+      t.innerHTML = '<span class="spinner"></span>Building index…';
+      try {
+        // Send all escalations (stripped down — no embeddings yet) to the function.
+        // ~280 records × a couple of KB each = well under request-size limits.
+        const items = escalations.map(e => ({
+          id: e.id,
+          title: e.title,
+          commentary: e.commentary,
+          status: e.status,
+          assignee: e.assignee,
+          resolvedDate: e.resolvedDate
+        }));
+        const result = await callAi("rebuildIndex", { items });
+        toast(`Index built: ${result.count} escalations`, 4000);
+        // Now re-run Find Similar so the user sees results
+        const currentEsc = escalations.find(x => x.id === selectedId);
+        if (currentEsc) {
+          const similar = await callAi("findSimilar", {
+            id: currentEsc.id,
+            title: currentEsc.title,
+            commentary: currentEsc.commentary
+          });
+          _aiSimilarCache[selectedId] = similar;
+        }
+        renderDetail();
+      } catch (err) {
+        console.error(err);
+        toast("Index build failed: " + err.message, 4000);
+        t.disabled = false;
+        t.innerHTML = originalLabel;
+      }
       return;
     }
 
@@ -3279,6 +3508,23 @@ async function submitNew() {
       selectedId = newId;
       renderList();
       renderDetail();
+    }
+    // Fire-and-forget: add the new escalation to the similarity index.
+    // If this fails (e.g. index not built yet), it's not a hard error —
+    // the next rebuildIndex run will pick it up. We deliberately don't
+    // block the user on it.
+    if (newId) {
+      const fresh = escalations.find(x => x.id === newId);
+      if (fresh) {
+        callAi("indexEscalation", {
+          id: fresh.id,
+          title: fresh.title,
+          commentary: fresh.commentary,
+          status: fresh.status,
+          assignee: fresh.assignee,
+          resolvedDate: fresh.resolvedDate
+        }).catch(err => console.warn("Auto-index failed (non-fatal):", err.message));
+      }
     }
   } catch (err) {
     console.error(err);
