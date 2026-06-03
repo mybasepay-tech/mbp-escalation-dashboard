@@ -1247,7 +1247,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "" };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "" };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -1558,7 +1558,8 @@ async function triggerAiFilter(query) {
       urgencies: ["Critical", "High", "Medium", "Low"],
       depts: [...new Set(escalations.map(e => e.assignedDept).filter(Boolean))].sort(),
       issueTypes: [...new Set(escalations.map(e => e.issueType).filter(Boolean))].sort(),
-      assignees: [...new Set(escalations.map(e => e.assignee).filter(Boolean))].sort()
+      assignees: [...new Set(escalations.map(e => e.assignee).filter(Boolean))].sort(),
+      submitters: [...new Set(escalations.map(e => e.submitter).filter(s => s && s !== "—"))].sort()
     };
     const result = await callAi("parseFilter", { query, validOptions });
     let parsed;
@@ -1582,7 +1583,7 @@ function applyParsedFilters(parsed) {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
-  filters.stale = false; filters.assignee = "";
+  filters.stale = false; filters.assignee = ""; filters.submitter = "";
 
   const applied = []; // human-readable chips for the banner
 
@@ -1613,6 +1614,11 @@ function applyParsedFilters(parsed) {
   } else if (parsed.assignee && validAssignees.has(parsed.assignee)) {
     filters.assignee = parsed.assignee;
     applied.push({ label: "Assignee", value: parsed.assignee });
+  }
+  const validSubmitters = new Set(escalations.map(e => e.submitter).filter(s => s && s !== "—"));
+  if (parsed.submitter && validSubmitters.has(parsed.submitter)) {
+    filters.submitter = parsed.submitter;
+    applied.push({ label: "Submitted by", value: parsed.submitter });
   }
   if (parsed.overdue === true) {
     filters.overdue = true;
@@ -1659,7 +1665,7 @@ function clearAiFilter() {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
-  filters.stale = false; filters.assignee = "";
+  filters.stale = false; filters.assignee = ""; filters.submitter = "";
   document.getElementById("searchInput").value = "";
   document.getElementById("filterStatus").value = "";
   document.getElementById("filterUrgency").value = "";
@@ -1979,6 +1985,7 @@ function applyFilters() {
         return false;
       }
     }
+    if (filters.submitter && e.submitter !== filters.submitter) return false;
     if (q) {
       const hay = `${e.id} ${e.title} ${e.customer||""} ${e.member||""} ${e.worker||""} ${e.assignee||""} ${e.submitter||""} ${e.assignedDept}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -1996,7 +2003,7 @@ function applyKpiPreset(preset) {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
-  filters.stale = false; filters.assignee = "";
+  filters.stale = false; filters.assignee = ""; filters.submitter = "";
 
   if (preset === "open")        filters.status = "open";
   else if (preset === "unassigned") filters.status = "unassigned";
@@ -2029,7 +2036,7 @@ function renderList() {
       filters.search = ""; filters.status = ""; filters.urgency = "";
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
       filters.resolvedWithin = null; filters.hasFinancial = false;
-      filters.stale = false; filters.assignee = "";
+      filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.submitter = "";
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
       document.getElementById("filterUrgency").value = "";
