@@ -479,41 +479,133 @@
     cursor: help;
   }
 
-  /* Phase 5 — Natural-language filter */
-  .search-with-ai {
-    position: relative;
-    display: flex;
-    align-items: center;
-    min-width: 320px;
-  }
-  .search-with-ai input[type="search"] {
-    flex: 1;
-    padding-right: 140px;   /* room for the inline "✨ Smart Search" button */
-  }
-  .btn-ai-inline {
-    position: absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
+  /* Phase 5 — Natural-language filter (floating button + popup) */
+  .ai-fab {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 90;
     background: linear-gradient(135deg, #8b5cf6, #6366f1);
     color: #fff;
     border: none;
-    border-radius: var(--radius-sm);
-    padding: 4px 10px;
-    font-size: 11px;
-    font-weight: 600;
+    border-radius: 999px;
+    padding: 14px 22px;
+    font-weight: 700;
+    font-size: 14px;
+    box-shadow: 0 8px 22px rgba(99, 102, 241, 0.45), 0 2px 6px rgba(0,0,0,0.12);
     cursor: pointer;
-    height: 26px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
   }
-  .btn-ai-inline:hover:not(:disabled) {
+  .ai-fab:hover {
     background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    transform: translateY(-1px);
+    box-shadow: 0 12px 28px rgba(99, 102, 241, 0.5), 0 4px 8px rgba(0,0,0,0.15);
   }
-  .btn-ai-inline:disabled { opacity: 0.7; cursor: wait; }
-  .btn-ai-inline .spinner {
+  .ai-fab:active { transform: translateY(0); }
+  .ai-fab.busy { opacity: 0.8; cursor: wait; }
+  .ai-fab .ai-fab-icon { font-size: 18px; line-height: 1; }
+  .ai-fab .ai-fab-label { letter-spacing: 0.2px; }
+  .ai-fab .spinner {
     border-color: rgba(255,255,255,0.4);
     border-top-color: #fff;
-    width: 11px; height: 11px;
-    margin-right: 0;
+    width: 14px; height: 14px;
+    margin: 0;
+  }
+
+  .ai-fab-popup {
+    position: fixed;
+    bottom: 88px;     /* sits just above the FAB */
+    right: 24px;
+    z-index: 95;
+    width: 380px;
+    max-width: calc(100vw - 32px);
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.22), 0 4px 12px rgba(0,0,0,0.08);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    animation: fabPopIn 0.18s ease-out;
+  }
+  .ai-fab-popup.open { display: flex; }
+  @keyframes fabPopIn {
+    from { transform: translateY(10px) scale(0.97); opacity: 0; }
+    to   { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  .ai-fab-popup-head {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
+  }
+  .ai-fab-popup-title {
+    font-weight: 700; font-size: 14px;
+    color: #6366f1;
+  }
+  .ai-fab-popup-close {
+    background: transparent; border: none; cursor: pointer;
+    font-size: 22px; line-height: 1; color: var(--text-muted);
+    padding: 0 4px;
+  }
+  .ai-fab-popup-close:hover { color: var(--text); }
+  .ai-fab-popup-body { padding: 14px 16px 12px; }
+  .ai-fab-popup-help {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin: 0 0 10px;
+  }
+  .ai-fab-popup-input {
+    width: 100%;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    resize: vertical;
+    outline: none;
+    min-height: 56px;
+  }
+  .ai-fab-popup-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); }
+  .ai-fab-popup-examples {
+    display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
+    margin-top: 10px;
+  }
+  .ai-fab-popup-examples-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-right: 4px;
+    font-weight: 600;
+  }
+  .ai-fab-popup-example {
+    background: var(--gray-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    line-height: 1.5;
+  }
+  .ai-fab-popup-example:hover {
+    background: #ede9fe;
+    border-color: #c7d2fe;
+    color: #4f46e5;
+  }
+  .ai-fab-popup-foot {
+    display: flex; justify-content: flex-end; gap: 8px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+  .ai-fab-popup-foot .btn { padding: 7px 14px; font-size: 13px; }
+  .ai-fab-popup-foot .btn-secondary { padding: 7px 14px; font-size: 13px; }
+  @media (max-width: 540px) {
+    .ai-fab .ai-fab-label { display: none; }   /* icon-only on small screens */
+    .ai-fab { padding: 14px; border-radius: 50%; width: 56px; height: 56px; justify-content: center; }
   }
   .ai-filter-applied {
     display: flex;
@@ -936,10 +1028,7 @@
   </section>
 
   <div class="toolbar">
-    <div class="search-with-ai">
-      <input type="search" id="searchInput" placeholder="Search by title, ID, customer, member, assignee…">
-      <button type="button" class="btn-ai-inline" id="askAiBtn" title="Type in plain English — e.g. 'overdue Billing items assigned to Susan' — then click Smart Search">✨ Smart Search</button>
-    </div>
+    <input type="search" id="searchInput" placeholder="Search by title, ID, customer, member, assignee…">
     <select id="filterStatus">
       <option value="">All statuses</option>
       <option value="open">All Active (not Complete)</option>
@@ -1185,6 +1274,33 @@
     <div class="modal-foot">
       <button class="btn-secondary" data-close>Cancel</button>
       <button class="btn" id="submitNew">Submit Escalation</button>
+    </div>
+  </div>
+</div>
+
+<!-- Floating Smart Search button + popup -->
+<button type="button" class="ai-fab" id="aiFabBtn" title="Smart Search — ask in plain English" aria-label="Open Smart Search">
+  <span class="ai-fab-icon">✨</span>
+  <span class="ai-fab-label">Smart Search</span>
+</button>
+<div class="ai-fab-popup" id="aiFabPopup" role="dialog" aria-labelledby="aiFabPopupTitle" aria-hidden="true">
+  <div class="ai-fab-popup-head">
+    <span class="ai-fab-popup-title" id="aiFabPopupTitle">✨ Smart Search</span>
+    <button type="button" class="ai-fab-popup-close" id="aiFabPopupClose" aria-label="Close">&times;</button>
+  </div>
+  <div class="ai-fab-popup-body">
+    <p class="ai-fab-popup-help">Describe what you're looking for in plain English. Pulls from status, urgency, department, assignees, submitters, sort &amp; limit.</p>
+    <textarea class="ai-fab-popup-input" id="aiFabInput" rows="2" placeholder="e.g. show me the escalation with the most days open"></textarea>
+    <div class="ai-fab-popup-examples">
+      <span class="ai-fab-popup-examples-label">Try:</span>
+      <button type="button" class="ai-fab-popup-example" data-q="show me stale escalations in Billing">stale in Billing</button>
+      <button type="button" class="ai-fab-popup-example" data-q="top 5 oldest open escalations">top 5 oldest</button>
+      <button type="button" class="ai-fab-popup-example" data-q="biggest financial impact">biggest $ impact</button>
+      <button type="button" class="ai-fab-popup-example" data-q="critical urgency past expected date">critical &amp; overdue</button>
+    </div>
+    <div class="ai-fab-popup-foot">
+      <button type="button" class="btn-secondary" id="aiFabCancel">Cancel</button>
+      <button type="button" class="btn" id="aiFabSubmit">Search</button>
     </div>
   </div>
 </div>
@@ -1580,13 +1696,11 @@ async function callAi(operation, data) {
 }
 
 /* ---------- Phase 5: Natural-language filter ---------- */
+// Loading-state UI is managed by the caller (FAB's submitFab) — this function
+// just does the AI call + filter application.
 async function triggerAiFilter(query) {
   query = (query || "").trim();
   if (!query) return;
-  const btn = document.getElementById("askAiBtn");
-  const originalLabel = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>';
   try {
     const validOptions = {
       statuses: ["Not yet assigned", "Assigned", "In Process", "Pending Member", "Pending Research", "Pending Customer", "Complete"],
@@ -1607,9 +1721,6 @@ async function triggerAiFilter(query) {
   } catch (err) {
     console.error(err);
     toast("Smart Search failed: " + err.message, 4000);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalLabel;
   }
 }
 
@@ -2521,17 +2632,67 @@ function wireUI() {
   // filters (resolvedWithin, hasFinancial) so the dropdown choice means what it says.
   const clearHiddenPreset = () => { filters.resolvedWithin = null; filters.hasFinancial = false; };
   document.getElementById("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
-  // Phase 5: pressing Enter in search triggers AI parse instead of literal substring.
-  document.getElementById("searchInput").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
+  document.getElementById("aiFilterAppliedClear").addEventListener("click", clearAiFilter);
+  // Phase 5: Smart Search lives in a floating button + popup (bottom-right).
+  // The search input above is plain substring search; AI queries go through the FAB.
+  const fabBtn = document.getElementById("aiFabBtn");
+  const fabPopup = document.getElementById("aiFabPopup");
+  const fabInput = document.getElementById("aiFabInput");
+  const fabSubmit = document.getElementById("aiFabSubmit");
+  const openFab = () => {
+    fabPopup.classList.add("open");
+    fabPopup.setAttribute("aria-hidden", "false");
+    setTimeout(() => fabInput.focus(), 50);
+  };
+  const closeFab = () => {
+    fabPopup.classList.remove("open");
+    fabPopup.setAttribute("aria-hidden", "true");
+  };
+  fabBtn.addEventListener("click", () => {
+    if (fabPopup.classList.contains("open")) closeFab();
+    else openFab();
+  });
+  document.getElementById("aiFabPopupClose").addEventListener("click", closeFab);
+  document.getElementById("aiFabCancel").addEventListener("click", closeFab);
+  // Submit on click OR Enter (Shift+Enter for newline inside the textarea)
+  const submitFab = async () => {
+    const q = fabInput.value.trim();
+    if (!q) return;
+    fabBtn.classList.add("busy");
+    const origLabel = fabBtn.innerHTML;
+    fabBtn.innerHTML = '<span class="spinner"></span><span class="ai-fab-label">Thinking…</span>';
+    fabSubmit.disabled = true;
+    try {
+      await triggerAiFilter(q);
+      closeFab();
+    } finally {
+      fabBtn.classList.remove("busy");
+      fabBtn.innerHTML = origLabel;
+      fabSubmit.disabled = false;
+    }
+  };
+  fabSubmit.addEventListener("click", submitFab);
+  fabInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      triggerAiFilter(e.target.value);
+      submitFab();
+    } else if (e.key === "Escape") {
+      closeFab();
     }
   });
-  document.getElementById("askAiBtn").addEventListener("click", () => {
-    triggerAiFilter(document.getElementById("searchInput").value);
+  // Quick-fill example chips
+  document.querySelectorAll(".ai-fab-popup-example").forEach(el => {
+    el.addEventListener("click", () => {
+      fabInput.value = el.dataset.q;
+      fabInput.focus();
+    });
   });
-  document.getElementById("aiFilterAppliedClear").addEventListener("click", clearAiFilter);
+  // Click outside the popup closes it
+  document.addEventListener("click", (e) => {
+    if (!fabPopup.classList.contains("open")) return;
+    if (fabPopup.contains(e.target) || fabBtn.contains(e.target)) return;
+    closeFab();
+  });
   document.getElementById("filterStatus").addEventListener("change", (e) => { filters.status = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterUrgency").addEventListener("change", (e) => { filters.urgency = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterDept").addEventListener("change", (e) => {
