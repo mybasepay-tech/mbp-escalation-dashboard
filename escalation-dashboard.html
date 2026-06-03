@@ -1363,7 +1363,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "" };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -1702,13 +1702,20 @@ async function triggerAiFilter(query) {
   query = (query || "").trim();
   if (!query) return;
   try {
+    // Follow-up authors = distinct names from .esc-followup markers across all
+    // escalations. Empty list is fine — the prompt handles that case.
+    const followUpAuthors = [...new Set(
+      escalations.flatMap(e => parseFollowUpMarkers(e.updates).map(f => f.by))
+                 .filter(Boolean)
+    )].sort();
     const validOptions = {
       statuses: ["Not yet assigned", "Assigned", "In Process", "Pending Member", "Pending Research", "Pending Customer", "Complete"],
       urgencies: ["Critical", "High", "Medium", "Low"],
       depts: [...new Set(escalations.map(e => e.assignedDept).filter(Boolean))].sort(),
       issueTypes: [...new Set(escalations.map(e => e.issueType).filter(Boolean))].sort(),
       assignees: [...new Set(escalations.map(e => e.assignee).filter(Boolean))].sort(),
-      submitters: [...new Set(escalations.map(e => e.submitter).filter(s => s && s !== "—"))].sort()
+      submitters: [...new Set(escalations.map(e => e.submitter).filter(s => s && s !== "—"))].sort(),
+      followUpAuthors
     };
     const result = await callAi("parseFilter", { query, validOptions });
     let parsed;
@@ -1729,7 +1736,7 @@ function applyParsedFilters(parsed) {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
-  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null;
+  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
 
   const applied = []; // human-readable chips for the banner
 
@@ -1765,6 +1772,22 @@ function applyParsedFilters(parsed) {
   if (parsed.submitter && validSubmitters.has(parsed.submitter)) {
     filters.submitter = parsed.submitter;
     applied.push({ label: "Submitted by", value: parsed.submitter });
+  }
+  if (parsed.hasFollowUp === true) {
+    filters.hasFollowUp = true;
+    applied.push({ label: "", value: "Has follow-up" });
+  } else if (parsed.hasFollowUp === false) {
+    filters.hasFollowUp = false;
+    applied.push({ label: "", value: "No follow-up" });
+  }
+  // Build the valid follow-up authors set on demand (parsing every escalation
+  // is cheap with only a few hundred items; can cache if it ever gets slow).
+  const validFollowUpAuthors = new Set(
+    escalations.flatMap(e => parseFollowUpMarkers(e.updates).map(f => f.by)).filter(Boolean)
+  );
+  if (parsed.followUpBy && validFollowUpAuthors.has(parsed.followUpBy)) {
+    filters.followUpBy = parsed.followUpBy;
+    applied.push({ label: "Followed up by", value: parsed.followUpBy });
   }
   // Sort + limit (Smart Search can ask for "most days open", "top 5", etc.)
   if (parsed.sort && parsed.sort.field && SORTABLE_FIELDS.has(parsed.sort.field)) {
@@ -1822,7 +1845,7 @@ function clearAiFilter() {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
-  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null;
+  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
   document.getElementById("searchInput").value = "";
   document.getElementById("filterStatus").value = "";
   document.getElementById("filterUrgency").value = "";
@@ -2145,6 +2168,15 @@ function applyFilters() {
       }
     }
     if (filters.submitter && e.submitter !== filters.submitter) return false;
+    if (filters.hasFollowUp !== null) {
+      const hasAny = parseFollowUpMarkers(e.updates).length > 0;
+      if (filters.hasFollowUp === true && !hasAny) return false;
+      if (filters.hasFollowUp === false && hasAny) return false;
+    }
+    if (filters.followUpBy) {
+      const followUps = parseFollowUpMarkers(e.updates);
+      if (!followUps.some(f => f.by === filters.followUpBy)) return false;
+    }
     if (q) {
       const hay = `${e.id} ${e.title} ${e.customer||""} ${e.member||""} ${e.worker||""} ${e.assignee||""} ${e.submitter||""} ${e.assignedDept}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -2201,7 +2233,7 @@ function applyKpiPreset(preset) {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
-  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null;
+  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
 
   if (preset === "open")        filters.status = "open";
   else if (preset === "unassigned") filters.status = "unassigned";
@@ -2240,7 +2272,7 @@ function renderList() {
       filters.search = ""; filters.status = ""; filters.urgency = "";
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
       filters.resolvedWithin = null; filters.hasFinancial = false;
-      filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null;
+      filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
       document.getElementById("filterUrgency").value = "";
