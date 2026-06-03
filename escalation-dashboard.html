@@ -563,6 +563,36 @@
     color: var(--text);
   }
 
+  /* Header action row — sits above the KPI cards, right-aligned */
+  .page-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 14px;
+  }
+  .btn-emerald {
+    background: var(--emerald);
+    color: #fff;
+    border: none;
+    font-weight: 700;
+    padding: 9px 16px;
+    box-shadow: 0 2px 6px rgba(0, 102, 51, 0.18);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-emerald:hover {
+    background: var(--emerald-dark);
+    box-shadow: 0 4px 10px rgba(0, 102, 51, 0.28);
+  }
+  .btn-emerald:disabled { opacity: 0.7; cursor: wait; }
+  .btn-emerald .spinner {
+    border-color: rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    width: 14px; height: 14px;
+    margin: 0;
+  }
+  .page-actions-icon { font-size: 16px; line-height: 1; }
+
   /* AI Draft button row inside the Post Update modal */
   .ai-draft-row {
     display: flex; align-items: center; gap: 10px;
@@ -1164,6 +1194,12 @@
 <main>
   <div class="banner" id="banner"></div>
 
+  <div class="page-actions">
+    <button class="btn btn-emerald" id="sendDigestBtn" title="Generate an AI-written weekly digest and send it to the Escalations Teams channel">
+      <span class="page-actions-icon">📊</span> Send Weekly Digest
+    </button>
+  </div>
+
   <section class="kpi-row" id="kpiRow"></section>
 
   <section class="filter-bar" id="filterBar">
@@ -1210,7 +1246,6 @@
     <div class="spacer"></div>
     <button class="btn-ghost" id="refreshBtn" title="Refetch from SharePoint">↻ Refresh</button>
     <button class="btn-ghost" id="exportBtn" title="Export current view to CSV">Export CSV</button>
-    <button class="btn-ghost" id="sendDigestBtn" title="Send weekly digest to the Escalations Teams channel">📊 Send Digest</button>
     <a class="btn-secondary btn" id="openListBtn" href="#" target="_blank" rel="noopener">Open List ↗</a>
     <button class="btn" id="newEscBtn">+ New Escalation</button>
   </div>
