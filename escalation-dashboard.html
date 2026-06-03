@@ -436,6 +436,49 @@
     font-style: italic;
   }
 
+  /* Phase 3 — AI categorization on the New Escalation form */
+  .ai-classify-row {
+    display: flex; align-items: center; gap: 10px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+  }
+  .ai-classify-row .btn-sm.btn-ai {
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    color: #fff; border: none;
+    padding: 6px 14px; font-weight: 600;
+  }
+  .ai-classify-row .btn-sm.btn-ai:hover:not(:disabled) {
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  }
+  .ai-classify-row .btn-sm.btn-ai:disabled {
+    background: var(--gray-bg);
+    color: var(--text-faint);
+    cursor: not-allowed;
+  }
+  .ai-classify-row .btn-sm.btn-ai .spinner {
+    border-color: rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    width: 11px; height: 11px;
+    margin-right: 4px;
+  }
+  .ai-classify-help { font-size: 11px; color: var(--text-muted); font-style: italic; }
+  .ai-classify-rationale {
+    margin-top: 8px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
+    border-left: 3px solid #8b5cf6;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: 12px;
+    color: #5b21b6;
+  }
+  .ai-suggested-badge {
+    display: inline-block;
+    margin-left: 5px;
+    font-size: 11px;
+    vertical-align: baseline;
+    cursor: help;
+  }
+
   /* Stale row styling: subtle left-edge marker so it's visible without
      being noisy when stale items are mixed with non-stale */
   .esc-row.is-stale { box-shadow: inset 4px 0 0 #f59e0b; }
@@ -925,6 +968,11 @@
         <div class="form-row">
           <label>Escalation Commentary <span class="req">*</span></label>
           <textarea name="commentary" required placeholder="What happened? Who is involved? Steps already taken? Impact?"></textarea>
+          <div class="ai-classify-row">
+            <button type="button" class="btn-sm btn-ai" id="newEscClassifyBtn" disabled title="Fill in title and commentary first">✨ Suggest Urgency + Issue Type + Category</button>
+            <span class="ai-classify-help">Reads your title + commentary; you can change anything afterwards.</span>
+          </div>
+          <div class="ai-classify-rationale" id="newEscClassifyRationale" style="display:none"></div>
           <div class="form-help">Plain text or basic formatting. Saved to the Escalation Commentary field.</div>
         </div>
         <div class="form-row-2">
@@ -2181,6 +2229,21 @@ function wireUI() {
   document.getElementById("openListBtn").href = CONFIG.trackerWebUrl;
   document.getElementById("newEscBtn").addEventListener("click", openNewModal);
   document.getElementById("submitNew").addEventListener("click", submitNew);
+  // Phase 3: enable the AI-classify button when both title + commentary are filled.
+  const classifyBtn = document.getElementById("newEscClassifyBtn");
+  if (classifyBtn) {
+    const newForm = document.getElementById("newForm");
+    const titleIn = newForm.querySelector("[name='title']");
+    const commentaryIn = newForm.querySelector("[name='commentary']");
+    const updateClassifyEnabled = () => {
+      const ok = titleIn?.value?.trim() && commentaryIn?.value?.trim();
+      classifyBtn.disabled = !ok;
+      classifyBtn.title = ok ? "" : "Fill in title and commentary first";
+    };
+    titleIn?.addEventListener("input", updateClassifyEnabled);
+    commentaryIn?.addEventListener("input", updateClassifyEnabled);
+    classifyBtn.addEventListener("click", suggestCategorization);
+  }
   document.getElementById("signOutBtn").addEventListener("click", signOut);
   document.getElementById("newAssignedDept").addEventListener("change", (e) => {
     const info = document.getElementById("deptLeadInfo");
@@ -2526,7 +2589,92 @@ function openNewModal() {
   document.getElementById("newForm").reset();
   document.getElementById("newFormError").classList.remove("show");
   document.getElementById("deptLeadInfo").style.display = "none";
+  // Reset AI-classify state (rationale, badges, button disabled)
+  document.getElementById("newEscClassifyRationale").style.display = "none";
+  document.querySelectorAll("#newForm .ai-suggested-badge").forEach(b => b.remove());
+  const classifyBtn = document.getElementById("newEscClassifyBtn");
+  if (classifyBtn) { classifyBtn.disabled = true; classifyBtn.title = "Fill in title and commentary first"; }
   document.getElementById("newModal").classList.add("open");
+}
+
+async function suggestCategorization() {
+  const btn = document.getElementById("newEscClassifyBtn");
+  const form = document.getElementById("newForm");
+  const titleEl = form.querySelector("[name='title']");
+  const commentaryEl = form.querySelector("[name='commentary']");
+  const rationaleEl = document.getElementById("newEscClassifyRationale");
+  const errBox = document.getElementById("newFormError");
+  errBox.classList.remove("show");
+  rationaleEl.style.display = "none";
+
+  const title = titleEl?.value?.trim();
+  const commentary = commentaryEl?.value?.trim();
+  if (!title || !commentary) return;
+
+  // Pull valid choices from the dropdown options themselves — keeps the AI's
+  // pickable values aligned with the form even if SP enum values change.
+  const optionsOf = (name) => Array.from(form.querySelectorAll(`[name='${name}'] option`))
+    .map(o => o.value).filter(v => v && v !== "");
+
+  const originalLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Thinking…';
+  try {
+    const result = await callAi("classifyIntake", {
+      title,
+      commentary,
+      validUrgency: optionsOf("urgency"),
+      validIssueType: optionsOf("issueType"),
+      validIssueCategory: optionsOf("issueCategory")
+    });
+    let parsed;
+    try {
+      parsed = JSON.parse(result.text);
+    } catch {
+      throw new Error("AI returned malformed JSON.");
+    }
+    applyClassifySuggestion("urgency", parsed.urgency);
+    applyClassifySuggestion("issueType", parsed.issueType);
+    applyClassifySuggestion("issueCategory", parsed.issueCategory);
+    if (parsed.rationale) {
+      rationaleEl.innerHTML = `✨ <em>${escapeHtml(parsed.rationale)}</em>`;
+      rationaleEl.style.display = "block";
+    }
+  } catch (err) {
+    console.error(err);
+    errBox.textContent = "Suggestion failed: " + err.message;
+    errBox.classList.add("show");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
+  }
+}
+
+function applyClassifySuggestion(fieldName, value) {
+  const form = document.getElementById("newForm");
+  const sel = form.querySelector(`[name='${fieldName}']`);
+  if (!sel || !value) return;
+  const valid = Array.from(sel.options).map(o => o.value);
+  if (!valid.includes(value)) {
+    console.warn(`AI suggested invalid ${fieldName}: "${value}" (not in: ${valid.join(", ")})`);
+    return;
+  }
+  sel.value = value;
+  // Add ✨ badge next to the label so the user knows this was AI-set.
+  const label = sel.closest(".form-row")?.querySelector("label");
+  if (label && !label.querySelector(".ai-suggested-badge")) {
+    const badge = document.createElement("span");
+    badge.className = "ai-suggested-badge";
+    badge.textContent = "✨";
+    badge.title = "AI-suggested — change if needed";
+    label.appendChild(badge);
+  }
+  // Clear the badge the first time the user manually changes this field.
+  const onChange = () => {
+    label?.querySelector(".ai-suggested-badge")?.remove();
+    sel.removeEventListener("change", onChange);
+  };
+  sel.addEventListener("change", onChange);
 }
 
 async function submitNew() {
