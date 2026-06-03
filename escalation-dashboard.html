@@ -1247,7 +1247,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "" };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -1618,7 +1618,7 @@ function applyParsedFilters(parsed) {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
-  filters.stale = false; filters.assignee = ""; filters.submitter = "";
+  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null;
 
   const applied = []; // human-readable chips for the banner
 
@@ -1654,6 +1654,17 @@ function applyParsedFilters(parsed) {
   if (parsed.submitter && validSubmitters.has(parsed.submitter)) {
     filters.submitter = parsed.submitter;
     applied.push({ label: "Submitted by", value: parsed.submitter });
+  }
+  // Sort + limit (Smart Search can ask for "most days open", "top 5", etc.)
+  if (parsed.sort && parsed.sort.field && SORTABLE_FIELDS.has(parsed.sort.field)) {
+    const direction = parsed.sort.direction === "asc" ? "asc" : "desc";
+    filters.sort = { field: parsed.sort.field, direction };
+    const arrow = direction === "asc" ? "↑" : "↓";
+    applied.push({ label: "Sorted by", value: `${SORTABLE_FIELD_LABELS[parsed.sort.field] || parsed.sort.field} ${arrow}` });
+  }
+  if (parsed.limit && Number.isInteger(parsed.limit) && parsed.limit > 0 && parsed.limit <= 100) {
+    filters.limit = parsed.limit;
+    applied.push({ label: "Top", value: String(parsed.limit) });
   }
   if (parsed.overdue === true) {
     filters.overdue = true;
@@ -1700,7 +1711,7 @@ function clearAiFilter() {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
-  filters.stale = false; filters.assignee = ""; filters.submitter = "";
+  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null;
   document.getElementById("searchInput").value = "";
   document.getElementById("filterStatus").value = "";
   document.getElementById("filterUrgency").value = "";
@@ -1993,7 +2004,7 @@ function renderKpis() {
 /* ---------- list ---------- */
 function applyFilters() {
   const q = filters.search.toLowerCase().trim();
-  return escalations.filter(e => {
+  let result = escalations.filter(e => {
     if (filters.status === "open" && !STATUS_OPEN.has(e.status)) return false;
     if (filters.status === "unassigned") {
       if (!STATUS_OPEN.has(e.status)) return false;
@@ -2028,10 +2039,49 @@ function applyFilters() {
       if (!hay.includes(q)) return false;
     }
     return true;
-  }).sort((a,b) => {
-    if (STATUS_OPEN.has(a.status) !== STATUS_OPEN.has(b.status)) return STATUS_OPEN.has(a.status) ? -1 : 1;
-    return new Date(b.escalationDate || 0) - new Date(a.escalationDate || 0);
   });
+
+  // Smart Search may override the default sort. Default: open items first,
+  // then most-recently-submitted first.
+  if (filters.sort && filters.sort.field) {
+    result.sort((a, b) => compareEscalations(a, b, filters.sort.field, filters.sort.direction));
+  } else {
+    result.sort((a, b) => {
+      if (STATUS_OPEN.has(a.status) !== STATUS_OPEN.has(b.status)) return STATUS_OPEN.has(a.status) ? -1 : 1;
+      return new Date(b.escalationDate || 0) - new Date(a.escalationDate || 0);
+    });
+  }
+
+  // Smart Search may cap the result count ("top 5", "the one with the most")
+  if (filters.limit && filters.limit > 0) {
+    result = result.slice(0, filters.limit);
+  }
+  return result;
+}
+
+// Fields the sort can target. Anything else is silently dropped on the way in.
+const SORTABLE_FIELDS = new Set(["daysOpen","escalationDate","modified","financialImpact","amountRemaining","daysCurrentDept"]);
+const SORTABLE_FIELD_LABELS = {
+  daysOpen: "Days open",
+  escalationDate: "Submitted",
+  modified: "Last touched",
+  financialImpact: "Financial impact",
+  amountRemaining: "Amount remaining",
+  daysCurrentDept: "Days in dept"
+};
+
+function compareEscalations(a, b, field, direction) {
+  const dir = direction === "asc" ? 1 : -1;
+  let av = a[field], bv = b[field];
+  if (field === "escalationDate" || field === "modified" || field === "resolvedDate") {
+    av = av ? new Date(av).getTime() : 0;
+    bv = bv ? new Date(bv).getTime() : 0;
+  } else {
+    av = Number(av) || 0;
+    bv = Number(bv) || 0;
+  }
+  if (av === bv) return 0;
+  return av < bv ? -1 * dir : 1 * dir;
 }
 
 /* ---------- KPI preset filters ---------- */
@@ -2040,7 +2090,7 @@ function applyKpiPreset(preset) {
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
-  filters.stale = false; filters.assignee = ""; filters.submitter = "";
+  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null;
 
   if (preset === "open")        filters.status = "open";
   else if (preset === "unassigned") filters.status = "unassigned";
@@ -2065,7 +2115,13 @@ function applyKpiPreset(preset) {
 
 function renderList() {
   const items = applyFilters();
-  document.getElementById("listMeta").textContent = `${items.length} of ${escalations.length}`;
+  // When Smart Search applied a limit, make it visible in the list header
+  // so the user knows the count is capped (otherwise they might think there
+  // are only N matches when really there could be more).
+  const metaText = filters.limit
+    ? `Top ${items.length} (of all matches)`
+    : `${items.length} of ${escalations.length}`;
+  document.getElementById("listMeta").textContent = metaText;
   const el = document.getElementById("listItems");
   if (!items.length) {
     el.innerHTML = `<div class="loading"><div class="loading-empty-icon">⊘</div><div>No escalations match your filters.</div><button class="btn btn-secondary btn-sm" id="clearFiltersBtn" style="margin-top:6px">Clear filters</button></div>`;
@@ -2073,7 +2129,7 @@ function renderList() {
       filters.search = ""; filters.status = ""; filters.urgency = "";
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
       filters.resolvedWithin = null; filters.hasFinancial = false;
-      filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.submitter = "";
+      filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null;
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
       document.getElementById("filterUrgency").value = "";
