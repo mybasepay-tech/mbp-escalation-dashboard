@@ -1144,6 +1144,7 @@
     <div class="spacer"></div>
     <button class="btn-ghost" id="refreshBtn" title="Refetch from SharePoint">↻ Refresh</button>
     <button class="btn-ghost" id="exportBtn" title="Export current view to CSV">Export CSV</button>
+    <button class="btn-ghost" id="sendDigestBtn" title="Send weekly digest to the Escalations Teams channel">📊 Send Digest</button>
     <a class="btn-secondary btn" id="openListBtn" href="#" target="_blank" rel="noopener">Open List ↗</a>
     <button class="btn" id="newEscBtn">+ New Escalation</button>
   </div>
@@ -2903,6 +2904,7 @@ function wireUI() {
   document.getElementById("filterOverdue").addEventListener("change", (e) => { filters.overdue = e.target.checked; clearHiddenPreset(); renderList(); });
   document.getElementById("refreshBtn").addEventListener("click", () => loadData(true));
   document.getElementById("exportBtn").addEventListener("click", exportCsv);
+  document.getElementById("sendDigestBtn").addEventListener("click", sendWeeklyDigest);
   document.getElementById("openListBtn").href = CONFIG.trackerWebUrl;
   document.getElementById("newEscBtn").addEventListener("click", openNewModal);
   document.getElementById("submitNew").addEventListener("click", submitNew);
@@ -3555,6 +3557,90 @@ function exportCsv() {
   a.href = url; a.download = `escalations_${new Date().toISOString().slice(0,10)}.csv`;
   a.click(); URL.revokeObjectURL(url);
   toast("Exported " + items.length + " rows");
+}
+
+/* ---------- Phase 6: Weekly digest to Teams ---------- */
+async function sendWeeklyDigest() {
+  if (!escalations.length) {
+    toast("No data loaded yet — try again after a refresh.", 3000);
+    return;
+  }
+
+  // Compute the same stats the KPI tiles show, plus a couple extra.
+  const open = escalations.filter(e => STATUS_OPEN.has(e.status));
+  const stale = open.filter(isStale);
+  const overdue = open.filter(e => e.expectedDate && new Date(e.expectedDate) < new Date());
+  // "This week" = last 7 days. Counts both submitted and resolved.
+  const now = Date.now();
+  const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
+  const newThisWeek = escalations.filter(e => e.escalationDate && new Date(e.escalationDate).getTime() >= weekAgo);
+  const resolvedThisWeek = escalations.filter(e => e.status === "Complete" && e.resolvedDate && new Date(e.resolvedDate).getTime() >= weekAgo);
+  const openFinancial = open.reduce((s, e) => s + (Number(e.financialImpact) || 0), 0);
+
+  const stats = {
+    open: open.length,
+    stale: stale.length,
+    pastExpected: overdue.length,
+    unassigned: open.filter(e => !e.assignee).length,
+    newThisWeek: newThisWeek.length,
+    resolvedThisWeek: resolvedThisWeek.length,
+    openFinancial
+  };
+
+  // Top 5 stale items by days-since-last-activity (worst offenders first)
+  const staleItems = stale
+    .map(e => {
+      const last = getLastAssigneeActivity(e);
+      return {
+        id: e.id,
+        title: e.title,
+        assignee: e.assignee || null,
+        dept: e.assignedDept,
+        daysSinceUpdate: daysBetween(last.date),
+        financialImpact: e.financialImpact || 0
+      };
+    })
+    .sort((a, b) => (b.daysSinceUpdate || 0) - (a.daysSinceUpdate || 0))
+    .slice(0, 5);
+
+  // Open count per dept, sorted desc
+  const deptCounts = {};
+  open.forEach(e => { if (e.assignedDept) deptCounts[e.assignedDept] = (deptCounts[e.assignedDept] || 0) + 1; });
+  const deptBreakdown = Object.entries(deptCounts)
+    .map(([dept, count]) => ({ dept, count }))
+    .sort((a, b) => b.count - a.count);
+
+  // Week label like "Week of Jun 3 – Jun 9, 2026"
+  const weekStart = new Date(now - 6 * 24 * 60 * 60 * 1000);
+  const weekEnd = new Date(now);
+  const fmt = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const weekLabel = `Week of ${fmt(weekStart)} – ${fmt(weekEnd)}, ${weekEnd.getFullYear()}`;
+
+  // Quick preview + confirm. This posts to a real Teams channel so we want
+  // a deliberate click, not an accidental one.
+  const summary = `Open: ${stats.open}  ·  Stale: ${stats.stale}  ·  Past expected: ${stats.pastExpected}  ·  Resolved this week: ${stats.resolvedThisWeek}\n\nThis will post to the Escalations Teams channel. Continue?`;
+  if (!window.confirm(summary)) return;
+
+  const btn = document.getElementById("sendDigestBtn");
+  const originalLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Sending…';
+  try {
+    await callAi("sendWeeklyDigest", {
+      stats,
+      staleItems,
+      deptBreakdown,
+      dashboardUrl: window.location.origin + window.location.pathname,
+      weekLabel
+    });
+    toast("✓ Weekly digest posted to Teams", 4000);
+  } catch (err) {
+    console.error(err);
+    toast("Digest failed: " + err.message, 5000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
+  }
 }
 
 /* ---------- header user chip ---------- */
