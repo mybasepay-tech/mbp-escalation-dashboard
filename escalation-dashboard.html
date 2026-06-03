@@ -1265,7 +1265,7 @@
           <div class="digest-stat-value" id="digestStatOpen">—</div>
         </div>
         <div class="digest-stat">
-          <div class="digest-stat-label">Stale</div>
+          <div class="digest-stat-label">Awaiting update</div>
           <div class="digest-stat-value warn" id="digestStatStale">—</div>
         </div>
         <div class="digest-stat">
@@ -1278,7 +1278,7 @@
         </div>
       </div>
       <div class="digest-stale-section" id="digestStaleSection" style="display:none">
-        <div class="digest-section-label">Top stale items in the digest</div>
+        <div class="digest-section-label">Top items awaiting update in the digest</div>
         <ul class="digest-stale-list" id="digestStaleList"></ul>
       </div>
       <div class="digest-modal-note">
@@ -1487,7 +1487,7 @@
     <textarea class="ai-fab-popup-input" id="aiFabInput" rows="2" placeholder="e.g. show me the escalation with the most days open"></textarea>
     <div class="ai-fab-popup-examples">
       <span class="ai-fab-popup-examples-label">Try:</span>
-      <button type="button" class="ai-fab-popup-example" data-q="show me stale escalations in Billing">stale in Billing</button>
+      <button type="button" class="ai-fab-popup-example" data-q="show me escalations awaiting update in Billing">awaiting update in Billing</button>
       <button type="button" class="ai-fab-popup-example" data-q="top 5 oldest open escalations">top 5 oldest</button>
       <button type="button" class="ai-fab-popup-example" data-q="biggest financial impact">biggest $ impact</button>
       <button type="button" class="ai-fab-popup-example" data-q="critical urgency past expected date">critical &amp; overdue</button>
@@ -2001,7 +2001,7 @@ function applyParsedFilters(parsed) {
   }
   if (parsed.stale === true) {
     filters.stale = true;
-    applied.push({ label: "", value: "Stale" });
+    applied.push({ label: "", value: "Awaiting update" });
   }
   if (parsed.search && typeof parsed.search === "string") {
     filters.search = parsed.search;
@@ -2305,7 +2305,7 @@ function renderKpis() {
       <div class="kpi-foot">awaiting owner</div>
     </div>
     <div class="kpi kpi-stale" data-preset="stale" title="Active escalations with no assignee update in 7+ days (or 10+ days old with no updates)">
-      <div class="kpi-label">Stale · Needs nudge</div>
+      <div class="kpi-label">Awaiting update</div>
       <div class="kpi-value">${stale.length}</div>
       <div class="kpi-foot">no recent update</div>
     </div>
@@ -2526,7 +2526,7 @@ function renderList() {
         <div class="esc-right">
           <span class="badge ${badgeClassStatus(e.status)}">${escapeHtml(e.status)}</span>
           <span class="badge ${badgeClassUrgency(e.urgency)}">${escapeHtml(e.urgency)}</span>
-          ${stale ? `<span class="badge stale-badge" title="No assignee update in 7+ days (or 10+ days old with no updates)">Stale · needs nudge</span>` : ""}
+          ${stale ? `<span class="badge stale-badge" title="No assignee update in 7+ days (or 10+ days old with no updates)">Awaiting update</span>` : ""}
           ${overdue ? `<span class="badge alert">Past expected</span>` : ""}
         </div>
       </div>
@@ -2742,7 +2742,7 @@ function renderDetail() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px">
         <div class="detail-section-head" style="margin-bottom:0">Status Updates</div>
         <div style="display:flex;gap:8px">
-          <button class="btn-sm" data-action="log-followup" data-id="${e.id}" title="Log that someone reached out to nudge the assignee. Does NOT reset the stale clock.">📞 Log follow-up</button>
+          <button class="btn-sm" data-action="log-followup" data-id="${e.id}" title="Log that someone reached out to nudge the assignee. Does NOT reset the awaiting-update timer.">📞 Log follow-up</button>
           <button class="btn-sm btn-primary" data-action="post-update" data-id="${e.id}">+ Post update</button>
         </div>
       </div>
@@ -3327,7 +3327,7 @@ function openUpdateModal(ctx) {
   } else if (ctx.kind === "followUp") {
     title.textContent = `Log follow-up on #${ctx.id}`;
     contextEl.style.display = "block";
-    contextEl.innerHTML = `Recording that <strong>you</strong> reached out about this escalation. The note is optional. This does <strong>not</strong> reset the stale-clock — only a real status update from the assignee does that.`;
+    contextEl.innerHTML = `Recording that <strong>you</strong> reached out about this escalation. The note is optional. This does <strong>not</strong> reset the awaiting-update timer — only a real status update from the assignee does that.`;
     saveBtn.textContent = "Log follow-up";
     text.placeholder = "Optional: how you reached out, what they said, etc.";
     draftRow.style.display = "none";  // Follow-ups are quick logs; no AI polish needed.
