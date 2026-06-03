@@ -479,6 +479,91 @@
     cursor: help;
   }
 
+  /* Phase 5 — Natural-language filter */
+  .search-with-ai {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 320px;
+  }
+  .search-with-ai input[type="search"] {
+    flex: 1;
+    padding-right: 96px;   /* room for the inline button */
+  }
+  .btn-ai-inline {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius-sm);
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    height: 26px;
+  }
+  .btn-ai-inline:hover:not(:disabled) {
+    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+  }
+  .btn-ai-inline:disabled { opacity: 0.7; cursor: wait; }
+  .btn-ai-inline .spinner {
+    border-color: rgba(255,255,255,0.4);
+    border-top-color: #fff;
+    width: 11px; height: 11px;
+    margin-right: 0;
+  }
+  .ai-filter-applied {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
+    border: 1px solid #c7d2fe;
+    border-radius: var(--radius);
+    padding: 8px 12px;
+    margin-bottom: 16px;
+    font-size: 12px;
+  }
+  .ai-filter-applied-label {
+    font-weight: 700;
+    color: #6366f1;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    font-size: 11px;
+  }
+  .ai-filter-applied-chips {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex: 1;
+  }
+  .ai-filter-chip {
+    background: #fff;
+    border: 1px solid #c7d2fe;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 12px;
+    color: var(--prussian);
+  }
+  .ai-filter-empty {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+  .ai-filter-applied-clear {
+    background: transparent;
+    border: none;
+    color: #6366f1;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 8px;
+    border-radius: 50%;
+  }
+  .ai-filter-applied-clear:hover { background: rgba(99, 102, 241, 0.12); }
+
   /* Stale row styling: subtle left-edge marker so it's visible without
      being noisy when stale items are mixed with non-stale */
   .esc-row.is-stale { box-shadow: inset 4px 0 0 #f59e0b; }
@@ -851,7 +936,10 @@
   </section>
 
   <div class="toolbar">
-    <input type="search" id="searchInput" placeholder="Search by title, ID, customer, member, assignee…">
+    <div class="search-with-ai">
+      <input type="search" id="searchInput" placeholder="Search by title, ID, customer, member, assignee…">
+      <button type="button" class="btn-ai-inline" id="askAiBtn" title="Ask in natural language — e.g. 'overdue Billing items assigned to Susan'">✨ Ask AI</button>
+    </div>
     <select id="filterStatus">
       <option value="">All statuses</option>
       <option value="open">All Active (not Complete)</option>
@@ -885,6 +973,13 @@
     <button class="btn-ghost" id="exportBtn" title="Export current view to CSV">Export CSV</button>
     <a class="btn-secondary btn" id="openListBtn" href="#" target="_blank" rel="noopener">Open List ↗</a>
     <button class="btn" id="newEscBtn">+ New Escalation</button>
+  </div>
+
+  <!-- AI-applied filters banner — shown after a successful Ask AI parse -->
+  <div class="ai-filter-applied" id="aiFilterApplied" style="display:none">
+    <span class="ai-filter-applied-label">✨ AI applied:</span>
+    <span class="ai-filter-applied-chips" id="aiFilterAppliedChips"></span>
+    <button type="button" class="ai-filter-applied-clear" id="aiFilterAppliedClear" title="Clear AI filter">×</button>
   </div>
 
   <section class="content">
@@ -1447,6 +1542,133 @@ async function callAi(operation, data) {
     throw new Error(`AI request failed (${res.status})${detail ? `: ${detail}` : ""}`);
   }
   return res.json();  // { text, usage }
+}
+
+/* ---------- Phase 5: Natural-language filter ---------- */
+async function triggerAiFilter(query) {
+  query = (query || "").trim();
+  if (!query) return;
+  const btn = document.getElementById("askAiBtn");
+  const originalLabel = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  try {
+    const validOptions = {
+      statuses: ["Not yet assigned", "Assigned", "In Process", "Pending Member", "Pending Research", "Pending Customer", "Complete"],
+      urgencies: ["Critical", "High", "Medium", "Low"],
+      depts: [...new Set(escalations.map(e => e.assignedDept).filter(Boolean))].sort(),
+      issueTypes: [...new Set(escalations.map(e => e.issueType).filter(Boolean))].sort(),
+      assignees: [...new Set(escalations.map(e => e.assignee).filter(Boolean))].sort()
+    };
+    const result = await callAi("parseFilter", { query, validOptions });
+    let parsed;
+    try {
+      parsed = JSON.parse(result.text);
+    } catch {
+      throw new Error("AI returned malformed JSON.");
+    }
+    applyParsedFilters(parsed);
+  } catch (err) {
+    console.error(err);
+    toast("Ask AI failed: " + err.message, 4000);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = originalLabel;
+  }
+}
+
+function applyParsedFilters(parsed) {
+  // Reset all filter state, then apply only what the AI explicitly returned.
+  filters.search = ""; filters.status = ""; filters.urgency = "";
+  filters.dept = ""; filters.issueType = ""; filters.overdue = false;
+  filters.resolvedWithin = null; filters.hasFinancial = false;
+  filters.stale = false; filters.assignee = "";
+
+  const applied = []; // human-readable chips for the banner
+
+  // Validate each field against current data before applying (rejects hallucinations)
+  const validStatuses = new Set(["Not yet assigned","Assigned","In Process","Pending Member","Pending Research","Pending Customer","Complete","open","unassigned"]);
+  if (parsed.status && validStatuses.has(parsed.status)) {
+    filters.status = parsed.status;
+    applied.push({ label: "Status", value: parsed.status === "open" ? "Active only" : parsed.status });
+  }
+  if (parsed.urgency && ["Critical","High","Medium","Low"].includes(parsed.urgency)) {
+    filters.urgency = parsed.urgency;
+    applied.push({ label: "Urgency", value: parsed.urgency });
+  }
+  const validDepts = new Set(escalations.map(e => e.assignedDept).filter(Boolean));
+  if (parsed.dept && validDepts.has(parsed.dept)) {
+    filters.dept = parsed.dept;
+    applied.push({ label: "Dept", value: parsed.dept });
+  }
+  const validIssueTypes = new Set(escalations.map(e => e.issueType).filter(Boolean));
+  if (parsed.issueType && validIssueTypes.has(parsed.issueType)) {
+    filters.issueType = parsed.issueType;
+    applied.push({ label: "Issue Type", value: parsed.issueType });
+  }
+  const validAssignees = new Set(escalations.map(e => e.assignee).filter(Boolean));
+  if (parsed.assignee === "__unassigned__") {
+    filters.assignee = "__unassigned__";
+    applied.push({ label: "Assignee", value: "unassigned" });
+  } else if (parsed.assignee && validAssignees.has(parsed.assignee)) {
+    filters.assignee = parsed.assignee;
+    applied.push({ label: "Assignee", value: parsed.assignee });
+  }
+  if (parsed.overdue === true) {
+    filters.overdue = true;
+    applied.push({ label: "", value: "Past expected date" });
+  }
+  if (parsed.stale === true) {
+    filters.stale = true;
+    applied.push({ label: "", value: "Stale" });
+  }
+  if (parsed.search && typeof parsed.search === "string") {
+    filters.search = parsed.search;
+    applied.push({ label: "Text", value: `"${parsed.search}"` });
+  }
+
+  // Sync DOM controls
+  document.getElementById("searchInput").value = filters.search;
+  document.getElementById("filterStatus").value = filters.status;
+  document.getElementById("filterUrgency").value = filters.urgency;
+  document.getElementById("filterDept").value = filters.dept;
+  document.getElementById("filterIssueType").value = filters.issueType;
+  document.getElementById("filterOverdue").checked = filters.overdue;
+  renderDeptChips();
+  populateAssigneeFilter();
+  renderList();
+
+  // Show the "Applied" banner with chips
+  const banner = document.getElementById("aiFilterApplied");
+  const chipsEl = document.getElementById("aiFilterAppliedChips");
+  if (applied.length === 0) {
+    chipsEl.innerHTML = `<span class="ai-filter-empty">Couldn't parse any filters from "${escapeHtml(document.getElementById("searchInput").value || "(empty)")}". Try rephrasing.</span>`;
+    banner.style.display = "flex";
+  } else {
+    chipsEl.innerHTML = applied.map(a =>
+      `<span class="ai-filter-chip">${a.label ? `<strong>${escapeHtml(a.label)}:</strong> ` : ""}${escapeHtml(a.value)}</span>`
+    ).join("");
+    banner.style.display = "flex";
+  }
+  // Stash the rationale as a tooltip on the banner for the curious
+  banner.title = parsed.rationale ? `AI rationale: ${parsed.rationale}` : "";
+}
+
+function clearAiFilter() {
+  document.getElementById("aiFilterApplied").style.display = "none";
+  filters.search = ""; filters.status = ""; filters.urgency = "";
+  filters.dept = ""; filters.issueType = ""; filters.overdue = false;
+  filters.resolvedWithin = null; filters.hasFinancial = false;
+  filters.stale = false; filters.assignee = "";
+  document.getElementById("searchInput").value = "";
+  document.getElementById("filterStatus").value = "";
+  document.getElementById("filterUrgency").value = "";
+  document.getElementById("filterDept").value = "";
+  document.getElementById("filterIssueType").value = "";
+  document.getElementById("filterOverdue").checked = false;
+  renderDeptChips();
+  populateAssigneeFilter();
+  renderList();
 }
 
 /* ---------- list ID resolution ---------- */
@@ -2197,6 +2419,17 @@ function wireUI() {
   // filters (resolvedWithin, hasFinancial) so the dropdown choice means what it says.
   const clearHiddenPreset = () => { filters.resolvedWithin = null; filters.hasFinancial = false; };
   document.getElementById("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
+  // Phase 5: pressing Enter in search triggers AI parse instead of literal substring.
+  document.getElementById("searchInput").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      triggerAiFilter(e.target.value);
+    }
+  });
+  document.getElementById("askAiBtn").addEventListener("click", () => {
+    triggerAiFilter(document.getElementById("searchInput").value);
+  });
+  document.getElementById("aiFilterAppliedClear").addEventListener("click", clearAiFilter);
   document.getElementById("filterStatus").addEventListener("change", (e) => { filters.status = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterUrgency").addEventListener("change", (e) => { filters.urgency = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterDept").addEventListener("change", (e) => {
