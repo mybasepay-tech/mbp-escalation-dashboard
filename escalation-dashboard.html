@@ -479,39 +479,40 @@
     cursor: help;
   }
 
-  /* Phase 5 — Natural-language filter (floating button + popup) */
+  /* Phase 5 — Natural-language filter (round Emerald FAB) */
   .ai-fab {
     position: fixed;
     bottom: 24px;
     right: 24px;
     z-index: 90;
-    background: linear-gradient(135deg, #8b5cf6, #6366f1);
+    background: var(--emerald);
     color: #fff;
     border: none;
-    border-radius: 999px;
-    padding: 14px 22px;
-    font-weight: 700;
-    font-size: 14px;
-    box-shadow: 0 8px 22px rgba(99, 102, 241, 0.45), 0 2px 6px rgba(0,0,0,0.12);
+    border-radius: 50%;
+    width: 56px;
+    height: 56px;
+    padding: 0;
+    font-size: 22px;
+    box-shadow: 0 8px 20px rgba(0, 102, 51, 0.32), 0 2px 6px rgba(0,0,0,0.14);
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    justify-content: center;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
   }
   .ai-fab:hover {
-    background: linear-gradient(135deg, #7c3aed, #4f46e5);
+    background: var(--emerald-dark);
     transform: translateY(-1px);
-    box-shadow: 0 12px 28px rgba(99, 102, 241, 0.5), 0 4px 8px rgba(0,0,0,0.15);
+    box-shadow: 0 12px 26px rgba(0, 102, 51, 0.40), 0 4px 8px rgba(0,0,0,0.18);
   }
   .ai-fab:active { transform: translateY(0); }
   .ai-fab.busy { opacity: 0.8; cursor: wait; }
-  .ai-fab .ai-fab-icon { font-size: 18px; line-height: 1; }
-  .ai-fab .ai-fab-label { letter-spacing: 0.2px; }
+  .ai-fab .ai-fab-icon { font-size: 22px; line-height: 1; }
+  .ai-fab .ai-fab-label { display: none; }  /* icon-only; title attr provides tooltip */
   .ai-fab .spinner {
     border-color: rgba(255,255,255,0.4);
     border-top-color: #fff;
-    width: 14px; height: 14px;
+    width: 16px; height: 16px;
     margin: 0;
   }
 
@@ -603,10 +604,6 @@
   }
   .ai-fab-popup-foot .btn { padding: 7px 14px; font-size: 13px; }
   .ai-fab-popup-foot .btn-secondary { padding: 7px 14px; font-size: 13px; }
-  @media (max-width: 540px) {
-    .ai-fab .ai-fab-label { display: none; }   /* icon-only on small screens */
-    .ai-fab { padding: 14px; border-radius: 50%; width: 56px; height: 56px; justify-content: center; }
-  }
   .ai-filter-applied {
     display: flex;
     align-items: center;
@@ -2692,7 +2689,8 @@ function wireUI() {
     if (!q) return;
     fabBtn.classList.add("busy");
     const origLabel = fabBtn.innerHTML;
-    fabBtn.innerHTML = '<span class="spinner"></span><span class="ai-fab-label">Thinking…</span>';
+    // Icon-only FAB: just swap the sparkle for a spinner; label is hidden anyway
+    fabBtn.innerHTML = '<span class="spinner"></span>';
     fabSubmit.disabled = true;
     try {
       await triggerAiFilter(q);
