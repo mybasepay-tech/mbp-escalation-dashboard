@@ -1262,6 +1262,41 @@ function fmtDate(iso) {
   if (isNaN(d)) return iso;
   return d.toLocaleDateString(undefined, { month:"short", day:"numeric", year:"numeric" });
 }
+// Date+time. Used wherever the time-of-day matters (e.g. Jennifer's 4-hour
+// follow-up window after a new submission).
+function fmtDateTime(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString(undefined, {
+    month: "short", day: "numeric", year: "numeric",
+    hour: "numeric", minute: "2-digit"
+  });
+}
+// Relative-age string with sub-day precision. "12m ago", "3h ago", "5d ago".
+function agoString(iso) {
+  if (!iso) return null;
+  const diffMs = Date.now() - new Date(iso).getTime();
+  if (isNaN(diffMs) || diffMs < 0) return null;
+  const minutes = Math.floor(diffMs / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return days === 1 ? "1d ago" : `${days}d ago`;
+}
+// Live days-open calc. Reading SharePoint's DaysOpen field is unreliable
+// because it's a calculated column that updates only on item edit; for
+// untouched items the value goes stale (often much lower than reality).
+// For Complete items, we use ResolvedDate as the end point so the value
+// freezes at resolution time. For open items, we use "now".
+function computeDaysOpen(escDateIso, resolvedDateIso) {
+  if (!escDateIso) return null;
+  const start = new Date(escDateIso).getTime();
+  const end = resolvedDateIso ? new Date(resolvedDateIso).getTime() : Date.now();
+  return Math.floor((end - start) / (1000 * 60 * 60 * 24));
+}
 function fmtMoney(n) {
   if (n == null || n === "" || isNaN(Number(n))) return "—";
   return "$" + Number(n).toLocaleString(undefined, { maximumFractionDigits: 0 });
@@ -1785,7 +1820,9 @@ function mapTrackerItem(it) {
     worker: f.WorkerName,
     commentary: f.StatusCommentary || "",
     updates: f.StatusUpdates || "",
-    daysOpen: f.DaysOpen,
+    // Compute live from EscalationDate/ResolvedDate instead of SP's stale
+    // DaysOpen calculated column — see computeDaysOpen() for rationale.
+    daysOpen: computeDaysOpen(f.EscalationDate, f.ResolvedDate),
     submitter: authorUser ? authorUser.name : "—",
     submitterEmail: authorUser ? authorUser.email : "",
     assignee: assigneeUser ? assigneeUser.name : null,
@@ -2057,7 +2094,9 @@ function renderList() {
     const lastActivity = getLastAssigneeActivity(e);
     const daysSinceUpdate = daysBetween(lastActivity.date);
     const ageClass = overdue ? "over" : (age != null && age >= 14 && isOpen ? "warn" : "");
-    const ageText = age == null ? "—" : (age === 0 ? "today" : age + "d ago");
+    // Sub-day precision (12m ago / 3h ago) matters for Jennifer's 4-hour
+    // first-update window on new submissions.
+    const ageText = agoString(e.escalationDate) || "—";
     const who = e.customer || e.member || e.worker;
     // "Last update" pill: only show for open items. Wording reflects whether
     // we're showing a real update vs. just the item being untouched since creation.
@@ -2163,7 +2202,7 @@ function renderDetail() {
 
   el.innerHTML = closeBtn + `
     <div class="detail-head">
-      <div class="detail-id">#${e.id} · submitted ${fmtDate(e.escalationDate)} by ${escapeHtml(e.submitter)}</div>
+      <div class="detail-id" title="Submission time matters for the 4-hour first-update window">#${e.id} · submitted ${fmtDateTime(e.escalationDate)} by ${escapeHtml(e.submitter)}</div>
       <div class="detail-title">${escapeHtml(e.title)}</div>
       <div class="detail-badges">
         <span class="badge-edit" data-id="${e.id}">
