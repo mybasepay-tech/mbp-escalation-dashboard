@@ -497,6 +497,72 @@
     font-style: italic;
   }
 
+  /* Phase 6 — Weekly digest preview modal */
+  .digest-week-label {
+    font-size: 12px; color: var(--text-muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    margin-bottom: 12px;
+  }
+  .digest-preview-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;
+  }
+  .digest-stat {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 10px 12px;
+  }
+  .digest-stat-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.4px; color: var(--text-muted);
+  }
+  .digest-stat-value {
+    font-size: 24px; font-weight: 800;
+    color: var(--text); line-height: 1.2; margin-top: 2px;
+  }
+  .digest-stat-value.warn { color: var(--amber); }
+  .digest-stat-value.alert { color: var(--red); }
+  .digest-stat-value.good { color: var(--green); }
+  .digest-stale-section { margin-top: 16px; }
+  .digest-section-label {
+    font-size: 11px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.5px; color: var(--text-muted);
+    margin-bottom: 6px;
+  }
+  .digest-stale-list {
+    list-style: none; margin: 0; padding: 0;
+    background: var(--bg-soft); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 4px 0;
+  }
+  .digest-stale-list li {
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+    display: flex; justify-content: space-between; gap: 8px;
+  }
+  .digest-stale-list li:last-child { border-bottom: 0; }
+  .digest-stale-list .digest-stale-id {
+    font-family: ui-monospace, "SF Mono", Menlo, monospace;
+    color: var(--text-muted); font-weight: 600;
+    min-width: 50px;
+  }
+  .digest-stale-list .digest-stale-title {
+    flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .digest-stale-list .digest-stale-age {
+    color: var(--amber); font-weight: 600;
+    white-space: nowrap;
+  }
+  .digest-modal-note {
+    margin-top: 16px;
+    padding: 10px 12px;
+    background: #eff6ff;
+    border-left: 3px solid #3b82f6;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: 12px;
+    color: var(--text);
+  }
+
   /* AI Draft button row inside the Post Update modal */
   .ai-draft-row {
     display: flex; align-items: center; gap: 10px;
@@ -1184,6 +1250,49 @@
 </aside>
 
 <!-- Status Update Modal (used for both "change status with note" and "post update" flows) -->
+<!-- Weekly digest preview / confirm modal -->
+<div class="modal-backdrop" id="digestModal">
+  <div class="modal" style="max-width:540px">
+    <div class="modal-head">
+      <div class="modal-title">📊 Send Weekly Digest</div>
+      <button class="btn-ghost" data-close>&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="digest-week-label" id="digestWeekLabel">Week of …</div>
+      <div class="digest-preview-grid">
+        <div class="digest-stat">
+          <div class="digest-stat-label">Open</div>
+          <div class="digest-stat-value" id="digestStatOpen">—</div>
+        </div>
+        <div class="digest-stat">
+          <div class="digest-stat-label">Stale</div>
+          <div class="digest-stat-value warn" id="digestStatStale">—</div>
+        </div>
+        <div class="digest-stat">
+          <div class="digest-stat-label">Past expected</div>
+          <div class="digest-stat-value alert" id="digestStatOverdue">—</div>
+        </div>
+        <div class="digest-stat">
+          <div class="digest-stat-label">Resolved this week</div>
+          <div class="digest-stat-value good" id="digestStatResolved">—</div>
+        </div>
+      </div>
+      <div class="digest-stale-section" id="digestStaleSection" style="display:none">
+        <div class="digest-section-label">Top stale items in the digest</div>
+        <ul class="digest-stale-list" id="digestStaleList"></ul>
+      </div>
+      <div class="digest-modal-note">
+        AI will write a brief narrative paragraph from these stats, then post an Adaptive Card to the <strong>Escalations Teams channel</strong>.
+      </div>
+      <div class="form-error" id="digestModalError" style="display:none"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-secondary btn" data-close>Cancel</button>
+      <button class="btn" id="digestModalSendBtn">Send to Teams</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-backdrop" id="updateModal">
   <div class="modal" style="max-width:560px">
     <div class="modal-head">
@@ -2904,7 +3013,8 @@ function wireUI() {
   document.getElementById("filterOverdue").addEventListener("change", (e) => { filters.overdue = e.target.checked; clearHiddenPreset(); renderList(); });
   document.getElementById("refreshBtn").addEventListener("click", () => loadData(true));
   document.getElementById("exportBtn").addEventListener("click", exportCsv);
-  document.getElementById("sendDigestBtn").addEventListener("click", sendWeeklyDigest);
+  document.getElementById("sendDigestBtn").addEventListener("click", openDigestModal);
+  document.getElementById("digestModalSendBtn").addEventListener("click", confirmAndSendDigest);
   document.getElementById("openListBtn").href = CONFIG.trackerWebUrl;
   document.getElementById("newEscBtn").addEventListener("click", openNewModal);
   document.getElementById("submitNew").addEventListener("click", submitNew);
@@ -3560,17 +3670,13 @@ function exportCsv() {
 }
 
 /* ---------- Phase 6: Weekly digest to Teams ---------- */
-async function sendWeeklyDigest() {
-  if (!escalations.length) {
-    toast("No data loaded yet — try again after a refresh.", 3000);
-    return;
-  }
-
-  // Compute the same stats the KPI tiles show, plus a couple extra.
+// Computes the stats payload from current escalation data. Pure function —
+// no side effects, no DOM access. Called by both the preview modal and
+// the actual send path.
+function computeWeeklyDigestPayload() {
   const open = escalations.filter(e => STATUS_OPEN.has(e.status));
   const stale = open.filter(isStale);
   const overdue = open.filter(e => e.expectedDate && new Date(e.expectedDate) < new Date());
-  // "This week" = last 7 days. Counts both submitted and resolved.
   const now = Date.now();
   const weekAgo = now - 7 * 24 * 60 * 60 * 1000;
   const newThisWeek = escalations.filter(e => e.escalationDate && new Date(e.escalationDate).getTime() >= weekAgo);
@@ -3587,7 +3693,6 @@ async function sendWeeklyDigest() {
     openFinancial
   };
 
-  // Top 5 stale items by days-since-last-activity (worst offenders first)
   const staleItems = stale
     .map(e => {
       const last = getLastAssigneeActivity(e);
@@ -3603,43 +3708,79 @@ async function sendWeeklyDigest() {
     .sort((a, b) => (b.daysSinceUpdate || 0) - (a.daysSinceUpdate || 0))
     .slice(0, 5);
 
-  // Open count per dept, sorted desc
   const deptCounts = {};
   open.forEach(e => { if (e.assignedDept) deptCounts[e.assignedDept] = (deptCounts[e.assignedDept] || 0) + 1; });
   const deptBreakdown = Object.entries(deptCounts)
     .map(([dept, count]) => ({ dept, count }))
     .sort((a, b) => b.count - a.count);
 
-  // Week label like "Week of Jun 3 – Jun 9, 2026"
   const weekStart = new Date(now - 6 * 24 * 60 * 60 * 1000);
   const weekEnd = new Date(now);
   const fmt = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   const weekLabel = `Week of ${fmt(weekStart)} – ${fmt(weekEnd)}, ${weekEnd.getFullYear()}`;
 
-  // Quick preview + confirm. This posts to a real Teams channel so we want
-  // a deliberate click, not an accidental one.
-  const summary = `Open: ${stats.open}  ·  Stale: ${stats.stale}  ·  Past expected: ${stats.pastExpected}  ·  Resolved this week: ${stats.resolvedThisWeek}\n\nThis will post to the Escalations Teams channel. Continue?`;
-  if (!window.confirm(summary)) return;
+  return { stats, staleItems, deptBreakdown, weekLabel };
+}
 
-  const btn = document.getElementById("sendDigestBtn");
-  const originalLabel = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner"></span>Sending…';
+function openDigestModal() {
+  if (!escalations.length) {
+    toast("No data loaded yet — try again after a refresh.", 3000);
+    return;
+  }
+  const payload = computeWeeklyDigestPayload();
+  // Stash on the send button so the confirm handler reuses the exact same
+  // payload (no drift between preview and what's actually sent).
+  document.getElementById("digestModalSendBtn")._payload = payload;
+
+  document.getElementById("digestWeekLabel").textContent = payload.weekLabel;
+  document.getElementById("digestStatOpen").textContent = payload.stats.open;
+  document.getElementById("digestStatStale").textContent = payload.stats.stale;
+  document.getElementById("digestStatOverdue").textContent = payload.stats.pastExpected;
+  document.getElementById("digestStatResolved").textContent = payload.stats.resolvedThisWeek;
+
+  const staleSection = document.getElementById("digestStaleSection");
+  const staleList = document.getElementById("digestStaleList");
+  if (payload.staleItems.length) {
+    staleList.innerHTML = payload.staleItems.slice(0, 3).map(it => `
+      <li>
+        <span class="digest-stale-id">#${it.id}</span>
+        <span class="digest-stale-title">${escapeHtml(it.title || "")}</span>
+        <span class="digest-stale-age">${it.daysSinceUpdate}d no update</span>
+      </li>
+    `).join("");
+    staleSection.style.display = "block";
+  } else {
+    staleSection.style.display = "none";
+  }
+
+  document.getElementById("digestModalError").style.display = "none";
+  const sendBtn = document.getElementById("digestModalSendBtn");
+  sendBtn.disabled = false;
+  sendBtn.textContent = "Send to Teams";
+  document.getElementById("digestModal").classList.add("open");
+}
+
+async function confirmAndSendDigest() {
+  const sendBtn = document.getElementById("digestModalSendBtn");
+  const errEl = document.getElementById("digestModalError");
+  const payload = sendBtn._payload;
+  if (!payload) return;
+  errEl.style.display = "none";
+  sendBtn.disabled = true;
+  sendBtn.innerHTML = '<span class="spinner"></span>Sending…';
   try {
     await callAi("sendWeeklyDigest", {
-      stats,
-      staleItems,
-      deptBreakdown,
-      dashboardUrl: window.location.origin + window.location.pathname,
-      weekLabel
+      ...payload,
+      dashboardUrl: window.location.origin + window.location.pathname
     });
+    document.getElementById("digestModal").classList.remove("open");
     toast("✓ Weekly digest posted to Teams", 4000);
   } catch (err) {
     console.error(err);
-    toast("Digest failed: " + err.message, 5000);
-  } finally {
-    btn.disabled = false;
-    btn.innerHTML = originalLabel;
+    errEl.textContent = "Digest failed: " + err.message;
+    errEl.style.display = "block";
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Send to Teams";
   }
 }
 
