@@ -488,7 +488,7 @@
   }
   .search-with-ai input[type="search"] {
     flex: 1;
-    padding-right: 96px;   /* room for the inline button */
+    padding-right: 140px;   /* room for the inline "✨ Smart Search" button */
   }
   .btn-ai-inline {
     position: absolute;
@@ -938,7 +938,7 @@
   <div class="toolbar">
     <div class="search-with-ai">
       <input type="search" id="searchInput" placeholder="Search by title, ID, customer, member, assignee…">
-      <button type="button" class="btn-ai-inline" id="askAiBtn" title="Ask in natural language — e.g. 'overdue Billing items assigned to Susan'">✨ Ask AI</button>
+      <button type="button" class="btn-ai-inline" id="askAiBtn" title="Type in plain English — e.g. 'overdue Billing items assigned to Susan' — then click Smart Search">✨ Smart Search</button>
     </div>
     <select id="filterStatus">
       <option value="">All statuses</option>
@@ -1570,7 +1570,7 @@ async function triggerAiFilter(query) {
     applyParsedFilters(parsed);
   } catch (err) {
     console.error(err);
-    toast("Ask AI failed: " + err.message, 4000);
+    toast("Smart Search failed: " + err.message, 4000);
   } finally {
     btn.disabled = false;
     btn.innerHTML = originalLabel;
