@@ -2292,6 +2292,8 @@ async function appendFollowUp(id, note) {
 
 // Single source of truth for both flows: optionally PATCH status + always
 // prepend a new entry to StatusUpdates after re-reading the freshest value.
+// Split into two PATCHes when status changes so a 500 from SP tells us which
+// field set is at fault (Status+ResolvedDate vs StatusUpdates rich-text).
 async function appendStatusUpdate(id, body, newStatus) {
   const author = (activeAccount?.name) || (activeAccount?.username) || "Unknown";
   // Re-read the freshest StatusUpdates so a parallel write doesn't get
@@ -2299,16 +2301,31 @@ async function appendStatusUpdate(id, body, newStatus) {
   const fresh = await graphGet(`/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}?$expand=fields($select=StatusUpdates,Status)`);
   const existing = fresh?.fields?.StatusUpdates || "";
   const newEntry = formatStatusUpdateEntry(author, body.trim());
-  const fields = { StatusUpdates: newEntry + existing };
-  if (newStatus && newStatus !== fresh?.fields?.Status) {
-    fields.Status = newStatus;
-    if (newStatus === "Complete") fields.ResolvedDate = new Date().toISOString();
-    else fields.ResolvedDate = null;
+  const path = `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`;
+  const isStatusChange = newStatus && newStatus !== fresh?.fields?.Status;
+
+  if (isStatusChange) {
+    const statusFields = { Status: newStatus };
+    if (newStatus === "Complete") statusFields.ResolvedDate = new Date().toISOString();
+    else statusFields.ResolvedDate = null;
+    try {
+      await graphPatch(path, statusFields);
+    } catch (err) {
+      err.message = `Status change failed (Status+ResolvedDate): ${err.message}`;
+      throw err;
+    }
   }
-  return graphPatch(
-    `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`,
-    fields
-  );
+
+  try {
+    return await graphPatch(path, { StatusUpdates: newEntry + existing });
+  } catch (err) {
+    if (isStatusChange) {
+      err.message = `Status saved to "${newStatus}", but the update note failed (StatusUpdates field): ${err.message}`;
+    } else {
+      err.message = `Update note failed (StatusUpdates field): ${err.message}`;
+    }
+    throw err;
+  }
 }
 
 async function reassignEscalationById(id, lookupId) {
