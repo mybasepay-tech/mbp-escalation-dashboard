@@ -787,6 +787,39 @@
   }
   .ai-fab-popup-foot .btn { padding: 7px 14px; font-size: 13px; }
   .ai-fab-popup-foot .btn-secondary { padding: 7px 14px; font-size: 13px; }
+  .ai-fab-preview-kind {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6366f1;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .ai-fab-preview-card {
+    background: #f8fafc;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .ai-fab-preview-card .preview-id {
+    font-weight: 700;
+    color: var(--emerald);
+    margin-right: 6px;
+  }
+  .ai-fab-preview-card .preview-title { font-weight: 600; }
+  .ai-fab-preview-card .preview-meta {
+    margin-top: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .ai-fab-preview-rationale {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: 8px;
+  }
   .ai-filter-applied {
     display: flex;
     align-items: center;
@@ -1518,18 +1551,30 @@
     <button type="button" class="ai-fab-popup-close" id="aiFabPopupClose" aria-label="Close">&times;</button>
   </div>
   <div class="ai-fab-popup-body">
-    <p class="ai-fab-popup-help">Describe what you're looking for in plain English. Pulls from status, urgency, department, assignees, submitters, sort &amp; limit.</p>
-    <textarea class="ai-fab-popup-input" id="aiFabInput" rows="2" placeholder="e.g. show me the escalation with the most days open"></textarea>
-    <div class="ai-fab-popup-examples">
-      <span class="ai-fab-popup-examples-label">Try:</span>
-      <button type="button" class="ai-fab-popup-example" data-q="show me escalations awaiting update in Billing">awaiting update in Billing</button>
-      <button type="button" class="ai-fab-popup-example" data-q="top 5 oldest open escalations">top 5 oldest</button>
-      <button type="button" class="ai-fab-popup-example" data-q="biggest financial impact">biggest $ impact</button>
-      <button type="button" class="ai-fab-popup-example" data-q="critical urgency past expected date">critical &amp; overdue</button>
+    <div id="aiFabInputMode">
+      <p class="ai-fab-popup-help">Describe what you're looking for in plain English. Pulls from status, urgency, department, assignees, submitters, sort &amp; limit. You can also say "send the weekly digest" or "open #299".</p>
+      <textarea class="ai-fab-popup-input" id="aiFabInput" rows="2" placeholder="e.g. show me the escalation with the most days open"></textarea>
+      <div class="ai-fab-popup-examples">
+        <span class="ai-fab-popup-examples-label">Try:</span>
+        <button type="button" class="ai-fab-popup-example" data-q="show me escalations awaiting update in Billing">awaiting update in Billing</button>
+        <button type="button" class="ai-fab-popup-example" data-q="top 5 oldest open escalations">top 5 oldest</button>
+        <button type="button" class="ai-fab-popup-example" data-q="biggest financial impact">biggest $ impact</button>
+        <button type="button" class="ai-fab-popup-example" data-q="critical urgency past expected date">critical &amp; overdue</button>
+        <button type="button" class="ai-fab-popup-example" data-q="send the weekly digest">send weekly digest</button>
+      </div>
+      <div class="ai-fab-popup-foot">
+        <button type="button" class="btn-secondary" id="aiFabCancel">Cancel</button>
+        <button type="button" class="btn" id="aiFabSubmit">Search</button>
+      </div>
     </div>
-    <div class="ai-fab-popup-foot">
-      <button type="button" class="btn-secondary" id="aiFabCancel">Cancel</button>
-      <button type="button" class="btn" id="aiFabSubmit">Search</button>
+    <div id="aiFabPreviewMode" hidden>
+      <div class="ai-fab-preview-kind" id="aiFabPreviewKind">Action preview</div>
+      <div class="ai-fab-preview-card" id="aiFabPreviewBody"></div>
+      <div class="ai-fab-preview-rationale" id="aiFabPreviewRationale"></div>
+      <div class="ai-fab-popup-foot">
+        <button type="button" class="btn-secondary" id="aiFabPreviewCancel">Cancel</button>
+        <button type="button" class="btn" id="aiFabPreviewConfirm">Open</button>
+      </div>
     </div>
   </div>
 </div>
@@ -1925,9 +1970,76 @@ async function callAi(operation, data) {
   return res.json();  // { text, usage }
 }
 
-/* ---------- Phase 5: Natural-language filter ---------- */
+/* ---------- Phase 5: Natural-language filter ----------
+   Phase 7 extends this with an intent router — parseFilter now returns an
+   "intent" field. For filter intents, behavior is unchanged. For sendDigest,
+   we close the FAB and open the digest modal (whose own confirm step IS the
+   preview). For openItem, we swap the FAB into preview mode and require an
+   explicit Open click before navigating. Never auto-execute actions. */
+
+// Promoted out of wireUI's closure so triggerAiFilter and the intent router
+// can call them directly.
+function openFab() {
+  const popup = document.getElementById("aiFabPopup");
+  popup.classList.add("open");
+  popup.setAttribute("aria-hidden", "false");
+  resetFabToInputMode();
+  setTimeout(() => {
+    const input = document.getElementById("aiFabInput");
+    if (input) input.focus();
+  }, 50);
+}
+
+function closeFab() {
+  const popup = document.getElementById("aiFabPopup");
+  popup.classList.remove("open");
+  popup.setAttribute("aria-hidden", "true");
+  // Reset to input mode so the next open isn't stuck on a stale preview.
+  resetFabToInputMode();
+}
+
+function resetFabToInputMode() {
+  const inputMode = document.getElementById("aiFabInputMode");
+  const previewMode = document.getElementById("aiFabPreviewMode");
+  if (inputMode) inputMode.hidden = false;
+  if (previewMode) previewMode.hidden = true;
+  _pendingFabAction = null;
+}
+
+let _pendingFabAction = null;
+
+function enterFabOpenItemPreview(esc, rationale) {
+  const kind = document.getElementById("aiFabPreviewKind");
+  const body = document.getElementById("aiFabPreviewBody");
+  const rat = document.getElementById("aiFabPreviewRationale");
+  const confirmBtn = document.getElementById("aiFabPreviewConfirm");
+  kind.textContent = "📂 Open escalation";
+  body.innerHTML =
+    `<span class="preview-id">#${esc.id}</span><span class="preview-title">${escapeHtml(esc.title || "(untitled)")}</span>` +
+    `<div class="preview-meta">${escapeHtml(esc.status || "—")} · ${escapeHtml(esc.assignee || "unassigned")}</div>`;
+  rat.textContent = rationale || "";
+  confirmBtn.textContent = "Open";
+  _pendingFabAction = { kind: "openItem", itemId: esc.id };
+  document.getElementById("aiFabInputMode").hidden = true;
+  document.getElementById("aiFabPreviewMode").hidden = false;
+}
+
+function executePendingFabAction() {
+  if (!_pendingFabAction) return;
+  const action = _pendingFabAction;
+  if (action.kind === "openItem") {
+    selectedId = action.itemId;
+    closeFab();
+    renderList();
+    renderDetail();
+    // Scroll the item into view in the list (best-effort; row may be paginated out)
+    const row = document.querySelector(`.esc-row[data-id='${action.itemId}']`);
+    if (row && row.scrollIntoView) row.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
+
 // Loading-state UI is managed by the caller (FAB's submitFab) — this function
-// just does the AI call + filter application.
+// just does the AI call + intent routing.
 async function triggerAiFilter(query) {
   query = (query || "").trim();
   if (!query) return;
@@ -1954,7 +2066,25 @@ async function triggerAiFilter(query) {
     } catch {
       throw new Error("AI returned malformed JSON.");
     }
+
+    // Phase 7: route on intent. Default to "filter" for backward-compat.
+    const intent = parsed.intent || "filter";
+    if (intent === "sendDigest") {
+      closeFab();
+      openDigestModal();
+      return;
+    }
+    if (intent === "openItem" && Number.isInteger(parsed.itemId)) {
+      const esc = escalations.find(x => x.id === parsed.itemId);
+      if (!esc) {
+        toast(`No escalation #${parsed.itemId} found.`, 4000);
+        return;
+      }
+      enterFabOpenItemPreview(esc, parsed.rationale);
+      return;
+    }
     applyParsedFilters(parsed);
+    closeFab();
   } catch (err) {
     console.error(err);
     toast("Smart Search failed: " + err.message, 4000);
@@ -2977,37 +3107,32 @@ function wireUI() {
   document.getElementById("aiFilterAppliedClear").addEventListener("click", clearAiFilter);
   // Phase 5: Smart Search lives in a floating button + popup (bottom-right).
   // The search input above is plain substring search; AI queries go through the FAB.
+  // Phase 7: triggerAiFilter handles closing/opening the FAB on its own (so it
+  // can keep it open for an openItem preview), so submitFab no longer calls
+  // closeFab unconditionally.
   const fabBtn = document.getElementById("aiFabBtn");
   const fabPopup = document.getElementById("aiFabPopup");
   const fabInput = document.getElementById("aiFabInput");
   const fabSubmit = document.getElementById("aiFabSubmit");
-  const openFab = () => {
-    fabPopup.classList.add("open");
-    fabPopup.setAttribute("aria-hidden", "false");
-    setTimeout(() => fabInput.focus(), 50);
-  };
-  const closeFab = () => {
-    fabPopup.classList.remove("open");
-    fabPopup.setAttribute("aria-hidden", "true");
-  };
   fabBtn.addEventListener("click", () => {
     if (fabPopup.classList.contains("open")) closeFab();
     else openFab();
   });
   document.getElementById("aiFabPopupClose").addEventListener("click", closeFab);
   document.getElementById("aiFabCancel").addEventListener("click", closeFab);
+  // Preview-mode buttons (Phase 7)
+  document.getElementById("aiFabPreviewCancel").addEventListener("click", resetFabToInputMode);
+  document.getElementById("aiFabPreviewConfirm").addEventListener("click", executePendingFabAction);
   // Submit on click OR Enter (Shift+Enter for newline inside the textarea)
   const submitFab = async () => {
     const q = fabInput.value.trim();
     if (!q) return;
     fabBtn.classList.add("busy");
     const origLabel = fabBtn.innerHTML;
-    // Icon-only FAB: just swap the sparkle for a spinner; label is hidden anyway
     fabBtn.innerHTML = '<span class="spinner"></span>';
     fabSubmit.disabled = true;
     try {
       await triggerAiFilter(q);
-      closeFab();
     } finally {
       fabBtn.classList.remove("busy");
       fabBtn.innerHTML = origLabel;
