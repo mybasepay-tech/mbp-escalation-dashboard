@@ -2599,11 +2599,12 @@ async function appendFollowUp(id, note) {
 }
 
 // Single source of truth for status update + status change flows.
-// When transitioning to Complete, the SP list validation requires Status +
-// ResolvedDate + InternalDocumentationNeeded to be set together (and
-// optionally InternalDocumentationCommentary if Needed=Yes). They must be
-// in ONE PATCH or validation rejects the write. StatusUpdates is sent in a
-// separate PATCH so a failure there doesn't lose the user's status change.
+// ONE combined PATCH on purpose — the PA flow on item-modified posts to
+// the Escalations Teams channel and gets confused if we fire two PATCHes
+// in quick succession (double-trigger, stale read on the first run). One
+// write also lands everything atomically: the SP validation requiring
+// Status + ResolvedDate + InternalDocumentationNeeded together when
+// closing is satisfied in a single transaction.
 async function appendStatusUpdate(id, body, newStatus, docFields) {
   const author = (activeAccount?.name) || (activeAccount?.username) || "Unknown";
   // Re-read the freshest StatusUpdates so a parallel write doesn't get
@@ -2611,50 +2612,38 @@ async function appendStatusUpdate(id, body, newStatus, docFields) {
   const fresh = await graphGet(`/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}?$expand=fields($select=StatusUpdates,Status)`);
   const existing = fresh?.fields?.StatusUpdates || "";
   const newEntry = formatStatusUpdateEntry(author, body.trim());
-  const path = `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`;
+  const fields = { StatusUpdates: newEntry + existing };
   const isStatusChange = newStatus && newStatus !== fresh?.fields?.Status;
 
   if (isStatusChange) {
-    const todayDateOnly = (() => {
-      const d = new Date();
-      const yyyy = d.getFullYear();
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dd = String(d.getDate()).padStart(2, "0");
-      return `${yyyy}-${mm}-${dd}`;
-    })();
-    const statusFields = { Status: newStatus };
+    fields.Status = newStatus;
     if (newStatus === "Complete") {
-      statusFields.ResolvedDate = todayDateOnly;
-      // SP list validation: Resolved Date AND Internal Documentation Needed
-      // must be present when Status=Complete. Default to "No" if caller
-      // didn't supply (preserves backward-compat for any non-modal call site).
-      statusFields.InternalDocumentationNeeded = (docFields && docFields.needed) || "No";
+      const todayDateOnly = (() => {
+        const d = new Date();
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, "0");
+        const dd = String(d.getDate()).padStart(2, "0");
+        return `${yyyy}-${mm}-${dd}`;
+      })();
+      fields.ResolvedDate = todayDateOnly;
+      // SP validation: Resolved Date AND Internal Documentation Needed must
+      // be present when Status=Complete. Default to "No" if the caller
+      // didn't supply (preserves backward-compat for any non-modal callers).
+      fields.InternalDocumentationNeeded = (docFields && docFields.needed) || "No";
       if (docFields && docFields.needed === "Yes" && docFields.commentary) {
-        // Rich-text field — wrap as a simple paragraph with the user's text.
+        // Rich-text field — wrap the user's text as a simple paragraph.
         const safe = escapeHtml(docFields.commentary).replace(/\n+/g, "<br>");
-        statusFields.InternalDocumentationCommentary = `<p>${safe}</p>`;
+        fields.InternalDocumentationCommentary = `<p>${safe}</p>`;
       }
     } else {
-      statusFields.ResolvedDate = null;
-    }
-    try {
-      await graphPatch(path, statusFields);
-    } catch (err) {
-      err.message = `Status change failed: ${err.message}`;
-      throw err;
+      fields.ResolvedDate = null;
     }
   }
 
-  try {
-    return await graphPatch(path, { StatusUpdates: newEntry + existing });
-  } catch (err) {
-    if (isStatusChange) {
-      err.message = `Status saved to "${newStatus}", but the update note failed (StatusUpdates field): ${err.message}`;
-    } else {
-      err.message = `Update note failed (StatusUpdates field): ${err.message}`;
-    }
-    throw err;
-  }
+  return graphPatch(
+    `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`,
+    fields
+  );
 }
 
 async function reassignEscalationById(id, lookupId) {
