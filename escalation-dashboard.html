@@ -2600,13 +2600,32 @@ async function appendStatusUpdate(id, body, newStatus) {
   const isStatusChange = newStatus && newStatus !== fresh?.fields?.Status;
 
   if (isStatusChange) {
-    const statusFields = { Status: newStatus };
-    if (newStatus === "Complete") statusFields.ResolvedDate = new Date().toISOString();
-    else statusFields.ResolvedDate = null;
+    // Split Status and ResolvedDate so a 500 tells us which one SP is rejecting.
+    // Status first (most likely to succeed), then ResolvedDate (the suspect).
     try {
-      await graphPatch(path, statusFields);
+      await graphPatch(path, { Status: newStatus });
     } catch (err) {
-      err.message = `Status change failed (Status+ResolvedDate): ${err.message}`;
+      err.message = `Status field PATCH failed: ${err.message}`;
+      throw err;
+    }
+    // ResolvedDate: stamp on Complete, clear otherwise. If the column is
+    // Date-only, send YYYY-MM-DD; SP accepts that for both Date and DateTime
+    // columns, but a full ISO can 500 on Date-only columns.
+    const dateOnly = (() => {
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    })();
+    const resolvedValue = newStatus === "Complete" ? dateOnly : null;
+    try {
+      await graphPatch(path, { ResolvedDate: resolvedValue });
+    } catch (err) {
+      // Status already saved at this point. Don't roll back — that introduces
+      // its own failure modes. Tell the user the status moved but the date
+      // didn't, so they know whether to retry.
+      err.message = `Status saved to "${newStatus}", but ResolvedDate PATCH failed (likely a column-type or validation issue on ResolvedDate): ${err.message}`;
       throw err;
     }
   }
