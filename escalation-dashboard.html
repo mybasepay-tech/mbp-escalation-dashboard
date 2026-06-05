@@ -1543,6 +1543,19 @@
         </div>
         <div class="form-help">Stamped with your name and the current timestamp, then added to Status Updates. <strong>This entry cannot be edited or removed later.</strong></div>
       </div>
+      <div class="form-row" id="updateModalDocRow" style="display:none">
+        <label>Internal documentation needed? <span class="req">*</span></label>
+        <div style="display:flex;gap:18px;align-items:center;font-size:13px;margin-top:2px">
+          <label style="display:inline-flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer">
+            <input type="radio" name="updateDocNeeded" value="No" checked> No
+          </label>
+          <label style="display:inline-flex;align-items:center;gap:6px;font-weight:400;margin:0;cursor:pointer">
+            <input type="radio" name="updateDocNeeded" value="Yes"> Yes
+          </label>
+        </div>
+        <textarea id="updateModalDocText" placeholder="Document what was learned or what should be referenced for similar future cases." style="margin-top:8px;display:none"></textarea>
+        <div class="form-help">SharePoint requires this when closing an escalation. The detail box appears if you pick Yes.</div>
+      </div>
       <div class="form-error" id="updateModalError" style="display:none"></div>
     </div>
     <div class="modal-foot">
@@ -2585,11 +2598,13 @@ async function appendFollowUp(id, note) {
   );
 }
 
-// Single source of truth for both flows: optionally PATCH status + always
-// prepend a new entry to StatusUpdates after re-reading the freshest value.
-// Split into two PATCHes when status changes so a 500 from SP tells us which
-// field set is at fault (Status+ResolvedDate vs StatusUpdates rich-text).
-async function appendStatusUpdate(id, body, newStatus) {
+// Single source of truth for status update + status change flows.
+// When transitioning to Complete, the SP list validation requires Status +
+// ResolvedDate + InternalDocumentationNeeded to be set together (and
+// optionally InternalDocumentationCommentary if Needed=Yes). They must be
+// in ONE PATCH or validation rejects the write. StatusUpdates is sent in a
+// separate PATCH so a failure there doesn't lose the user's status change.
+async function appendStatusUpdate(id, body, newStatus, docFields) {
   const author = (activeAccount?.name) || (activeAccount?.username) || "Unknown";
   // Re-read the freshest StatusUpdates so a parallel write doesn't get
   // overwritten. Cheap (one GET) and dodges a real data-loss footgun.
@@ -2600,32 +2615,32 @@ async function appendStatusUpdate(id, body, newStatus) {
   const isStatusChange = newStatus && newStatus !== fresh?.fields?.Status;
 
   if (isStatusChange) {
-    // Split Status and ResolvedDate so a 500 tells us which one SP is rejecting.
-    // Status first (most likely to succeed), then ResolvedDate (the suspect).
-    try {
-      await graphPatch(path, { Status: newStatus });
-    } catch (err) {
-      err.message = `Status field PATCH failed: ${err.message}`;
-      throw err;
-    }
-    // ResolvedDate: stamp on Complete, clear otherwise. If the column is
-    // Date-only, send YYYY-MM-DD; SP accepts that for both Date and DateTime
-    // columns, but a full ISO can 500 on Date-only columns.
-    const dateOnly = (() => {
+    const todayDateOnly = (() => {
       const d = new Date();
       const yyyy = d.getFullYear();
       const mm = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
       return `${yyyy}-${mm}-${dd}`;
     })();
-    const resolvedValue = newStatus === "Complete" ? dateOnly : null;
+    const statusFields = { Status: newStatus };
+    if (newStatus === "Complete") {
+      statusFields.ResolvedDate = todayDateOnly;
+      // SP list validation: Resolved Date AND Internal Documentation Needed
+      // must be present when Status=Complete. Default to "No" if caller
+      // didn't supply (preserves backward-compat for any non-modal call site).
+      statusFields.InternalDocumentationNeeded = (docFields && docFields.needed) || "No";
+      if (docFields && docFields.needed === "Yes" && docFields.commentary) {
+        // Rich-text field — wrap as a simple paragraph with the user's text.
+        const safe = escapeHtml(docFields.commentary).replace(/\n+/g, "<br>");
+        statusFields.InternalDocumentationCommentary = `<p>${safe}</p>`;
+      }
+    } else {
+      statusFields.ResolvedDate = null;
+    }
     try {
-      await graphPatch(path, { ResolvedDate: resolvedValue });
+      await graphPatch(path, statusFields);
     } catch (err) {
-      // Status already saved at this point. Don't roll back — that introduces
-      // its own failure modes. Tell the user the status moved but the date
-      // didn't, so they know whether to retry.
-      err.message = `Status saved to "${newStatus}", but ResolvedDate PATCH failed (likely a column-type or validation issue on ResolvedDate): ${err.message}`;
+      err.message = `Status change failed: ${err.message}`;
       throw err;
     }
   }
@@ -2937,6 +2952,13 @@ document.addEventListener("DOMContentLoaded", () => {
   if (updateSaveBtn) updateSaveBtn.addEventListener("click", saveUpdateAndClose);
   const draftBtn = document.getElementById("updateModalDraftBtn");
   if (draftBtn) draftBtn.addEventListener("click", draftUpdateWithAi);
+  // Show the documentation textarea only when "Yes" is picked
+  document.querySelectorAll('input[name="updateDocNeeded"]').forEach(r => {
+    r.addEventListener("change", () => {
+      const docText = document.getElementById("updateModalDocText");
+      docText.style.display = r.value === "Yes" && r.checked ? "block" : "none";
+    });
+  });
 });
 
 /* ---------- detail ---------- */
@@ -3679,12 +3701,32 @@ function openUpdateModal(ctx) {
   saveBtn.disabled = true;
   saveBtn.textContent = "Save";
   const draftRow = document.getElementById("updateModalDraftRow");
+  const docRow = document.getElementById("updateModalDocRow");
+  const docText = document.getElementById("updateModalDocText");
+  // Reset doc fields each open (sticky state across opens would be confusing)
+  docRow.style.display = "none";
+  docText.style.display = "none";
+  docText.value = "";
+  const noRadio = document.querySelector('input[name="updateDocNeeded"][value="No"]');
+  if (noRadio) noRadio.checked = true;
   if (ctx.kind === "statusChange") {
     title.textContent = `Change status to "${ctx.toStatus}"`;
     contextEl.style.display = "block";
     contextEl.innerHTML = `Moving #${ctx.id} from <strong>${escapeHtml(ctx.fromStatus || "—")}</strong> → <strong>${escapeHtml(ctx.toStatus)}</strong>. A status note is required.`;
     saveBtn.textContent = "Save change";
     draftRow.style.display = "flex";
+    // Complete transition requires Internal Documentation Needed per SP validation
+    if (ctx.toStatus === "Complete") {
+      docRow.style.display = "block";
+      // Pre-select from existing item value if already set
+      const esc = escalations.find(x => x.id === ctx.id);
+      const existingNeeded = esc && esc.docNeeded;
+      if (existingNeeded === "Yes" || existingNeeded === "No") {
+        const radio = document.querySelector(`input[name="updateDocNeeded"][value="${existingNeeded}"]`);
+        if (radio) radio.checked = true;
+        if (existingNeeded === "Yes") docText.style.display = "block";
+      }
+    }
   } else if (ctx.kind === "followUp") {
     title.textContent = `Log follow-up on #${ctx.id}`;
     contextEl.style.display = "block";
@@ -3767,6 +3809,13 @@ async function saveUpdateAndClose() {
     errEl.style.display = "block";
     return;
   }
+  // Collect documentation fields when transitioning to Complete (required by SP).
+  let docFields = null;
+  if (ctx.kind === "statusChange" && ctx.toStatus === "Complete") {
+    const needed = document.querySelector('input[name="updateDocNeeded"]:checked')?.value || "No";
+    const docText = document.getElementById("updateModalDocText").value.trim();
+    docFields = { needed, commentary: docText };
+  }
   const saveBtn = document.getElementById("updateModalSaveBtn");
   const originalLabel = saveBtn.textContent;
   saveBtn.disabled = true;
@@ -3776,7 +3825,7 @@ async function saveUpdateAndClose() {
       await appendFollowUp(ctx.id, text);
       toast(`Follow-up logged on #${ctx.id}`);
     } else {
-      await appendStatusUpdate(ctx.id, text, ctx.kind === "statusChange" ? ctx.toStatus : null);
+      await appendStatusUpdate(ctx.id, text, ctx.kind === "statusChange" ? ctx.toStatus : null, docFields);
       toast(ctx.kind === "statusChange" ? `#${ctx.id} → ${ctx.toStatus}` : `Update posted to #${ctx.id}`);
     }
     closeUpdateModal();
