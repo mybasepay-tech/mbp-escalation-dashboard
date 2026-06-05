@@ -8,6 +8,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&display=swap" rel="stylesheet">
 <script src="https://unpkg.com/@azure/msal-browser@2.38.3/lib/msal-browser.min.js"></script>
+<script>
+  // Apply persisted dark mode before first paint to avoid theme flash.
+  // Only Nestor sees the toggle, so the key only exists for him in practice.
+  try {
+    if (localStorage.getItem("mbp-escalation-theme") === "dark") {
+      document.documentElement.classList.add("dark-mode");
+    }
+  } catch (e) { /* localStorage may be blocked; ignore */ }
+</script>
 <style>
   :root {
     /* myBasePay brand palette */
@@ -1202,6 +1211,140 @@
   }
   .signin-card h2 { margin: 12px 0 4px; font-size: 18px; }
   .signin-card p { margin: 4px 0 20px; color: var(--text-muted); font-size: 13px; }
+
+  /* ============ Theme toggle (Nestor-only header button) ============ */
+  .theme-toggle {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center;
+    font-size: 16px; line-height: 1;
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
+  }
+  .theme-toggle:hover { background: var(--gray-bg); border-color: var(--border-strong); }
+  .theme-toggle:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
+
+  /* ============ Dark mode (opt-in via header toggle) ============
+     Activated by html.dark-mode (set pre-paint by the head script + JS toggle).
+     Strategy: (1) override root vars so var()-driven components flip
+     automatically; (2) target the hardcoded-#fff surfaces by class so they
+     read on a dark background; (3) recolor a few light AI gradients. */
+  html.dark-mode {
+    --bg: #0f1116;
+    --surface: #1a1d2a;
+    --border: #2d3142;
+    --border-strong: #3d4256;
+    --text: #e8e8ed;
+    --text-muted: #a8b0c4;
+    --text-faint: #7c8295;
+    --gray-bg: #20232f;
+    --white-smoke: #20232f;
+
+    /* Tinted backgrounds — dark variants of brand/semantic colors */
+    --emerald-bg: #11371f;
+    --green-bg: #11371f;
+    --amber-bg: #3a2a0a;
+    --red-bg: #3a1414;
+    --blue-bg: #18253d;
+    --purple-bg: #2a1f3d;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
+    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.6);
+  }
+  html.dark-mode body { background: var(--bg); color: var(--text); }
+
+  /* Inputs and selects (hardcoded #fff) */
+  html.dark-mode .toolbar input[type="search"],
+  html.dark-mode .toolbar select,
+  html.dark-mode .assignee-picker select,
+  html.dark-mode .form-row input[type="text"],
+  html.dark-mode .form-row input[type="email"],
+  html.dark-mode .form-row input[type="number"],
+  html.dark-mode .form-row input[type="date"],
+  html.dark-mode .form-row select,
+  html.dark-mode .form-row textarea,
+  html.dark-mode .reassign-input,
+  html.dark-mode .ai-fab-popup-input {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  /* Buttons that hardcode white */
+  html.dark-mode .btn-secondary { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+  html.dark-mode .btn-secondary:hover { background: var(--text); color: var(--surface); }
+  html.dark-mode .btn-sm { background: var(--surface); color: var(--text); border-color: var(--border-strong); }
+  html.dark-mode .btn-sm:hover { background: var(--gray-bg); }
+
+  /* Cards / popups / menus that hardcode white */
+  html.dark-mode .ai-fab-popup,
+  html.dark-mode .modal,
+  html.dark-mode .signin-card,
+  html.dark-mode .badge-menu,
+  html.dark-mode .typeahead-suggestions {
+    background: var(--surface);
+    color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  /* AI similar items & filter chips */
+  html.dark-mode .ai-similar-item {
+    background: var(--surface);
+    border-color: var(--border-strong);
+  }
+  html.dark-mode .ai-similar-item:hover { background: var(--gray-bg); border-color: #4b4f6a; }
+  html.dark-mode .ai-filter-chip {
+    background: var(--surface);
+    border-color: #4b4f6a;
+    color: var(--text);
+  }
+
+  /* AI/Smart-Search light-purple gradients — replace with dark accent gradient */
+  html.dark-mode .ai-fab-popup-head,
+  html.dark-mode .ai-summary-card-head,
+  html.dark-mode .ai-similar-card-head,
+  html.dark-mode .ai-summary {
+    background: linear-gradient(135deg, #251f3d 0%, #1f243f 100%);
+    border-color: #3b3265;
+  }
+
+  /* Phase 7 preview card (light slate by default) */
+  html.dark-mode .ai-fab-preview-card {
+    background: var(--gray-bg);
+    border-color: var(--border-strong);
+    color: var(--text);
+  }
+
+  /* Stale / warn pills hardcode light backgrounds — flip to dark amber/orange */
+  html.dark-mode .pill.last-update.warn { background: #3a2d10; color: #fcd34d; }
+  html.dark-mode .pill.last-update.stale { background: #3a2210; color: #fdba74; }
+  html.dark-mode .badge.stale-badge { background: #3a2210; color: #fdba74; border-color: #5c3818; }
+  html.dark-mode .stale-text { color: #fdba74; }
+
+  /* Dept hover state hardcoded a light gray */
+  html.dark-mode .dept-chip:hover { background: var(--gray-bg); }
+
+  /* Modal foot uses var(--bg); fine. Modal title color uses --emerald; readable. */
+
+  /* Sign-in card text contrast */
+  html.dark-mode .signin-card h2,
+  html.dark-mode .signin-card p { color: var(--text); }
+  html.dark-mode .signin-card p { color: var(--text-muted); }
+
+  /* Form-row helper colors */
+  html.dark-mode .dept-info { background: var(--blue-bg); border-color: #1e3a5f; color: #93c5fd; }
+  html.dark-mode .form-error { background: var(--red-bg); border-color: #5c1f1f; color: #fca5a5; }
+
+  /* Big-text components that hardcode var(--prussian) (invisible on dark bg) */
+  html.dark-mode .kpi-value,
+  html.dark-mode .detail-title,
+  html.dark-mode .detail-stat-value {
+    color: var(--text);
+  }
 </style>
 </head>
 <body>
@@ -1216,6 +1359,9 @@
   </div>
   <div class="header-right">
     <span class="connection-pill"><span class="conn-dot" id="connDot"></span><span id="connLabel">connecting…</span></span>
+    <button type="button" class="theme-toggle" id="themeToggleBtn" style="display:none" title="Toggle dark mode" aria-label="Toggle dark mode">
+      <span id="themeToggleIcon" aria-hidden="true">🌙</span>
+    </button>
     <div class="header-user" id="headerUser" style="display:none">
       <div class="avatar" id="userAvatar">?</div>
       <span id="userName">—</span>
@@ -3965,13 +4111,51 @@ async function confirmAndSendDigest() {
 function renderUserChip() {
   if (!activeAccount) {
     document.getElementById("headerUser").style.display = "none";
+    document.getElementById("themeToggleBtn").style.display = "none";
     return;
   }
   const name = activeAccount.name || activeAccount.username || "Signed in";
   document.getElementById("userName").textContent = name;
   document.getElementById("userAvatar").textContent = initials(name);
   document.getElementById("headerUser").style.display = "inline-flex";
+  // Dark-mode toggle is Nestor-only for now. For everyone else on the same
+  // browser profile (where localStorage might have been set by Nestor),
+  // force-revert to light so they don't get stuck in dark mode without a toggle.
+  const isThemeOwner = (activeAccount.username || "").toLowerCase() === "nestor@mybasepay.com";
+  document.getElementById("themeToggleBtn").style.display = isThemeOwner ? "inline-flex" : "none";
+  if (!isThemeOwner && document.documentElement.classList.contains("dark-mode")) {
+    document.documentElement.classList.remove("dark-mode");
+    // Do NOT touch localStorage — preserve Nestor's preference for his next sign-in.
+  }
+  syncThemeToggleIcon();
 }
+
+/* ---------- theme toggle (Nestor-only) ---------- */
+const THEME_KEY = "mbp-escalation-theme";
+function currentTheme() {
+  return document.documentElement.classList.contains("dark-mode") ? "dark" : "light";
+}
+function applyTheme(theme) {
+  if (theme === "dark") document.documentElement.classList.add("dark-mode");
+  else document.documentElement.classList.remove("dark-mode");
+  try { localStorage.setItem(THEME_KEY, theme); } catch {}
+  syncThemeToggleIcon();
+}
+function toggleTheme() {
+  applyTheme(currentTheme() === "dark" ? "light" : "dark");
+}
+function syncThemeToggleIcon() {
+  const iconEl = document.getElementById("themeToggleIcon");
+  if (!iconEl) return;
+  // Show the destination state: in light mode show 🌙 (click to go dark);
+  // in dark mode show ☀️ (click to go light).
+  iconEl.textContent = currentTheme() === "dark" ? "☀️" : "🌙";
+}
+document.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("themeToggleBtn");
+  if (btn) btn.addEventListener("click", toggleTheme);
+  syncThemeToggleIcon();
+});
 
 /* ---------- bootstrap ---------- */
 async function loadData(isRefresh) {
