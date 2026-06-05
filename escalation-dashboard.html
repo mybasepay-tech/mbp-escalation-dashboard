@@ -1345,6 +1345,25 @@
   html.dark-mode .detail-stat-value {
     color: var(--text);
   }
+
+  /* Status-update timeline entries — hardcoded pale-green/pale-blue backgrounds
+     made the light text invisible in dark mode. Dark-tinted variants keep
+     the accent color while restoring contrast. */
+  html.dark-mode .updates-history .esc-update {
+    background: #11371f;
+    border-left-color: var(--emerald);
+  }
+  html.dark-mode .updates-history .esc-followup {
+    background: #18253d;
+    border-left-color: #3b82f6;
+  }
+
+  /* Digest modal disclaimer note (pale blue bg, light text in dark mode) */
+  html.dark-mode .digest-modal-note {
+    background: #18253d;
+    border-left-color: #3b82f6;
+    color: var(--text);
+  }
 </style>
 </head>
 <body>
