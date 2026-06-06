@@ -2618,8 +2618,14 @@ function applyParsedFilters(parsed) {
       applied.push({ label: "Aggregate", value: `${AGG_KIND_LABELS[kind]} of ${fieldLabel}` });
     }
   }
-  // Compare-with (new): only meaningful with a timeWindow + aggregation.
-  if (parsed.compareWith === "previousPeriod" && filters.timeWindow && filters.aggregation) {
+  // Compare-with (new): only meaningful with a timeWindow. If the AI returned
+  // compareWith but forgot to set an aggregation, default to count so the trend
+  // card has something to compute (matches what the user clearly wanted).
+  if (parsed.compareWith === "previousPeriod" && filters.timeWindow) {
+    if (!filters.aggregation) {
+      filters.aggregation = { kind: "count", field: null };
+      applied.push({ label: "Aggregate", value: "Count of items" });
+    }
     filters.compareWith = "previousPeriod";
     applied.push({ label: "", value: "vs previous period" });
   }
