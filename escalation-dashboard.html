@@ -4782,15 +4782,7 @@ function renderUserChip() {
   document.getElementById("userName").textContent = name;
   document.getElementById("userAvatar").textContent = initials(name);
   document.getElementById("headerUser").style.display = "inline-flex";
-  // Dark-mode toggle is Nestor-only for now. For everyone else on the same
-  // browser profile (where localStorage might have been set by Nestor),
-  // force-revert to light so they don't get stuck in dark mode without a toggle.
-  const isThemeOwner = (activeAccount.username || "").toLowerCase() === "nestor@mybasepay.com";
-  document.getElementById("themeToggleBtn").style.display = isThemeOwner ? "inline-flex" : "none";
-  if (!isThemeOwner && document.documentElement.classList.contains("dark-mode")) {
-    document.documentElement.classList.remove("dark-mode");
-    // Do NOT touch localStorage — preserve Nestor's preference for his next sign-in.
-  }
+  document.getElementById("themeToggleBtn").style.display = "inline-flex";
   syncThemeToggleIcon();
 }
 
