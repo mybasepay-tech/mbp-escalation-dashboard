@@ -1452,6 +1452,82 @@
     margin-top: 8px; font-size: 11px;
     color: var(--text-muted); font-style: italic;
   }
+
+  /* Grouped aggregation: top entry + horizontal-bar list */
+  .ai-group-list {
+    display: flex; flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    width: 100%;
+  }
+  .ai-group-row {
+    display: grid;
+    grid-template-columns: 200px 1fr 64px;
+    align-items: center;
+    gap: 12px;
+    font-size: 13px;
+  }
+  .ai-group-row.top .ai-group-name { font-weight: 700; }
+  .ai-group-row.top .ai-group-bar-fill { background: #6366f1; }
+  .ai-group-name {
+    color: var(--text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ai-group-name .ai-group-count {
+    color: var(--text-muted);
+    font-weight: 400; font-size: 11px;
+    margin-left: 4px;
+  }
+  .ai-group-bar {
+    height: 8px;
+    background: rgba(99, 102, 241, 0.12);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .ai-group-bar-fill {
+    height: 100%;
+    background: #a5b4fc;
+    border-radius: 999px;
+    transition: width 0.3s ease;
+  }
+  .ai-group-value {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    color: var(--text);
+  }
+  @media (max-width: 720px) {
+    .ai-group-row { grid-template-columns: 1fr auto; gap: 8px; }
+    .ai-group-bar { grid-column: 1 / -1; }
+  }
+
+  /* AI narrative under a grouped result */
+  .ai-narrative {
+    margin-top: 14px;
+    padding: 10px 12px;
+    background: rgba(99, 102, 241, 0.06);
+    border-left: 3px solid #6366f1;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+  .ai-narrative-label {
+    font-size: 11px; text-transform: uppercase;
+    letter-spacing: 0.5px; color: #6366f1;
+    font-weight: 700; margin-bottom: 6px;
+  }
+  .ai-narrative-body { color: var(--text); }
+  .ai-narrative-body.muted { color: var(--text-muted); font-style: italic; }
+  .ai-narrative-foot { margin-top: 6px; font-size: 11px; color: var(--text-muted); }
+
+  html.dark-mode .ai-group-bar { background: rgba(165, 180, 252, 0.15); }
+  html.dark-mode .ai-group-bar-fill { background: #818cf8; }
+  html.dark-mode .ai-group-row.top .ai-group-bar-fill { background: #a5b4fc; }
+  html.dark-mode .ai-narrative {
+    background: rgba(129, 140, 248, 0.1);
+    border-left-color: #818cf8;
+  }
+  html.dark-mode .ai-narrative-label { color: #a5b4fc; }
   html.dark-mode .ai-result-card {
     background: linear-gradient(135deg, #251f3d 0%, #1f243f 100%);
     border-color: #3b3265;
@@ -1957,7 +2033,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "", timeWindow: null, aggregation: null, compareWith: null };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "", timeWindow: null, aggregation: null, compareWith: null, synthesizeNarrative: false };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -2400,6 +2476,115 @@ const AGG_FIELD_LABELS = {
 };
 const MONEY_FIELDS = new Set(["financialImpact", "amountRemaining"]);
 
+// Group-by support — for "most common", "breakdown by X", "top N by Y" queries.
+const GROUP_BY_FIELDS = new Set([
+  "issueType", "issueCategory", "assignedDept", "requestingDept",
+  "urgency", "status", "assignee", "submitter"
+]);
+const GROUP_BY_LABELS = {
+  issueType: "issue type",
+  issueCategory: "issue category",
+  assignedDept: "department",
+  requestingDept: "requesting department",
+  urgency: "urgency",
+  status: "status",
+  assignee: "assignee",
+  submitter: "submitter"
+};
+
+// Compute a grouped aggregation: returns sorted [{key, value, count, formatted}].
+// `value` is the aggregated metric per group (count if kind=count, sum/avg/etc.
+// of the numeric field otherwise). `count` is always the size of the group, so
+// the UI can show "(N items)" even for non-count aggregations.
+function computeGroupedAggregation(items, agg) {
+  if (!agg || !agg.groupBy) return null;
+  const buckets = new Map();
+  for (const e of items) {
+    const raw = e[agg.groupBy];
+    const key = (raw == null || raw === "") ? "(none)" : String(raw);
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(e);
+  }
+  const groups = [];
+  for (const [key, groupItems] of buckets) {
+    let value, formatted;
+    if (agg.kind === "count") {
+      value = groupItems.length;
+      formatted = value.toLocaleString();
+    } else if (agg.field) {
+      const single = computeAggregation(groupItems, { kind: agg.kind, field: agg.field });
+      if (!single || single.value == null) continue;  // skip empty buckets for value aggs
+      value = single.value;
+      formatted = single.formatted;
+    } else {
+      continue;
+    }
+    groups.push({ key, value, count: groupItems.length, formatted });
+  }
+  groups.sort((a, b) => b.value - a.value);  // desc
+  return groups;
+}
+
+// Strip HTML tags from a string (used to prepare rich-text updates for AI input).
+function stripHtmlTags(html) {
+  if (!html) return "";
+  return String(html).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// Async: synthesize a narrative paragraph for a group of escalations.
+// Called when the user asks "what's the most common X and how was it
+// resolved/handled". Focuses on the top group's items. Result drops into
+// the result card's narrative slot when ready.
+async function runResolutionSynthesis(items, ctx) {
+  const narrEl = document.getElementById("aiResultNarrative");
+  if (!narrEl) return;
+  if (!items || !items.length) {
+    narrEl.hidden = true;
+    return;
+  }
+  narrEl.hidden = false;
+  narrEl.innerHTML = `<div class="ai-narrative-label">🧠 AI synthesizing…</div><div class="ai-narrative-body"><span class="spinner"></span>Reading ${items.length} item${items.length === 1 ? "" : "s"}…</div>`;
+  // Cap to a reasonable number to stay within token budgets; prefer resolved
+  // items with substantive update history.
+  const sample = items
+    .slice()
+    .sort((a, b) => {
+      // Prefer Complete items, then ones with update history, then most recent
+      const aResolved = a.status === "Complete" ? 1 : 0;
+      const bResolved = b.status === "Complete" ? 1 : 0;
+      if (aResolved !== bResolved) return bResolved - aResolved;
+      const aHist = (a.updates || "").length;
+      const bHist = (b.updates || "").length;
+      return bHist - aHist;
+    })
+    .slice(0, 15)
+    .map(e => ({
+      id: e.id,
+      title: e.title,
+      status: e.status,
+      assignedDept: e.assignedDept,
+      issueType: e.issueType,
+      daysOpen: e.daysOpen,
+      commentary: stripHtmlTags(e.commentary || "").slice(0, 600),
+      updates: stripHtmlTags(e.updates || "").slice(0, 1200)
+    }));
+  try {
+    const result = await callAi("synthesizeResolutions", { items: sample, groupBy: ctx.groupBy, groupKey: ctx.groupKey });
+    const text = result?.text ? result.text.trim() : "";
+    if (text) {
+      narrEl.innerHTML =
+        `<div class="ai-narrative-label">🧠 AI summary</div>` +
+        `<div class="ai-narrative-body">${escapeHtml(text).replace(/\n+/g, "<br>")}</div>` +
+        `<div class="ai-narrative-foot">Based on ${sample.length} of ${items.length} item${items.length === 1 ? "" : "s"} in this group.</div>`;
+    } else {
+      narrEl.hidden = true;
+    }
+  } catch (err) {
+    console.error("Synthesis failed:", err);
+    narrEl.innerHTML = `<div class="ai-narrative-label">🧠 AI summary</div><div class="ai-narrative-body muted">Synthesis failed: ${escapeHtml(err.message || "unknown error")}</div>`;
+  }
+}
+
 // Compute an aggregation over a list of escalations. Returns { value, formatted }
 // or null if there's nothing to aggregate.
 function computeAggregation(items, agg) {
@@ -2674,7 +2859,7 @@ function applyParsedFilters(parsed) {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false;
 
   const applied = []; // human-readable chips for the banner
 
@@ -2774,14 +2959,16 @@ function applyParsedFilters(parsed) {
       }
     }
   }
-  // Aggregation (new): { kind, field }. Just stash it; the result card renders it.
+  // Aggregation (new): { kind, field, groupBy }. Stash; result card renders it.
   if (parsed.aggregation && ["count","sum","avg","min","max"].includes(parsed.aggregation.kind)) {
     const kind = parsed.aggregation.kind;
     const field = (kind === "count") ? null : (parsed.aggregation.field || null);
+    const groupBy = GROUP_BY_FIELDS.has(parsed.aggregation.groupBy) ? parsed.aggregation.groupBy : null;
     if (kind === "count" || (field && AGG_FIELD_LABELS[field])) {
-      filters.aggregation = { kind, field };
+      filters.aggregation = { kind, field, groupBy };
       const fieldLabel = field ? AGG_FIELD_LABELS[field] : "items";
-      applied.push({ label: "Aggregate", value: `${AGG_KIND_LABELS[kind]} of ${fieldLabel}` });
+      const groupLabel = groupBy ? ` by ${GROUP_BY_LABELS[groupBy]}` : "";
+      applied.push({ label: "Aggregate", value: `${AGG_KIND_LABELS[kind]} of ${fieldLabel}${groupLabel}` });
     }
   }
   // Compare-with (new): only meaningful with a timeWindow. If the AI returned
@@ -2789,11 +2976,18 @@ function applyParsedFilters(parsed) {
   // card has something to compute (matches what the user clearly wanted).
   if (parsed.compareWith === "previousPeriod" && filters.timeWindow) {
     if (!filters.aggregation) {
-      filters.aggregation = { kind: "count", field: null };
+      filters.aggregation = { kind: "count", field: null, groupBy: null };
       applied.push({ label: "Aggregate", value: "Count of items" });
     }
     filters.compareWith = "previousPeriod";
     applied.push({ label: "", value: "vs previous period" });
+  }
+  // Narrative synthesis (new): triggered by "and how / and why / explain how /
+  // what's typical" follow-on phrases on aggregation queries. Only meaningful
+  // when there's an aggregation to anchor the narrative to.
+  if (parsed.synthesizeNarrative === true && filters.aggregation) {
+    filters.synthesizeNarrative = true;
+    applied.push({ label: "", value: "+ AI narrative" });
   }
 
   // Sync DOM controls
@@ -2837,14 +3031,12 @@ function renderAiResultCard() {
   filters.sort = null; filters.limit = null;
   const currentItems = applyFilters();
   filters.sort = savedSort; filters.limit = savedLimit;
-  const currentAgg = computeAggregation(currentItems, filters.aggregation);
-  if (!currentAgg) {
-    card.style.display = "none";
-    return;
-  }
+
   const kind = filters.aggregation.kind;
   const field = filters.aggregation.field;
+  const groupBy = filters.aggregation.groupBy;
   const fieldLabel = field ? AGG_FIELD_LABELS[field] : "matching items";
+
   // Time-window label: named preset OR friendly date range
   let twLabel = "";
   if (filters.timeWindow) {
@@ -2857,11 +3049,77 @@ function renderAiResultCard() {
       twLabel = ` · ${fmt(s)} – ${fmt(endShown)}`;
     }
   }
-  const titleText = `${AGG_KIND_LABELS[kind]} of ${fieldLabel}${twLabel}`;
-  document.getElementById("aiResultIcon").textContent = filters.compareWith === "previousPeriod" ? "📈" : "📊";
-  document.getElementById("aiResultTitle").textContent = titleText;
   const bodyEl = document.getElementById("aiResultBody");
   const footEl = document.getElementById("aiResultFoot");
+  const iconEl = document.getElementById("aiResultIcon");
+  const titleEl = document.getElementById("aiResultTitle");
+
+  // ----- Grouped aggregation branch (groupBy is set) -----
+  if (groupBy) {
+    const groups = computeGroupedAggregation(currentItems, filters.aggregation);
+    if (!groups || !groups.length) {
+      card.style.display = "none";
+      return;
+    }
+    // Top-N: user-specified limit overrides; otherwise show up to 5.
+    const showCount = (savedLimit && savedLimit > 0) ? Math.min(savedLimit, 10) : Math.min(5, groups.length);
+    const isMostCommon = savedLimit === 1;
+    const visible = groups.slice(0, showCount);
+    const max = visible[0]?.value || 1;
+    const groupLabel = GROUP_BY_LABELS[groupBy] || groupBy;
+    const titleText = isMostCommon
+      ? `Most common ${groupLabel}${twLabel}`
+      : `${AGG_KIND_LABELS[kind]} of ${fieldLabel} by ${groupLabel}${twLabel}`;
+    iconEl.textContent = "📊";
+    titleEl.textContent = titleText;
+    // Render: top entry highlighted (large number), rest as bars
+    const top = visible[0];
+    const total = currentItems.length;
+    const pct = total > 0 && kind === "count" ? Math.round((top.value / total) * 100) : null;
+    const rows = visible.map((g, i) => {
+      const widthPct = max > 0 ? Math.max(2, Math.round((g.value / max) * 100)) : 0;
+      const cls = i === 0 ? "ai-group-row top" : "ai-group-row";
+      const itemsTag = (kind !== "count")
+        ? ` <span class="ai-group-count">(${g.count} item${g.count === 1 ? "" : "s"})</span>`
+        : "";
+      return `<div class="${cls}">` +
+        `<div class="ai-group-name">${escapeHtml(g.key)}${itemsTag}</div>` +
+        `<div class="ai-group-bar"><div class="ai-group-bar-fill" style="width:${widthPct}%"></div></div>` +
+        `<div class="ai-group-value">${escapeHtml(g.formatted)}</div>` +
+        `</div>`;
+    }).join("");
+    bodyEl.innerHTML =
+      (isMostCommon
+        ? `<div class="ai-result-value">${escapeHtml(top.key)}</div>` +
+          `<div class="ai-result-label">${escapeHtml(top.formatted)}${pct != null ? ` · ${pct}% of ${total}` : ""}</div>`
+        : "") +
+      `<div class="ai-group-list">${rows}</div>` +
+      `<div class="ai-narrative" id="aiResultNarrative" hidden></div>`;
+    footEl.textContent = `Computed client-side over ${total.toLocaleString()} matching item${total === 1 ? "" : "s"}.`;
+    card.style.display = "block";
+
+    // If the user asked for a narrative, fire an async synthesis and inject it
+    // when ready. Focuses on the top group's items.
+    if (filters.synthesizeNarrative && top) {
+      const topGroupItems = currentItems.filter(e => {
+        const v = e[groupBy];
+        const k = (v == null || v === "") ? "(none)" : String(v);
+        return k === top.key;
+      });
+      runResolutionSynthesis(topGroupItems, { groupBy, groupKey: top.key });
+    }
+    return;
+  }
+
+  // ----- Single-value aggregation branch (no groupBy) -----
+  const currentAgg = computeAggregation(currentItems, filters.aggregation);
+  if (!currentAgg) {
+    card.style.display = "none";
+    return;
+  }
+  const titleText = `${AGG_KIND_LABELS[kind]} of ${fieldLabel}${twLabel}`;
+  iconEl.textContent = filters.compareWith === "previousPeriod" ? "📈" : "📊";
+  titleEl.textContent = titleText;
 
   // Trend comparison branch
   if (filters.compareWith === "previousPeriod" && filters.timeWindow) {
@@ -2918,7 +3176,7 @@ function clearAiFilter() {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false;
   const resultCard = document.getElementById("aiResultCard");
   if (resultCard) resultCard.style.display = "none";
   document.getElementById("searchInput").value = "";
@@ -3343,7 +3601,7 @@ function applyKpiPreset(preset) {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false;
   document.getElementById("aiResultCard").style.display = "none";
 
   if (preset === "open")        filters.status = "open";
@@ -3384,7 +3642,7 @@ function renderList() {
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
       filters.resolvedWithin = null; filters.hasFinancial = false;
       filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-      filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null;
+      filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false;
       document.getElementById("aiResultCard").style.display = "none";
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
