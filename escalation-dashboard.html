@@ -708,94 +708,127 @@
     margin: 0;
   }
 
+  /* Backdrop behind the command palette */
+  .ai-palette-backdrop {
+    position: fixed; inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    backdrop-filter: blur(2px);
+    z-index: 94;
+    display: none;
+    animation: palBackdropIn 0.14s ease-out;
+  }
+  .ai-palette-backdrop.open { display: block; }
+  @keyframes palBackdropIn { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Centered command palette (replaces the old bottom-right popup) */
   .ai-fab-popup {
     position: fixed;
-    bottom: 88px;     /* sits just above the FAB */
-    right: 24px;
+    top: 12vh; left: 50%;
+    transform: translateX(-50%);
     z-index: 95;
-    width: 380px;
+    width: 600px;
     max-width: calc(100vw - 32px);
     background: #fff;
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    box-shadow: 0 24px 48px rgba(15, 23, 42, 0.22), 0 4px 12px rgba(0,0,0,0.08);
+    box-shadow: 0 32px 64px rgba(15, 23, 42, 0.32), 0 8px 24px rgba(0,0,0,0.12);
     display: none;
     flex-direction: column;
     overflow: hidden;
-    animation: fabPopIn 0.18s ease-out;
+    animation: palPopIn 0.18s ease-out;
   }
   .ai-fab-popup.open { display: flex; }
-  @keyframes fabPopIn {
-    from { transform: translateY(10px) scale(0.97); opacity: 0; }
-    to   { transform: translateY(0) scale(1); opacity: 1; }
+  @keyframes palPopIn {
+    from { transform: translate(-50%, -8px) scale(0.98); opacity: 0; }
+    to   { transform: translate(-50%, 0) scale(1); opacity: 1; }
   }
-  .ai-fab-popup-head {
-    padding: 12px 16px;
+
+  /* Input row at the top of the palette — large, borderless, prominent */
+  .ai-palette-input-row {
+    display: flex; align-items: center; gap: 12px;
+    padding: 18px 20px;
     border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-    background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
   }
-  .ai-fab-popup-title {
-    font-weight: 700; font-size: 14px;
-    color: #6366f1;
+  .ai-palette-icon { font-size: 20px; line-height: 1; opacity: 0.7; flex-shrink: 0; }
+  .ai-palette-input {
+    flex: 1;
+    border: none; outline: none;
+    background: transparent;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 17px;
+    line-height: 1.4;
+    padding: 0; margin: 0;
+    resize: none;
+    min-height: 26px;
+    max-height: 120px;
+    overflow-y: auto;
   }
-  .ai-fab-popup-close {
+  .ai-palette-input::placeholder { color: var(--text-faint); }
+  .ai-palette-close {
     background: transparent; border: none; cursor: pointer;
     font-size: 22px; line-height: 1; color: var(--text-muted);
     padding: 0 4px;
+    flex-shrink: 0;
   }
-  .ai-fab-popup-close:hover { color: var(--text); }
-  .ai-fab-popup-body { padding: 14px 16px 12px; }
-  .ai-fab-popup-help {
+  .ai-palette-close:hover { color: var(--text); }
+
+  /* Sectioned body — intent preview, recents, tips */
+  .ai-palette-section { padding: 12px 20px; }
+  .ai-palette-section + .ai-palette-section { border-top: 1px solid var(--border); }
+  .ai-palette-section-label {
+    font-size: 10px; text-transform: uppercase;
+    letter-spacing: 0.6px; color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .ai-palette-intent-section { padding: 12px 20px; background: var(--gray-bg); border-top: 0; }
+  .ai-palette-intent-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(99, 102, 241, 0.14);
+    color: #4338ca;
+    padding: 5px 12px;
+    border-radius: 999px;
     font-size: 12px;
-    color: var(--text-muted);
-    margin: 0 0 10px;
-  }
-  .ai-fab-popup-input {
-    width: 100%;
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm);
-    padding: 10px 12px;
-    font-family: inherit;
-    font-size: 13px;
-    resize: vertical;
-    outline: none;
-    min-height: 56px;
-  }
-  .ai-fab-popup-input:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12); }
-  .ai-fab-popup-examples {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 4px;
-    margin-top: 10px;
-  }
-  .ai-fab-popup-examples-label {
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-right: 4px;
     font-weight: 600;
   }
-  .ai-fab-popup-example {
-    background: var(--gray-bg);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 999px;
-    padding: 3px 10px;
-    font-size: 11px;
+  .ai-palette-list { display: flex; flex-direction: column; gap: 2px; }
+  .ai-palette-recent-item {
+    text-align: left;
+    background: transparent;
+    border: 1px solid transparent;
+    padding: 7px 10px;
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 13px; color: var(--text);
     cursor: pointer;
-    line-height: 1.5;
+    display: flex; align-items: center; gap: 8px;
   }
-  .ai-fab-popup-example:hover {
-    background: #ede9fe;
-    border-color: #c7d2fe;
-    color: #4f46e5;
+  .ai-palette-recent-item::before {
+    content: "↶"; opacity: 0.4; font-size: 12px;
   }
-  .ai-fab-popup-foot {
-    display: flex; justify-content: flex-end; gap: 8px;
-    margin-top: 14px;
-    padding-top: 12px;
+  .ai-palette-recent-item:hover {
+    background: var(--gray-bg);
+    border-color: var(--border);
+  }
+  .ai-palette-tips {
+    font-size: 12px; color: var(--text-muted);
+    margin: 0; padding-left: 18px; line-height: 1.7;
+  }
+  .ai-palette-tips strong { color: var(--text); font-weight: 600; }
+  .ai-palette-tips em { color: var(--text-muted); font-style: italic; }
+
+  .ai-palette-footer {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 20px;
     border-top: 1px solid var(--border);
+    background: var(--gray-bg);
   }
-  .ai-fab-popup-foot .btn { padding: 7px 14px; font-size: 13px; }
-  .ai-fab-popup-foot .btn-secondary { padding: 7px 14px; font-size: 13px; }
+  .ai-palette-shortcut {
+    font-size: 11px; color: var(--text-muted);
+  }
+  .ai-palette-footer .btn { padding: 7px 14px; font-size: 13px; }
+  .ai-palette-footer .btn-secondary { padding: 7px 14px; font-size: 13px; }
   .ai-fab-preview-kind {
     font-size: 11px;
     text-transform: uppercase;
@@ -1267,11 +1300,18 @@
   html.dark-mode .form-row input[type="date"],
   html.dark-mode .form-row select,
   html.dark-mode .form-row textarea,
-  html.dark-mode .reassign-input,
-  html.dark-mode .ai-fab-popup-input {
+  html.dark-mode .reassign-input {
     background: var(--surface);
     color: var(--text);
     border-color: var(--border-strong);
+  }
+  /* Smart Search palette: borderless input on a dark surface, but the
+     placeholder + caret colors need explicit overrides. */
+  html.dark-mode .ai-palette-input { color: var(--text); background: transparent; }
+  html.dark-mode .ai-palette-input::placeholder { color: var(--text-faint); }
+  html.dark-mode .ai-palette-intent-pill {
+    background: rgba(99, 102, 241, 0.22);
+    color: #a5b4fc;
   }
 
   /* Buttons that hardcode white */
@@ -1304,7 +1344,6 @@
   }
 
   /* AI/Smart-Search light-purple gradients — replace with dark accent gradient */
-  html.dark-mode .ai-fab-popup-head,
   html.dark-mode .ai-summary-card-head,
   html.dark-mode .ai-similar-card-head,
   html.dark-mode .ai-summary {
@@ -1782,42 +1821,50 @@
   </div>
 </div>
 
-<!-- Floating Smart Search button + popup -->
-<button type="button" class="ai-fab" id="aiFabBtn" title="Smart Search — ask in plain English" aria-label="Open Smart Search">
+<!-- Floating Smart Search button (FAB) -->
+<button type="button" class="ai-fab" id="aiFabBtn" title="Smart Search — ask in plain English (Ctrl+K)" aria-label="Open Smart Search">
   <span class="ai-fab-icon">✨</span>
   <span class="ai-fab-label">Smart Search</span>
 </button>
+<!-- Smart Search command palette: centered modal, opens via FAB or Ctrl/Cmd+K -->
+<div class="ai-palette-backdrop" id="aiFabBackdrop"></div>
 <div class="ai-fab-popup" id="aiFabPopup" role="dialog" aria-labelledby="aiFabPopupTitle" aria-hidden="true">
-  <div class="ai-fab-popup-head">
-    <span class="ai-fab-popup-title" id="aiFabPopupTitle">✨ Smart Search</span>
-    <button type="button" class="ai-fab-popup-close" id="aiFabPopupClose" aria-label="Close">&times;</button>
+  <div class="ai-palette-input-row">
+    <span class="ai-palette-icon" id="aiFabPopupTitle" aria-label="Smart Search">✨</span>
+    <textarea class="ai-palette-input" id="aiFabInput" rows="1" placeholder="Ask anything — filter, count, compare, or run an action…" aria-label="Smart Search query"></textarea>
+    <button type="button" class="ai-palette-close" id="aiFabPopupClose" aria-label="Close">&times;</button>
   </div>
-  <div class="ai-fab-popup-body">
-    <div id="aiFabInputMode">
-      <p class="ai-fab-popup-help">Describe what you're looking for in plain English. Filters, sort, time windows, counts/averages, period comparisons, plus actions like "send the weekly digest", "summarize #299", "find similar to #42".</p>
-      <textarea class="ai-fab-popup-input" id="aiFabInput" rows="2" placeholder="e.g. how many open Billing items this week"></textarea>
-      <div class="ai-fab-popup-examples">
-        <span class="ai-fab-popup-examples-label">Try:</span>
-        <button type="button" class="ai-fab-popup-example" data-q="how many open Billing items">count open Billing</button>
-        <button type="button" class="ai-fab-popup-example" data-q="resolved this week vs last week">resolved this week vs last</button>
-        <button type="button" class="ai-fab-popup-example" data-q="average days to resolve Payroll">avg days to resolve Payroll</button>
-        <button type="button" class="ai-fab-popup-example" data-q="submitted in the last 30 days">submitted last 30 days</button>
-        <button type="button" class="ai-fab-popup-example" data-q="top 5 oldest open escalations">top 5 oldest</button>
-        <button type="button" class="ai-fab-popup-example" data-q="send the weekly digest">send weekly digest</button>
-      </div>
-      <div class="ai-fab-popup-foot">
-        <button type="button" class="btn-secondary" id="aiFabCancel">Cancel</button>
-        <button type="button" class="btn" id="aiFabSubmit">Search</button>
-      </div>
+  <div id="aiFabInputMode">
+    <div class="ai-palette-section ai-palette-intent-section" id="aiPaletteIntentSection" hidden>
+      <span class="ai-palette-intent-pill" id="aiPaletteIntentPill"></span>
     </div>
-    <div id="aiFabPreviewMode" hidden>
+    <div class="ai-palette-section" id="aiPaletteRecentSection" hidden>
+      <div class="ai-palette-section-label">Recent</div>
+      <div class="ai-palette-list" id="aiPaletteRecentList"></div>
+    </div>
+    <div class="ai-palette-section">
+      <div class="ai-palette-section-label">Tips</div>
+      <ul class="ai-palette-tips">
+        <li><strong>vs</strong> compares two periods — <em>resolved this week vs last</em></li>
+        <li><strong>#N</strong> opens / summarizes / finds-similar to a specific escalation</li>
+        <li><strong>how many / total / average</strong> returns a count or aggregate</li>
+        <li><strong>send the weekly digest</strong> opens the digest preview</li>
+      </ul>
+    </div>
+    <div class="ai-palette-footer">
+      <span class="ai-palette-shortcut">⏎ Run · Esc to close · Ctrl+K to reopen</span>
+      <button type="button" class="btn" id="aiFabSubmit">Search</button>
+    </div>
+  </div>
+  <div id="aiFabPreviewMode" hidden>
+    <div class="ai-palette-section">
       <div class="ai-fab-preview-kind" id="aiFabPreviewKind">Action preview</div>
       <div class="ai-fab-preview-card" id="aiFabPreviewBody"></div>
       <div class="ai-fab-preview-rationale" id="aiFabPreviewRationale"></div>
-      <div class="ai-fab-popup-foot">
-        <button type="button" class="btn-secondary" id="aiFabPreviewCancel">Cancel</button>
-        <button type="button" class="btn" id="aiFabPreviewConfirm">Open</button>
-      </div>
+    </div>
+    <div class="ai-palette-footer">
+      <button type="button" class="btn-secondary" id="aiFabPreviewCancel">Cancel</button>
+      <button type="button" class="btn" id="aiFabPreviewConfirm">Open</button>
     </div>
   </div>
 </div>
@@ -2360,23 +2407,36 @@ function computeAggregation(items, agg) {
    mode and require an explicit confirm click. Never auto-execute actions. */
 
 // Promoted out of wireUI's closure so triggerAiFilter and the intent router
-// can call them directly.
+// can call them directly. The palette is a centered modal with a backdrop;
+// keyboard shortcut Ctrl/Cmd+K opens it.
 function openFab() {
   const popup = document.getElementById("aiFabPopup");
+  const backdrop = document.getElementById("aiFabBackdrop");
   popup.classList.add("open");
+  backdrop.classList.add("open");
   popup.setAttribute("aria-hidden", "false");
   resetFabToInputMode();
+  renderRecentQueries();
+  updateIntentPreview();  // ensure the pill matches any persisted input value
   setTimeout(() => {
     const input = document.getElementById("aiFabInput");
-    if (input) input.focus();
+    if (input) {
+      // Reset height before measuring (auto-resize would otherwise stick at stale value)
+      input.style.height = "auto";
+      input.style.height = Math.min(input.scrollHeight, 120) + "px";
+      input.focus();
+      // Select existing text so a repeat-open lets the user just start typing.
+      input.select();
+    }
   }, 50);
 }
 
 function closeFab() {
   const popup = document.getElementById("aiFabPopup");
+  const backdrop = document.getElementById("aiFabBackdrop");
   popup.classList.remove("open");
+  backdrop.classList.remove("open");
   popup.setAttribute("aria-hidden", "true");
-  // Reset to input mode so the next open isn't stuck on a stale preview.
   resetFabToInputMode();
 }
 
@@ -2389,6 +2449,79 @@ function resetFabToInputMode() {
 }
 
 let _pendingFabAction = null;
+
+/* Live intent preview — pattern-match the obvious signals client-side so the
+   pill updates instantly as the user types. The real interpretation happens
+   on submit via the AI; this is just a fast preview that helps the user
+   confirm they're being understood. */
+function detectIntentPreview(query) {
+  const q = (query || "").trim();
+  if (!q) return null;
+  const lower = q.toLowerCase();
+  const idMatch = q.match(/#(\d+)|escalation\s+(\d+)/i);
+  if (idMatch) {
+    const id = idMatch[1] || idMatch[2];
+    if (/summari[sz]e|tldr|summary/i.test(lower)) return { icon: "🧠", label: `Summarize escalation #${id}` };
+    if (/similar|like\s*#?\d/i.test(lower))       return { icon: "🔗", label: `Find similar to #${id}` };
+    return { icon: "📂", label: `Open escalation #${id}` };
+  }
+  if (/send.*digest|post.*digest|fire.*digest/i.test(lower)) return { icon: "📤", label: "Send weekly digest" };
+  if (/\bvs\b|\bversus\b|compared\s+(to|with)/i.test(lower)) return { icon: "📈", label: "Trend comparison" };
+  if (/how\s+many|count\s+of|count\b/i.test(lower))          return { icon: "📊", label: "Count" };
+  if (/average|\bavg\b|mean\b/i.test(lower))                 return { icon: "📊", label: "Average" };
+  if (/total\b|sum\s+of|combined/i.test(lower))              return { icon: "📊", label: "Sum" };
+  if (/largest|biggest|highest|\bmax\b/i.test(lower))        return { icon: "📊", label: "Max" };
+  if (/smallest|lowest|\bmin\b/i.test(lower))                return { icon: "📊", label: "Min" };
+  return { icon: "🔎", label: "Filter the list" };
+}
+
+function updateIntentPreview() {
+  const input = document.getElementById("aiFabInput");
+  const section = document.getElementById("aiPaletteIntentSection");
+  const pill = document.getElementById("aiPaletteIntentPill");
+  if (!input || !section || !pill) return;
+  const intent = detectIntentPreview(input.value);
+  if (!intent) {
+    section.hidden = true;
+    return;
+  }
+  pill.textContent = `${intent.icon} ${intent.label}`;
+  section.hidden = false;
+}
+
+/* Recent queries — persist successful queries to localStorage so the palette
+   can offer them as one-click chips on next open. */
+const RECENT_QUERIES_KEY = "mbp-escalation-recent-queries";
+const RECENT_QUERIES_LIMIT = 5;
+function getRecentQueries() {
+  try {
+    const raw = localStorage.getItem(RECENT_QUERIES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+function pushRecentQuery(query) {
+  const q = (query || "").trim();
+  if (!q) return;
+  let recents = getRecentQueries().filter(r => r !== q);
+  recents.unshift(q);
+  recents = recents.slice(0, RECENT_QUERIES_LIMIT);
+  try { localStorage.setItem(RECENT_QUERIES_KEY, JSON.stringify(recents)); } catch {}
+}
+function renderRecentQueries() {
+  const section = document.getElementById("aiPaletteRecentSection");
+  const list = document.getElementById("aiPaletteRecentList");
+  if (!section || !list) return;
+  const recents = getRecentQueries();
+  if (!recents.length) {
+    section.hidden = true;
+    list.innerHTML = "";
+    return;
+  }
+  list.innerHTML = recents.map(q =>
+    `<button type="button" class="ai-palette-recent-item" data-query="${escapeHtml(q)}">${escapeHtml(q)}</button>`
+  ).join("");
+  section.hidden = false;
+}
 
 const FAB_ACTION_LABELS = {
   openItem:    { icon: "📂", kind: "Open escalation",  confirm: "Open" },
@@ -2479,6 +2612,9 @@ async function triggerAiFilter(query) {
 
     // Phase 7: route on intent. Default to "filter" for backward-compat.
     const intent = parsed.intent || "filter";
+    // Any successful parse goes into recents — they typed it intentionally,
+    // even if they cancel out of the resulting preview.
+    pushRecentQuery(query);
     if (intent === "sendDigest") {
       closeFab();
       openDigestModal();
@@ -3682,13 +3818,13 @@ function wireUI() {
   const clearHiddenPreset = () => { filters.resolvedWithin = null; filters.hasFinancial = false; };
   document.getElementById("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
   document.getElementById("aiFilterAppliedClear").addEventListener("click", clearAiFilter);
-  // Phase 5: Smart Search lives in a floating button + popup (bottom-right).
-  // The search input above is plain substring search; AI queries go through the FAB.
-  // Phase 7: triggerAiFilter handles closing/opening the FAB on its own (so it
-  // can keep it open for an openItem preview), so submitFab no longer calls
+  // Smart Search command palette — opens via the FAB or Ctrl/Cmd+K, lives as
+  // a centered modal. triggerAiFilter manages closing on its own (so it can
+  // keep the palette open for an item-action preview), so submitFab doesn't
   // closeFab unconditionally.
   const fabBtn = document.getElementById("aiFabBtn");
   const fabPopup = document.getElementById("aiFabPopup");
+  const fabBackdrop = document.getElementById("aiFabBackdrop");
   const fabInput = document.getElementById("aiFabInput");
   const fabSubmit = document.getElementById("aiFabSubmit");
   fabBtn.addEventListener("click", () => {
@@ -3696,7 +3832,8 @@ function wireUI() {
     else openFab();
   });
   document.getElementById("aiFabPopupClose").addEventListener("click", closeFab);
-  document.getElementById("aiFabCancel").addEventListener("click", closeFab);
+  // Backdrop click closes
+  fabBackdrop.addEventListener("click", closeFab);
   // Preview-mode buttons (Phase 7)
   document.getElementById("aiFabPreviewCancel").addEventListener("click", resetFabToInputMode);
   document.getElementById("aiFabPreviewConfirm").addEventListener("click", executePendingFabAction);
@@ -3725,19 +3862,38 @@ function wireUI() {
       closeFab();
     }
   });
-  // Quick-fill example chips
-  document.querySelectorAll(".ai-fab-popup-example").forEach(el => {
-    el.addEventListener("click", () => {
-      fabInput.value = el.dataset.q;
-      fabInput.focus();
-    });
+  // Live intent pill updates as the user types + textarea auto-resize
+  const autoResizeInput = () => {
+    fabInput.style.height = "auto";
+    fabInput.style.height = Math.min(fabInput.scrollHeight, 120) + "px";
+  };
+  fabInput.addEventListener("input", () => {
+    autoResizeInput();
+    updateIntentPreview();
   });
-  // Click outside the popup closes it
-  document.addEventListener("click", (e) => {
-    if (!fabPopup.classList.contains("open")) return;
-    if (fabPopup.contains(e.target) || fabBtn.contains(e.target)) return;
-    closeFab();
+  // Recent-query chips: click to fill the input + run
+  document.getElementById("aiPaletteRecentList").addEventListener("click", (e) => {
+    const item = e.target.closest(".ai-palette-recent-item");
+    if (!item) return;
+    fabInput.value = item.dataset.query;
+    updateIntentPreview();
+    submitFab();
   });
+  // Global Ctrl/Cmd+K toggles the palette from anywhere; Esc closes it when
+  // open (even if focus has wandered out of the input — e.g., a recent chip).
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+      e.preventDefault();
+      if (fabPopup.classList.contains("open")) closeFab();
+      else openFab();
+      return;
+    }
+    if (e.key === "Escape" && fabPopup.classList.contains("open")) {
+      e.preventDefault();
+      e.stopPropagation();
+      closeFab();
+    }
+  }, true);  // capture phase — outrank the detail-drawer Esc handler
   document.getElementById("filterStatus").addEventListener("change", (e) => { filters.status = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterUrgency").addEventListener("change", (e) => { filters.urgency = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterDept").addEventListener("change", (e) => {
