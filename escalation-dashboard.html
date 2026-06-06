@@ -2584,13 +2584,28 @@ function applyParsedFilters(parsed) {
     filters.search = parsed.search;
     applied.push({ label: "Text", value: `"${parsed.search}"` });
   }
-  // Time window (new): { preset, field }. Resolve to a {start,end} range now.
-  if (parsed.timeWindow && parsed.timeWindow.preset && TIME_WINDOW_PRESETS.has(parsed.timeWindow.preset)) {
-    const field = TIME_WINDOW_FIELDS.has(parsed.timeWindow.field) ? parsed.timeWindow.field : "escalationDate";
-    const range = resolveTimeWindow(parsed.timeWindow.preset);
-    if (range) {
-      filters.timeWindow = { preset: parsed.timeWindow.preset, field, start: range.start, end: range.end };
-      applied.push({ label: TIME_WINDOW_FIELD_LABELS[field] || field, value: TIME_WINDOW_LABELS[parsed.timeWindow.preset] });
+  // Time window (new): two shapes — preset-based or explicit-range.
+  if (parsed.timeWindow) {
+    const tw = parsed.timeWindow;
+    const field = TIME_WINDOW_FIELDS.has(tw.field) ? tw.field : "escalationDate";
+    if (tw.preset && TIME_WINDOW_PRESETS.has(tw.preset)) {
+      const range = resolveTimeWindow(tw.preset);
+      if (range) {
+        filters.timeWindow = { preset: tw.preset, field, start: range.start, end: range.end };
+        applied.push({ label: TIME_WINDOW_FIELD_LABELS[field] || field, value: TIME_WINDOW_LABELS[tw.preset] });
+      }
+    } else if (tw.startDate && tw.endDate) {
+      const s = new Date(tw.startDate);
+      const e = new Date(tw.endDate);
+      if (!Number.isNaN(s.getTime()) && !Number.isNaN(e.getTime()) && s.getTime() < e.getTime()) {
+        filters.timeWindow = { field, start: s.getTime(), end: e.getTime(), startDate: tw.startDate, endDate: tw.endDate };
+        // Friendly label: "May 1 – Jun 30" or "Mar 15 – Apr 15"
+        const fmt = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+        const endShown = new Date(e.getTime() - 1); // -1ms so the chip shows the inclusive last day
+        const sameYear = s.getFullYear() === endShown.getFullYear() && s.getFullYear() === new Date().getFullYear();
+        const label = sameYear ? `${fmt(s)} – ${fmt(endShown)}` : `${fmt(s)} ${s.getFullYear()} – ${fmt(endShown)} ${endShown.getFullYear()}`;
+        applied.push({ label: TIME_WINDOW_FIELD_LABELS[field] || field, value: label });
+      }
     }
   }
   // Aggregation (new): { kind, field }. Just stash it; the result card renders it.
@@ -2658,7 +2673,19 @@ function renderAiResultCard() {
   const kind = filters.aggregation.kind;
   const field = filters.aggregation.field;
   const fieldLabel = field ? AGG_FIELD_LABELS[field] : "matching items";
-  const titleText = `${AGG_KIND_LABELS[kind]} of ${fieldLabel}` + (filters.timeWindow ? ` · ${TIME_WINDOW_LABELS[filters.timeWindow.preset]}` : "");
+  // Time-window label: named preset OR friendly date range
+  let twLabel = "";
+  if (filters.timeWindow) {
+    if (filters.timeWindow.preset && TIME_WINDOW_LABELS[filters.timeWindow.preset]) {
+      twLabel = ` · ${TIME_WINDOW_LABELS[filters.timeWindow.preset]}`;
+    } else if (filters.timeWindow.startDate && filters.timeWindow.endDate) {
+      const fmt = d => d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      const s = new Date(filters.timeWindow.start);
+      const endShown = new Date(filters.timeWindow.end - 1);
+      twLabel = ` · ${fmt(s)} – ${fmt(endShown)}`;
+    }
+  }
+  const titleText = `${AGG_KIND_LABELS[kind]} of ${fieldLabel}${twLabel}`;
   document.getElementById("aiResultIcon").textContent = filters.compareWith === "previousPeriod" ? "📈" : "📊";
   document.getElementById("aiResultTitle").textContent = titleText;
   const bodyEl = document.getElementById("aiResultBody");
@@ -2666,7 +2693,15 @@ function renderAiResultCard() {
 
   // Trend comparison branch
   if (filters.compareWith === "previousPeriod" && filters.timeWindow) {
-    const prevRange = resolvePreviousPeriod(filters.timeWindow.preset);
+    // Preset → use the named prior period. Explicit range → shift back by the
+    // same duration (e.g. May 1 – Jun 30 → Mar 2 – May 1).
+    let prevRange = null;
+    if (filters.timeWindow.preset) {
+      prevRange = resolvePreviousPeriod(filters.timeWindow.preset);
+    } else {
+      const duration = filters.timeWindow.end - filters.timeWindow.start;
+      prevRange = { start: filters.timeWindow.start - duration, end: filters.timeWindow.start };
+    }
     if (prevRange) {
       // Compute the aggregation over the prior comparable period
       const savedTW = filters.timeWindow;
