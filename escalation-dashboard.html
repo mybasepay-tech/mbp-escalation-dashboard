@@ -745,9 +745,38 @@
 
   /* Input row at the top of the palette — large, borderless, prominent */
   .ai-palette-input-row {
+    position: relative;        /* anchors the loading bar */
     display: flex; align-items: center; gap: 12px;
     padding: 18px 20px;
     border-bottom: 1px solid var(--border);
+  }
+  /* Animated indeterminate progress bar shown along the bottom of the input
+     row while the AI is processing. Visible from anywhere in the palette,
+     unlike the bottom-right FAB spinner which sits behind the modal. */
+  .ai-palette-loading-bar {
+    position: absolute;
+    bottom: -1px; left: 0; right: 0;
+    height: 2px;
+    overflow: hidden;
+    pointer-events: none;
+    display: none;
+  }
+  .ai-palette-loading-bar.active { display: block; }
+  .ai-palette-loading-bar::after {
+    content: "";
+    position: absolute;
+    top: 0; left: 0;
+    height: 100%;
+    width: 45%;
+    background: linear-gradient(90deg, transparent 0%, #6366f1 50%, transparent 100%);
+    animation: palLoadingBar 1.1s ease-in-out infinite;
+  }
+  @keyframes palLoadingBar {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(320%); }
+  }
+  .ai-palette-input.thinking {
+    color: var(--text-muted);
   }
   .ai-palette-icon { font-size: 20px; line-height: 1; opacity: 0.7; flex-shrink: 0; }
   .ai-palette-input {
@@ -1833,6 +1862,7 @@
     <span class="ai-palette-icon" id="aiFabPopupTitle" aria-label="Smart Search">✨</span>
     <textarea class="ai-palette-input" id="aiFabInput" rows="1" placeholder="Ask anything — filter, count, compare, or run an action…" aria-label="Smart Search query"></textarea>
     <button type="button" class="ai-palette-close" id="aiFabPopupClose" aria-label="Close">&times;</button>
+    <div class="ai-palette-loading-bar" id="aiPaletteLoadingBar" aria-hidden="true"></div>
   </div>
   <div id="aiFabInputMode">
     <div class="ai-palette-section ai-palette-intent-section" id="aiPaletteIntentSection" hidden>
@@ -3850,19 +3880,27 @@ function wireUI() {
   document.getElementById("aiFabPreviewCancel").addEventListener("click", resetFabToInputMode);
   document.getElementById("aiFabPreviewConfirm").addEventListener("click", executePendingFabAction);
   // Submit on click OR Enter (Shift+Enter for newline inside the textarea)
+  const loadingBar = document.getElementById("aiPaletteLoadingBar");
   const submitFab = async () => {
     const q = fabInput.value.trim();
     if (!q) return;
     fabBtn.classList.add("busy");
-    const origLabel = fabBtn.innerHTML;
+    const origFabLabel = fabBtn.innerHTML;
+    const origSubmitLabel = fabSubmit.innerHTML;
     fabBtn.innerHTML = '<span class="spinner"></span>';
     fabSubmit.disabled = true;
+    fabSubmit.innerHTML = '<span class="spinner"></span>Thinking…';
+    fabInput.classList.add("thinking");
+    if (loadingBar) loadingBar.classList.add("active");
     try {
       await triggerAiFilter(q);
     } finally {
       fabBtn.classList.remove("busy");
-      fabBtn.innerHTML = origLabel;
+      fabBtn.innerHTML = origFabLabel;
       fabSubmit.disabled = false;
+      fabSubmit.innerHTML = origSubmitLabel;
+      fabInput.classList.remove("thinking");
+      if (loadingBar) loadingBar.classList.remove("active");
     }
   };
   fabSubmit.addEventListener("click", submitFab);
