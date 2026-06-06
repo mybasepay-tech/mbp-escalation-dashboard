@@ -3377,8 +3377,20 @@ function renderList() {
     const daysSinceUpdate = daysBetween(lastActivity.date);
     const ageClass = overdue ? "over" : (age != null && age >= 14 && isOpen ? "warn" : "");
     // Sub-day precision (12m ago / 3h ago) matters for Jennifer's 4-hour
-    // first-update window on new submissions.
-    const ageText = agoString(e.escalationDate) || "—";
+    // first-update window on new submissions. When Smart Search has applied a
+    // time-window on a non-default date field (resolvedDate / modified), show
+    // THAT field's relative age so the list visibly matches the filter intent.
+    let ageText, ageTooltip;
+    if (filters.timeWindow && filters.timeWindow.field === "resolvedDate" && e.resolvedDate) {
+      ageText = `resolved ${agoString(e.resolvedDate) || "—"}`;
+      ageTooltip = `Resolved on ${fmtDate(e.resolvedDate)}`;
+    } else if (filters.timeWindow && filters.timeWindow.field === "modified" && e.modified) {
+      ageText = `modified ${agoString(e.modified) || "—"}`;
+      ageTooltip = `Last modified on ${fmtDate(e.modified)}`;
+    } else {
+      ageText = agoString(e.escalationDate) || "—";
+      ageTooltip = e.escalationDate ? `Submitted on ${fmtDate(e.escalationDate)}` : "";
+    }
     const who = e.customer || e.member || e.worker;
     // "Last update" pill: only show for open items. Wording reflects whether
     // we're showing a real update vs. just the item being untouched since creation.
@@ -3397,7 +3409,7 @@ function renderList() {
       <div class="esc-row ${badgeClassUrgency(e.urgency)} ${selectedId === e.id ? "selected" : ""} ${stale ? "is-stale" : ""}" data-id="${e.id}">
         <div class="esc-id-block">
           <div class="esc-id">#${e.id}</div>
-          <div class="esc-age ${ageClass}">${ageText}</div>
+          <div class="esc-age ${ageClass}" title="${escapeHtml(ageTooltip)}">${escapeHtml(ageText)}</div>
         </div>
         <div class="esc-main">
           <div class="esc-title">${escapeHtml(e.title)}</div>
