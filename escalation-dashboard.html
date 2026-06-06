@@ -2033,7 +2033,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "", timeWindow: null, aggregation: null, compareWith: null, synthesizeNarrative: false };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "", timeWindow: null, aggregation: null, compareWith: null, synthesizeNarrative: false, docNeeded: null, financialMin: null, hasAssigneeUpdate: null };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -2479,7 +2479,8 @@ const MONEY_FIELDS = new Set(["financialImpact", "amountRemaining"]);
 // Group-by support — for "most common", "breakdown by X", "top N by Y" queries.
 const GROUP_BY_FIELDS = new Set([
   "issueType", "issueCategory", "assignedDept", "requestingDept",
-  "urgency", "status", "assignee", "submitter"
+  "urgency", "status", "assignee", "submitter",
+  "customer", "member", "worker"
 ]);
 const GROUP_BY_LABELS = {
   issueType: "issue type",
@@ -2489,7 +2490,10 @@ const GROUP_BY_LABELS = {
   urgency: "urgency",
   status: "status",
   assignee: "assignee",
-  submitter: "submitter"
+  submitter: "submitter",
+  customer: "customer",
+  member: "member",
+  worker: "worker"
 };
 
 // Compute a grouped aggregation: returns sorted [{key, value, count, formatted}].
@@ -2817,7 +2821,8 @@ async function triggerAiFilter(query) {
       followUpAuthors
     };
     const currentDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD in local-ish time
-    const result = await callAi("parseFilter", { query, validOptions, currentDate });
+    const currentUserName = (activeAccount?.name) || (activeAccount?.username) || "";
+    const result = await callAi("parseFilter", { query, validOptions, currentDate, currentUserName });
     let parsed;
     try {
       parsed = JSON.parse(result.text);
@@ -2859,7 +2864,7 @@ function applyParsedFilters(parsed) {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null;
 
   const applied = []; // human-readable chips for the banner
 
@@ -2934,6 +2939,21 @@ function applyParsedFilters(parsed) {
   if (parsed.search && typeof parsed.search === "string") {
     filters.search = parsed.search;
     applied.push({ label: "Text", value: `"${parsed.search}"` });
+  }
+  if (parsed.docNeeded === "Yes" || parsed.docNeeded === "No") {
+    filters.docNeeded = parsed.docNeeded;
+    applied.push({ label: "Internal docs", value: parsed.docNeeded === "Yes" ? "required" : "not required" });
+  }
+  if (parsed.hasAssigneeUpdate === true) {
+    filters.hasAssigneeUpdate = true;
+    applied.push({ label: "", value: "Has assignee update" });
+  } else if (parsed.hasAssigneeUpdate === false) {
+    filters.hasAssigneeUpdate = false;
+    applied.push({ label: "", value: "Never updated by assignee" });
+  }
+  if (parsed.financialMin && Number.isFinite(Number(parsed.financialMin)) && Number(parsed.financialMin) > 0) {
+    filters.financialMin = Number(parsed.financialMin);
+    applied.push({ label: "Financial impact", value: `≥ ${fmtMoney(filters.financialMin)}` });
   }
   // Time window (new): two shapes — preset-based or explicit-range.
   if (parsed.timeWindow) {
@@ -3176,7 +3196,7 @@ function clearAiFilter() {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null;
   const resultCard = document.getElementById("aiResultCard");
   if (resultCard) resultCard.style.display = "none";
   document.getElementById("searchInput").value = "";
@@ -3544,8 +3564,22 @@ function applyFilters() {
       const t = new Date(dateVal).getTime();
       if (Number.isNaN(t) || t < tw.start || t >= tw.end) return false;
     }
+    if (filters.docNeeded && e.docNeeded !== filters.docNeeded) return false;
+    if (filters.financialMin && !(Number(e.financialImpact) >= filters.financialMin)) return false;
+    if (filters.hasAssigneeUpdate !== null) {
+      const activity = getLastAssigneeActivity(e);
+      const hasUpdate = activity && activity.source === "update";
+      if (filters.hasAssigneeUpdate === true && !hasUpdate) return false;
+      if (filters.hasAssigneeUpdate === false && hasUpdate) return false;
+    }
     if (q) {
-      const hay = `${e.id} ${e.title} ${e.customer||""} ${e.member||""} ${e.worker||""} ${e.assignee||""} ${e.submitter||""} ${e.assignedDept}`.toLowerCase();
+      // Text search corpus: id + structured fields + issue taxonomy +
+      // commentary (stripped). Cache stripped commentary on the item so the
+      // cost is paid once per item, not once per query.
+      if (e._searchCommentary == null) {
+        e._searchCommentary = stripHtmlTags(e.commentary || "").toLowerCase();
+      }
+      const hay = `${e.id} ${e.title} ${e.customer||""} ${e.member||""} ${e.worker||""} ${e.assignee||""} ${e.submitter||""} ${e.assignedDept||""} ${e.issueType||""} ${e.issueCategory||""} ${e._searchCommentary}`.toLowerCase();
       if (!hay.includes(q)) return false;
     }
     return true;
@@ -3601,7 +3635,7 @@ function applyKpiPreset(preset) {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null;
   document.getElementById("aiResultCard").style.display = "none";
 
   if (preset === "open")        filters.status = "open";
@@ -3642,7 +3676,7 @@ function renderList() {
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
       filters.resolvedWithin = null; filters.hasFinancial = false;
       filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-      filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false;
+      filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null;
       document.getElementById("aiResultCard").style.display = "none";
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
