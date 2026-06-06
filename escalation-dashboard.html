@@ -1339,6 +1339,60 @@
   html.dark-mode .dept-info { background: var(--blue-bg); border-color: #1e3a5f; color: #93c5fd; }
   html.dark-mode .form-error { background: var(--red-bg); border-color: #5c1f1f; color: #fca5a5; }
 
+  /* ============ AI result card (aggregation / trend) ============ */
+  .ai-result-card {
+    background: linear-gradient(135deg, #f5f3ff 0%, #eef2ff 100%);
+    border: 1px solid #c7d2fe;
+    border-radius: var(--radius);
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    box-shadow: var(--shadow-sm);
+  }
+  .ai-result-head {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .ai-result-icon { font-size: 16px; }
+  .ai-result-title {
+    font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;
+    font-weight: 700; color: #6366f1;
+  }
+  .ai-result-body { display: flex; align-items: baseline; gap: 24px; flex-wrap: wrap; }
+  .ai-result-value {
+    font-family: "Roboto", sans-serif;
+    font-size: 36px; font-weight: 900; line-height: 1;
+    color: var(--prussian); letter-spacing: -0.6px;
+  }
+  .ai-result-label {
+    font-size: 13px; color: var(--text-muted);
+  }
+  .ai-result-trend {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+    background: rgba(99, 102, 241, 0.12);
+    color: #4338ca;
+  }
+  .ai-result-trend.up { background: rgba(239, 68, 68, 0.12); color: #b91c1c; }
+  .ai-result-trend.down { background: rgba(16, 185, 129, 0.12); color: #047857; }
+  .ai-result-trend.neutral { background: rgba(100, 116, 139, 0.14); color: #475569; }
+  .ai-result-compare {
+    font-size: 12px; color: var(--text-muted);
+  }
+  .ai-result-foot {
+    margin-top: 8px; font-size: 11px;
+    color: var(--text-muted); font-style: italic;
+  }
+  html.dark-mode .ai-result-card {
+    background: linear-gradient(135deg, #251f3d 0%, #1f243f 100%);
+    border-color: #3b3265;
+  }
+  html.dark-mode .ai-result-value { color: var(--text); }
+  html.dark-mode .ai-result-trend.up { background: rgba(248, 113, 113, 0.15); color: #fca5a5; }
+  html.dark-mode .ai-result-trend.down { background: rgba(74, 222, 128, 0.15); color: #86efac; }
+  html.dark-mode .ai-result-trend.neutral { background: rgba(148, 163, 184, 0.2); color: #cbd5e1; }
+
   /* Big-text components that hardcode var(--prussian) (invisible on dark bg) */
   html.dark-mode .kpi-value,
   html.dark-mode .detail-title,
@@ -1453,6 +1507,16 @@
     <span class="ai-filter-applied-label">✨ AI applied:</span>
     <span class="ai-filter-applied-chips" id="aiFilterAppliedChips"></span>
     <button type="button" class="ai-filter-applied-clear" id="aiFilterAppliedClear" title="Clear AI filter">×</button>
+  </div>
+
+  <!-- AI result card — shown when Smart Search produced an aggregation or trend comparison -->
+  <div class="ai-result-card" id="aiResultCard" style="display:none">
+    <div class="ai-result-head">
+      <span class="ai-result-icon" id="aiResultIcon">📊</span>
+      <span class="ai-result-title" id="aiResultTitle"></span>
+    </div>
+    <div class="ai-result-body" id="aiResultBody"></div>
+    <div class="ai-result-foot" id="aiResultFoot"></div>
   </div>
 
   <section class="content">
@@ -1730,14 +1794,15 @@
   </div>
   <div class="ai-fab-popup-body">
     <div id="aiFabInputMode">
-      <p class="ai-fab-popup-help">Describe what you're looking for in plain English. Pulls from status, urgency, department, assignees, submitters, sort &amp; limit. You can also say "send the weekly digest" or "open #299".</p>
-      <textarea class="ai-fab-popup-input" id="aiFabInput" rows="2" placeholder="e.g. show me the escalation with the most days open"></textarea>
+      <p class="ai-fab-popup-help">Describe what you're looking for in plain English. Filters, sort, time windows, counts/averages, period comparisons, plus actions like "send the weekly digest", "summarize #299", "find similar to #42".</p>
+      <textarea class="ai-fab-popup-input" id="aiFabInput" rows="2" placeholder="e.g. how many open Billing items this week"></textarea>
       <div class="ai-fab-popup-examples">
         <span class="ai-fab-popup-examples-label">Try:</span>
-        <button type="button" class="ai-fab-popup-example" data-q="show me escalations awaiting update in Billing">awaiting update in Billing</button>
+        <button type="button" class="ai-fab-popup-example" data-q="how many open Billing items">count open Billing</button>
+        <button type="button" class="ai-fab-popup-example" data-q="resolved this week vs last week">resolved this week vs last</button>
+        <button type="button" class="ai-fab-popup-example" data-q="average days to resolve Payroll">avg days to resolve Payroll</button>
+        <button type="button" class="ai-fab-popup-example" data-q="submitted in the last 30 days">submitted last 30 days</button>
         <button type="button" class="ai-fab-popup-example" data-q="top 5 oldest open escalations">top 5 oldest</button>
-        <button type="button" class="ai-fab-popup-example" data-q="biggest financial impact">biggest $ impact</button>
-        <button type="button" class="ai-fab-popup-example" data-q="critical urgency past expected date">critical &amp; overdue</button>
         <button type="button" class="ai-fab-popup-example" data-q="send the weekly digest">send weekly digest</button>
       </div>
       <div class="ai-fab-popup-foot">
@@ -1815,7 +1880,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "" };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "", timeWindow: null, aggregation: null, compareWith: null };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -2148,12 +2213,151 @@ async function callAi(operation, data) {
   return res.json();  // { text, usage }
 }
 
+/* ---------- Smart Search helpers: time windows, aggregation, trend ---------- */
+const TIME_WINDOW_FIELDS = new Set(["escalationDate", "modified", "resolvedDate"]);
+const TIME_WINDOW_PRESETS = new Set([
+  "today", "yesterday",
+  "thisWeek", "lastWeek",
+  "thisMonth", "lastMonth",
+  "thisQuarter", "lastQuarter",
+  "last7Days", "last30Days", "last90Days",
+  "ytd"
+]);
+const TIME_WINDOW_LABELS = {
+  today: "Today", yesterday: "Yesterday",
+  thisWeek: "This week", lastWeek: "Last week",
+  thisMonth: "This month", lastMonth: "Last month",
+  thisQuarter: "This quarter", lastQuarter: "Last quarter",
+  last7Days: "Last 7 days", last30Days: "Last 30 days", last90Days: "Last 90 days",
+  ytd: "Year to date"
+};
+const TIME_WINDOW_FIELD_LABELS = {
+  escalationDate: "submitted",
+  modified: "modified",
+  resolvedDate: "resolved"
+};
+
+// Resolve a preset name to a [start, end) date range in LOCAL time.
+// Week is Sun-Sat (US convention). end is exclusive.
+function resolveTimeWindow(preset, baseDate) {
+  const now = baseDate ? new Date(baseDate) : new Date();
+  const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
+  const dayMs = 86400000;
+  const startOfWeek = new Date(startOfToday); startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay()); // Sunday
+  const startOfMonth = new Date(startOfToday.getFullYear(), startOfToday.getMonth(), 1);
+  const currentQuarter = Math.floor(startOfToday.getMonth() / 3); // 0..3
+  const startOfQuarter = new Date(startOfToday.getFullYear(), currentQuarter * 3, 1);
+  const startOfYear = new Date(startOfToday.getFullYear(), 0, 1);
+  const tomorrow = new Date(startOfToday.getTime() + dayMs);
+
+  switch (preset) {
+    case "today":          return { start: startOfToday.getTime(), end: tomorrow.getTime() };
+    case "yesterday":      return { start: startOfToday.getTime() - dayMs, end: startOfToday.getTime() };
+    case "thisWeek":       return { start: startOfWeek.getTime(), end: tomorrow.getTime() };
+    case "lastWeek": {
+      const prevStart = new Date(startOfWeek); prevStart.setDate(prevStart.getDate() - 7);
+      return { start: prevStart.getTime(), end: startOfWeek.getTime() };
+    }
+    case "thisMonth":      return { start: startOfMonth.getTime(), end: tomorrow.getTime() };
+    case "lastMonth": {
+      const prevStart = new Date(startOfMonth); prevStart.setMonth(prevStart.getMonth() - 1);
+      return { start: prevStart.getTime(), end: startOfMonth.getTime() };
+    }
+    case "thisQuarter":    return { start: startOfQuarter.getTime(), end: tomorrow.getTime() };
+    case "lastQuarter": {
+      const prevStart = new Date(startOfQuarter); prevStart.setMonth(prevStart.getMonth() - 3);
+      return { start: prevStart.getTime(), end: startOfQuarter.getTime() };
+    }
+    case "last7Days":      return { start: startOfToday.getTime() - 7 * dayMs, end: tomorrow.getTime() };
+    case "last30Days":     return { start: startOfToday.getTime() - 30 * dayMs, end: tomorrow.getTime() };
+    case "last90Days":     return { start: startOfToday.getTime() - 90 * dayMs, end: tomorrow.getTime() };
+    case "ytd":            return { start: startOfYear.getTime(), end: tomorrow.getTime() };
+    default: return null;
+  }
+}
+
+// Given a preset, return the preset name for the immediately-prior comparable
+// period. Used by trend comparisons ("this week vs last week").
+function previousPeriodPreset(preset) {
+  const map = {
+    today: "yesterday",
+    thisWeek: "lastWeek",
+    thisMonth: "lastMonth",
+    thisQuarter: "lastQuarter",
+    // For rolling N-day windows, the prior period is computed directly (not via a named preset).
+    // We return the same preset and the caller handles shifting by -N days.
+    last7Days: "__shiftPrior7Days",
+    last30Days: "__shiftPrior30Days",
+    last90Days: "__shiftPrior90Days",
+    ytd: "__priorYearSamePeriod"
+  };
+  return map[preset] || null;
+}
+
+// Resolve the prior comparable period to a [start, end) range.
+function resolvePreviousPeriod(preset, baseDate) {
+  const prev = previousPeriodPreset(preset);
+  if (!prev) return null;
+  if (!prev.startsWith("__")) return resolveTimeWindow(prev, baseDate);
+  const now = baseDate ? new Date(baseDate) : new Date();
+  const startOfToday = new Date(now); startOfToday.setHours(0, 0, 0, 0);
+  const dayMs = 86400000;
+  if (prev === "__shiftPrior7Days")  return { start: startOfToday.getTime() - 14 * dayMs, end: startOfToday.getTime() - 7 * dayMs };
+  if (prev === "__shiftPrior30Days") return { start: startOfToday.getTime() - 60 * dayMs, end: startOfToday.getTime() - 30 * dayMs };
+  if (prev === "__shiftPrior90Days") return { start: startOfToday.getTime() - 180 * dayMs, end: startOfToday.getTime() - 90 * dayMs };
+  if (prev === "__priorYearSamePeriod") {
+    const startOfYear = new Date(startOfToday.getFullYear() - 1, 0, 1);
+    const sameDayLastYear = new Date(startOfToday); sameDayLastYear.setFullYear(sameDayLastYear.getFullYear() - 1);
+    sameDayLastYear.setDate(sameDayLastYear.getDate() + 1);
+    return { start: startOfYear.getTime(), end: sameDayLastYear.getTime() };
+  }
+  return null;
+}
+
+const AGG_KIND_LABELS = { count: "Count", sum: "Total", avg: "Average", min: "Minimum", max: "Maximum" };
+const AGG_FIELD_LABELS = {
+  financialImpact: "financial impact",
+  amountRemaining: "amount remaining",
+  daysOpen: "days open",
+  daysCurrentDept: "days in dept"
+};
+const MONEY_FIELDS = new Set(["financialImpact", "amountRemaining"]);
+
+// Compute an aggregation over a list of escalations. Returns { value, formatted }
+// or null if there's nothing to aggregate.
+function computeAggregation(items, agg) {
+  if (!agg || !agg.kind) return null;
+  if (agg.kind === "count") {
+    return { value: items.length, formatted: items.length.toLocaleString() };
+  }
+  const field = agg.field;
+  if (!field) return null;
+  const values = items
+    .map(e => e[field])
+    .filter(v => v != null && !Number.isNaN(Number(v)))
+    .map(Number);
+  if (!values.length) return { value: null, formatted: "—" };
+  let raw;
+  if (agg.kind === "sum") raw = values.reduce((a, b) => a + b, 0);
+  else if (agg.kind === "avg") raw = values.reduce((a, b) => a + b, 0) / values.length;
+  else if (agg.kind === "min") raw = Math.min(...values);
+  else if (agg.kind === "max") raw = Math.max(...values);
+  else return null;
+  let formatted;
+  if (MONEY_FIELDS.has(field)) {
+    formatted = fmtMoney(raw);
+  } else {
+    formatted = agg.kind === "avg" ? raw.toFixed(1) : String(Math.round(raw));
+  }
+  return { value: raw, formatted };
+}
+
 /* ---------- Phase 5: Natural-language filter ----------
    Phase 7 extends this with an intent router — parseFilter now returns an
    "intent" field. For filter intents, behavior is unchanged. For sendDigest,
    we close the FAB and open the digest modal (whose own confirm step IS the
-   preview). For openItem, we swap the FAB into preview mode and require an
-   explicit Open click before navigating. Never auto-execute actions. */
+   preview). For openItem/summarize/findSimilar, we swap the FAB into preview
+   mode and require an explicit confirm click. Never auto-execute actions. */
 
 // Promoted out of wireUI's closure so triggerAiFilter and the intent router
 // can call them directly.
@@ -2186,18 +2390,25 @@ function resetFabToInputMode() {
 
 let _pendingFabAction = null;
 
-function enterFabOpenItemPreview(esc, rationale) {
+const FAB_ACTION_LABELS = {
+  openItem:    { icon: "📂", kind: "Open escalation",  confirm: "Open" },
+  summarize:   { icon: "🧠", kind: "Summarize escalation", confirm: "Summarize" },
+  findSimilar: { icon: "🔗", kind: "Find similar escalations", confirm: "Find similar" }
+};
+
+function enterFabItemActionPreview(actionKind, esc, rationale) {
+  const labels = FAB_ACTION_LABELS[actionKind] || FAB_ACTION_LABELS.openItem;
   const kind = document.getElementById("aiFabPreviewKind");
   const body = document.getElementById("aiFabPreviewBody");
   const rat = document.getElementById("aiFabPreviewRationale");
   const confirmBtn = document.getElementById("aiFabPreviewConfirm");
-  kind.textContent = "📂 Open escalation";
+  kind.textContent = `${labels.icon} ${labels.kind}`;
   body.innerHTML =
     `<span class="preview-id">#${esc.id}</span><span class="preview-title">${escapeHtml(esc.title || "(untitled)")}</span>` +
     `<div class="preview-meta">${escapeHtml(esc.status || "—")} · ${escapeHtml(esc.assignee || "unassigned")}</div>`;
   rat.textContent = rationale || "";
-  confirmBtn.textContent = "Open";
-  _pendingFabAction = { kind: "openItem", itemId: esc.id };
+  confirmBtn.textContent = labels.confirm;
+  _pendingFabAction = { kind: actionKind, itemId: esc.id };
   document.getElementById("aiFabInputMode").hidden = true;
   document.getElementById("aiFabPreviewMode").hidden = false;
 }
@@ -2205,14 +2416,34 @@ function enterFabOpenItemPreview(esc, rationale) {
 function executePendingFabAction() {
   if (!_pendingFabAction) return;
   const action = _pendingFabAction;
-  if (action.kind === "openItem") {
+  const navigateToItem = () => {
     selectedId = action.itemId;
     closeFab();
     renderList();
     renderDetail();
-    // Scroll the item into view in the list (best-effort; row may be paginated out)
     const row = document.querySelector(`.esc-row[data-id='${action.itemId}']`);
     if (row && row.scrollIntoView) row.scrollIntoView({ behavior: "smooth", block: "center" });
+  };
+  if (action.kind === "openItem") {
+    navigateToItem();
+    return;
+  }
+  if (action.kind === "summarize") {
+    navigateToItem();
+    // Auto-fire the existing summarize button after the detail panel renders.
+    setTimeout(() => {
+      const btn = document.querySelector('[data-action="summarize"]');
+      if (btn) btn.click();
+    }, 100);
+    return;
+  }
+  if (action.kind === "findSimilar") {
+    navigateToItem();
+    setTimeout(() => {
+      const btn = document.querySelector('[data-action="find-similar"]');
+      if (btn) btn.click();
+    }, 100);
+    return;
   }
 }
 
@@ -2237,7 +2468,8 @@ async function triggerAiFilter(query) {
       submitters: [...new Set(escalations.map(e => e.submitter).filter(s => s && s !== "—"))].sort(),
       followUpAuthors
     };
-    const result = await callAi("parseFilter", { query, validOptions });
+    const currentDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD in local-ish time
+    const result = await callAi("parseFilter", { query, validOptions, currentDate });
     let parsed;
     try {
       parsed = JSON.parse(result.text);
@@ -2252,13 +2484,14 @@ async function triggerAiFilter(query) {
       openDigestModal();
       return;
     }
-    if (intent === "openItem" && Number.isInteger(parsed.itemId)) {
+    // Numbered item intents — all require an explicit numeric id.
+    if ((intent === "openItem" || intent === "summarize" || intent === "findSimilar") && Number.isInteger(parsed.itemId)) {
       const esc = escalations.find(x => x.id === parsed.itemId);
       if (!esc) {
         toast(`No escalation #${parsed.itemId} found.`, 4000);
         return;
       }
-      enterFabOpenItemPreview(esc, parsed.rationale);
+      enterFabItemActionPreview(intent, esc, parsed.rationale);
       return;
     }
     applyParsedFilters(parsed);
@@ -2275,6 +2508,7 @@ function applyParsedFilters(parsed) {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null;
 
   const applied = []; // human-readable chips for the banner
 
@@ -2350,6 +2584,30 @@ function applyParsedFilters(parsed) {
     filters.search = parsed.search;
     applied.push({ label: "Text", value: `"${parsed.search}"` });
   }
+  // Time window (new): { preset, field }. Resolve to a {start,end} range now.
+  if (parsed.timeWindow && parsed.timeWindow.preset && TIME_WINDOW_PRESETS.has(parsed.timeWindow.preset)) {
+    const field = TIME_WINDOW_FIELDS.has(parsed.timeWindow.field) ? parsed.timeWindow.field : "escalationDate";
+    const range = resolveTimeWindow(parsed.timeWindow.preset);
+    if (range) {
+      filters.timeWindow = { preset: parsed.timeWindow.preset, field, start: range.start, end: range.end };
+      applied.push({ label: TIME_WINDOW_FIELD_LABELS[field] || field, value: TIME_WINDOW_LABELS[parsed.timeWindow.preset] });
+    }
+  }
+  // Aggregation (new): { kind, field }. Just stash it; the result card renders it.
+  if (parsed.aggregation && ["count","sum","avg","min","max"].includes(parsed.aggregation.kind)) {
+    const kind = parsed.aggregation.kind;
+    const field = (kind === "count") ? null : (parsed.aggregation.field || null);
+    if (kind === "count" || (field && AGG_FIELD_LABELS[field])) {
+      filters.aggregation = { kind, field };
+      const fieldLabel = field ? AGG_FIELD_LABELS[field] : "items";
+      applied.push({ label: "Aggregate", value: `${AGG_KIND_LABELS[kind]} of ${fieldLabel}` });
+    }
+  }
+  // Compare-with (new): only meaningful with a timeWindow + aggregation.
+  if (parsed.compareWith === "previousPeriod" && filters.timeWindow && filters.aggregation) {
+    filters.compareWith = "previousPeriod";
+    applied.push({ label: "", value: "vs previous period" });
+  }
 
   // Sync DOM controls
   document.getElementById("searchInput").value = filters.search;
@@ -2361,6 +2619,7 @@ function applyParsedFilters(parsed) {
   renderDeptChips();
   populateAssigneeFilter();
   renderList();
+  renderAiResultCard();
 
   // Show the "Applied" banner with chips
   const banner = document.getElementById("aiFilterApplied");
@@ -2378,12 +2637,83 @@ function applyParsedFilters(parsed) {
   banner.title = parsed.rationale ? `AI rationale: ${parsed.rationale}` : "";
 }
 
+// Render the aggregation/trend result card based on current filter state.
+// Hides itself if no aggregation is set. Honors filters.compareWith for trends.
+function renderAiResultCard() {
+  const card = document.getElementById("aiResultCard");
+  if (!filters.aggregation) {
+    card.style.display = "none";
+    return;
+  }
+  // Get the matching items (without sort or limit affecting the count)
+  const savedSort = filters.sort, savedLimit = filters.limit;
+  filters.sort = null; filters.limit = null;
+  const currentItems = applyFilters();
+  filters.sort = savedSort; filters.limit = savedLimit;
+  const currentAgg = computeAggregation(currentItems, filters.aggregation);
+  if (!currentAgg) {
+    card.style.display = "none";
+    return;
+  }
+  const kind = filters.aggregation.kind;
+  const field = filters.aggregation.field;
+  const fieldLabel = field ? AGG_FIELD_LABELS[field] : "matching items";
+  const titleText = `${AGG_KIND_LABELS[kind]} of ${fieldLabel}` + (filters.timeWindow ? ` · ${TIME_WINDOW_LABELS[filters.timeWindow.preset]}` : "");
+  document.getElementById("aiResultIcon").textContent = filters.compareWith === "previousPeriod" ? "📈" : "📊";
+  document.getElementById("aiResultTitle").textContent = titleText;
+  const bodyEl = document.getElementById("aiResultBody");
+  const footEl = document.getElementById("aiResultFoot");
+
+  // Trend comparison branch
+  if (filters.compareWith === "previousPeriod" && filters.timeWindow) {
+    const prevRange = resolvePreviousPeriod(filters.timeWindow.preset);
+    if (prevRange) {
+      // Compute the aggregation over the prior comparable period
+      const savedTW = filters.timeWindow;
+      filters.timeWindow = { ...savedTW, start: prevRange.start, end: prevRange.end };
+      filters.sort = null; filters.limit = null;
+      const prevItems = applyFilters();
+      filters.timeWindow = savedTW;
+      filters.sort = savedSort; filters.limit = savedLimit;
+      const prevAgg = computeAggregation(prevItems, filters.aggregation);
+      const delta = (currentAgg.value || 0) - (prevAgg?.value || 0);
+      // Semantic coloring: for resolution-focused queries up is good; everything else up is bad
+      const isResolvedFocus = filters.status === "Complete" || filters.resolvedWithin != null || (filters.timeWindow.field === "resolvedDate");
+      let trendClass = "neutral";
+      if (delta > 0) trendClass = isResolvedFocus ? "down" : "up";
+      else if (delta < 0) trendClass = isResolvedFocus ? "up" : "down";
+      let pct = "";
+      if (prevAgg?.value) {
+        const pctNum = ((currentAgg.value - prevAgg.value) / Math.abs(prevAgg.value)) * 100;
+        pct = ` (${pctNum >= 0 ? "+" : ""}${pctNum.toFixed(0)}%)`;
+      }
+      const arrow = delta > 0 ? "▲" : delta < 0 ? "▼" : "—";
+      const deltaFormatted = MONEY_FIELDS.has(field) ? fmtMoney(Math.abs(delta)) : Math.abs(delta).toLocaleString();
+      bodyEl.innerHTML =
+        `<div class="ai-result-value">${escapeHtml(currentAgg.formatted)}</div>` +
+        `<div class="ai-result-compare">vs <strong>${escapeHtml(prevAgg?.formatted || "—")}</strong> previous period</div>` +
+        `<div class="ai-result-trend ${trendClass}">${arrow} ${deltaFormatted}${pct}</div>`;
+    } else {
+      bodyEl.innerHTML = `<div class="ai-result-value">${escapeHtml(currentAgg.formatted)}</div>`;
+    }
+  } else {
+    bodyEl.innerHTML =
+      `<div class="ai-result-value">${escapeHtml(currentAgg.formatted)}</div>` +
+      `<div class="ai-result-label">across ${currentItems.length.toLocaleString()} matching item${currentItems.length === 1 ? "" : "s"}</div>`;
+  }
+  footEl.textContent = "Aggregation is computed client-side over the filters above.";
+  card.style.display = "block";
+}
+
 function clearAiFilter() {
   document.getElementById("aiFilterApplied").style.display = "none";
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null;
+  const resultCard = document.getElementById("aiResultCard");
+  if (resultCard) resultCard.style.display = "none";
   document.getElementById("searchInput").value = "";
   document.getElementById("filterStatus").value = "";
   document.getElementById("filterUrgency").value = "";
@@ -2742,6 +3072,13 @@ function applyFilters() {
       const followUps = parseFollowUpMarkers(e.updates);
       if (!followUps.some(f => f.by === filters.followUpBy)) return false;
     }
+    if (filters.timeWindow) {
+      const tw = filters.timeWindow;
+      const dateVal = e[tw.field];
+      if (!dateVal) return false;
+      const t = new Date(dateVal).getTime();
+      if (Number.isNaN(t) || t < tw.start || t >= tw.end) return false;
+    }
     if (q) {
       const hay = `${e.id} ${e.title} ${e.customer||""} ${e.member||""} ${e.worker||""} ${e.assignee||""} ${e.submitter||""} ${e.assignedDept}`.toLowerCase();
       if (!hay.includes(q)) return false;
@@ -2799,6 +3136,8 @@ function applyKpiPreset(preset) {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null;
+  document.getElementById("aiResultCard").style.display = "none";
 
   if (preset === "open")        filters.status = "open";
   else if (preset === "unassigned") filters.status = "unassigned";
@@ -2838,6 +3177,8 @@ function renderList() {
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
       filters.resolvedWithin = null; filters.hasFinancial = false;
       filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
+      filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null;
+      document.getElementById("aiResultCard").style.display = "none";
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
       document.getElementById("filterUrgency").value = "";
