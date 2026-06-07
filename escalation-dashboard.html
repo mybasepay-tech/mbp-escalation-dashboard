@@ -2944,6 +2944,10 @@ function applyParsedFilters(parsed) {
     filters.docNeeded = parsed.docNeeded;
     applied.push({ label: "Internal docs", value: parsed.docNeeded === "Yes" ? "required" : "not required" });
   }
+  if (parsed.hasFinancial === true) {
+    filters.hasFinancial = true;
+    applied.push({ label: "", value: "Has financial impact" });
+  }
   if (parsed.hasAssigneeUpdate === true) {
     filters.hasAssigneeUpdate = true;
     applied.push({ label: "", value: "Has assignee update" });
@@ -3002,10 +3006,11 @@ function applyParsedFilters(parsed) {
     filters.compareWith = "previousPeriod";
     applied.push({ label: "", value: "vs previous period" });
   }
-  // Narrative synthesis (new): triggered by "and how / and why / explain how /
-  // what's typical" follow-on phrases on aggregation queries. Only meaningful
-  // when there's an aggregation to anchor the narrative to.
-  if (parsed.synthesizeNarrative === true && filters.aggregation) {
+  // Narrative synthesis: triggered by "and how / and why / explain how /
+  // what's typical" follow-on phrases. Renders inside the aggregation card
+  // when there's an aggregation; otherwise renders as a standalone narrative
+  // card over the filtered+limited list.
+  if (parsed.synthesizeNarrative === true) {
     filters.synthesizeNarrative = true;
     applied.push({ label: "", value: "+ AI narrative" });
   }
@@ -3042,7 +3047,8 @@ function applyParsedFilters(parsed) {
 // Hides itself if no aggregation is set. Honors filters.compareWith for trends.
 function renderAiResultCard() {
   const card = document.getElementById("aiResultCard");
-  if (!filters.aggregation) {
+  // Show the card when there's an aggregation OR a standalone narrative request.
+  if (!filters.aggregation && !filters.synthesizeNarrative) {
     card.style.display = "none";
     return;
   }
@@ -3051,6 +3057,26 @@ function renderAiResultCard() {
   filters.sort = null; filters.limit = null;
   const currentItems = applyFilters();
   filters.sort = savedSort; filters.limit = savedLimit;
+
+  // Narrative-only mode: no aggregation, just a "summarize these" request.
+  // The narrative synthesizes over the filtered list (honoring the user's
+  // sort+limit so e.g. "top 10 financial impact" narrates the top 10, not all).
+  if (!filters.aggregation && filters.synthesizeNarrative) {
+    const iconEl = document.getElementById("aiResultIcon");
+    const titleEl = document.getElementById("aiResultTitle");
+    const bodyEl = document.getElementById("aiResultBody");
+    const footEl = document.getElementById("aiResultFoot");
+    iconEl.textContent = "🧠";
+    titleEl.textContent = `AI summary · ${currentItems.length.toLocaleString()} matching item${currentItems.length === 1 ? "" : "s"}`;
+    bodyEl.innerHTML = `<div class="ai-narrative" id="aiResultNarrative" hidden></div>`;
+    footEl.textContent = "";
+    card.style.display = "block";
+    // The list view honors filters.limit; the narrative should reflect what
+    // the user is actually looking at, so respect the same limit here.
+    const narrativeItems = filters.limit ? currentItems.slice(0, filters.limit) : currentItems;
+    runResolutionSynthesis(narrativeItems, { groupBy: null, groupKey: "matching items" });
+    return;
+  }
 
   const kind = filters.aggregation.kind;
   const field = filters.aggregation.field;
@@ -3187,6 +3213,13 @@ function renderAiResultCard() {
       `<div class="ai-result-label">across ${currentItems.length.toLocaleString()} matching item${currentItems.length === 1 ? "" : "s"}</div>`;
   }
   footEl.textContent = "Aggregation is computed client-side over the filters above.";
+  // Append a narrative slot if requested. Single-value aggregations with
+  // synthesizeNarrative get an AI summary over the filtered list.
+  if (filters.synthesizeNarrative) {
+    bodyEl.innerHTML += `<div class="ai-narrative" id="aiResultNarrative" hidden></div>`;
+    const narrItems = filters.limit ? currentItems.slice(0, filters.limit) : currentItems;
+    runResolutionSynthesis(narrItems, { groupBy: null, groupKey: "matching items" });
+  }
   card.style.display = "block";
 }
 
