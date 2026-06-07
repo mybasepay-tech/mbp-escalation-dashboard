@@ -846,6 +846,14 @@
   }
   .ai-palette-tips strong { color: var(--text); font-weight: 600; }
   .ai-palette-tips em { color: var(--text-muted); font-style: italic; }
+  .ai-palette-limits {
+    font-size: 11px;
+    color: var(--text-faint);
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--border);
+    font-style: italic;
+  }
 
   .ai-palette-footer {
     display: flex; justify-content: space-between; align-items: center;
@@ -1936,7 +1944,7 @@
 <div class="ai-fab-popup" id="aiFabPopup" role="dialog" aria-labelledby="aiFabPopupTitle" aria-hidden="true">
   <div class="ai-palette-input-row">
     <span class="ai-palette-icon" id="aiFabPopupTitle" aria-label="Smart Search">✨</span>
-    <textarea class="ai-palette-input" id="aiFabInput" rows="1" placeholder="Ask anything — filter, count, compare, or run an action…" aria-label="Smart Search query"></textarea>
+    <textarea class="ai-palette-input" id="aiFabInput" rows="1" maxlength="2000" placeholder="Ask anything — filter, count, compare, or run an action…" aria-label="Smart Search query"></textarea>
     <button type="button" class="ai-palette-close" id="aiFabPopupClose" aria-label="Close">&times;</button>
     <div class="ai-palette-loading-bar" id="aiPaletteLoadingBar" aria-hidden="true"></div>
   </div>
@@ -1956,6 +1964,7 @@
         <li><strong>how many / total / average</strong> returns a count or aggregate</li>
         <li><strong>send the weekly digest</strong> opens the digest preview</li>
       </ul>
+      <div class="ai-palette-limits">One intent per query · time-period comparisons only · aggregations: count / sum / avg / min / max</div>
     </div>
     <div class="ai-palette-footer">
       <span class="ai-palette-shortcut">⏎ Run · Esc to close · Ctrl+K to reopen</span>
@@ -3031,7 +3040,10 @@ function applyParsedFilters(parsed) {
   const banner = document.getElementById("aiFilterApplied");
   const chipsEl = document.getElementById("aiFilterAppliedChips");
   if (applied.length === 0) {
-    chipsEl.innerHTML = `<span class="ai-filter-empty">Couldn't parse any filters from "${escapeHtml(document.getElementById("searchInput").value || "(empty)")}". Try rephrasing.</span>`;
+    // Surface the AI's own rationale when it bailed — much more useful than a
+    // generic "couldn't parse" message. Falls back if rationale is missing.
+    const why = parsed.rationale ? escapeHtml(parsed.rationale) : "Couldn't parse any filters. Try rephrasing.";
+    chipsEl.innerHTML = `<span class="ai-filter-empty">${why}</span>`;
     banner.style.display = "flex";
   } else {
     chipsEl.innerHTML = applied.map(a =>
@@ -4209,6 +4221,10 @@ function wireUI() {
   const submitFab = async () => {
     const q = fabInput.value.trim();
     if (!q) return;
+    if (q.length > 2000) {
+      toast("Smart Search query is too long (2,000 char max). Trim it down.", 4000);
+      return;
+    }
     fabBtn.classList.add("busy");
     const origFabLabel = fabBtn.innerHTML;
     const origSubmitLabel = fabSubmit.innerHTML;
