@@ -124,25 +124,91 @@
   .conn-dot.live { background: var(--emerald); box-shadow: 0 0 0 3px rgba(0, 102, 51, 0.18); }
   .conn-dot.demo { background: var(--marigold); }
   .conn-dot.error { background: #ef4444; }
-  .header-user {
+  /* Profile button + dropdown menu (replaces the row of header chips) */
+  .profile-wrap { position: relative; display: inline-flex; }
+  .profile-trigger {
     display: inline-flex; align-items: center; gap: 10px;
-    font-size: 13px; color: var(--text);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 999px;
+    padding: 4px 12px 4px 4px;
+    font-family: inherit; font-size: 13px; color: var(--text);
+    cursor: pointer;
+    transition: background 0.12s ease, border-color 0.12s ease;
   }
-  .header-user .avatar {
+  .profile-trigger:hover {
+    background: var(--gray-bg);
+    border-color: var(--border);
+  }
+  .profile-trigger[aria-expanded="true"] {
+    background: var(--gray-bg);
+    border-color: var(--border-strong);
+  }
+  .profile-trigger .avatar {
     width: 30px; height: 30px; border-radius: 50%;
     background: linear-gradient(135deg, var(--icy-blue), var(--emerald));
     color: #fff;
     display: flex; align-items: center; justify-content: center;
     font-weight: 700; font-size: 12px;
     box-shadow: 0 1px 2px rgba(18, 22, 49, 0.15);
+    flex-shrink: 0;
   }
-  .header-user button {
-    background: transparent; color: var(--text-muted);
-    border: 1px solid var(--border-strong);
-    border-radius: var(--radius-sm); padding: 5px 12px;
-    font-size: 12px; font-weight: 500;
+  .profile-name {
+    font-weight: 500;
+    max-width: 180px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .header-user button:hover { background: var(--gray-bg); color: var(--text); }
+  .profile-caret {
+    font-size: 10px; color: var(--text-muted);
+    transition: transform 0.18s ease;
+  }
+  .profile-trigger[aria-expanded="true"] .profile-caret { transform: rotate(180deg); }
+
+  .profile-menu {
+    position: absolute;
+    top: calc(100% + 6px); right: 0;
+    z-index: 90;
+    min-width: 200px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 12px 28px rgba(15, 23, 42, 0.18), 0 4px 10px rgba(0,0,0,0.08);
+    padding: 4px;
+    display: none;
+    animation: profileMenuIn 0.14s ease-out;
+  }
+  .profile-menu.open { display: block; }
+  @keyframes profileMenuIn {
+    from { transform: translateY(-4px); opacity: 0; }
+    to   { transform: translateY(0); opacity: 1; }
+  }
+  .profile-menu-item {
+    display: flex; align-items: center; gap: 10px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    padding: 8px 10px;
+    border-radius: 6px;
+    font-family: inherit; font-size: 13px; color: var(--text);
+    cursor: pointer;
+    text-align: left;
+  }
+  .profile-menu-item:hover { background: var(--gray-bg); }
+  .profile-menu-item:focus-visible { outline: 2px solid var(--emerald); outline-offset: -2px; }
+  .profile-menu-icon { font-size: 14px; width: 18px; text-align: center; }
+  .profile-menu-label { flex: 1; }
+  .profile-menu-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 2px;
+  }
+
+  /* Dark mode: surface override for the menu */
+  html.dark-mode .profile-menu {
+    background: var(--surface);
+    border-color: var(--border-strong);
+  }
+  html.dark-mode .profile-menu-divider { background: var(--border-strong); }
 
   main { padding: 28px 32px 48px; max-width: 1600px; margin: 0 auto; }
 
@@ -1282,22 +1348,7 @@
   .signin-card h2 { margin: 12px 0 4px; font-size: 18px; }
   .signin-card p { margin: 4px 0 20px; color: var(--text-muted); font-size: 13px; }
 
-  /* ============ Theme toggle (Nestor-only header button) ============ */
-  .theme-toggle {
-    background: transparent;
-    border: 1px solid var(--border);
-    color: var(--text);
-    width: 34px; height: 34px;
-    border-radius: 50%;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 16px; line-height: 1;
-    cursor: pointer;
-    transition: background 0.12s ease, border-color 0.12s ease;
-  }
-  .theme-toggle:hover { background: var(--gray-bg); border-color: var(--border-strong); }
-  .theme-toggle:focus-visible { outline: 2px solid var(--emerald); outline-offset: 2px; }
-
-  /* ============ Dark mode (opt-in via header toggle) ============
+  /* ============ Dark mode (opt-in via profile menu) ============
      Activated by html.dark-mode (set pre-paint by the head script + JS toggle).
      Strategy: (1) override root vars so var()-driven components flip
      automatically; (2) target the hardcoded-#fff surfaces by class so they
@@ -1584,13 +1635,23 @@
   </div>
   <div class="header-right">
     <span class="connection-pill"><span class="conn-dot" id="connDot"></span><span id="connLabel">connecting…</span></span>
-    <button type="button" class="theme-toggle" id="themeToggleBtn" style="display:none" title="Toggle dark mode" aria-label="Toggle dark mode">
-      <span id="themeToggleIcon" aria-hidden="true">🌙</span>
-    </button>
-    <div class="header-user" id="headerUser" style="display:none">
-      <div class="avatar" id="userAvatar">?</div>
-      <span id="userName">—</span>
-      <button id="signOutBtn">Sign out</button>
+    <div class="profile-wrap" id="headerUser" style="display:none">
+      <button type="button" class="profile-trigger" id="profileTrigger" aria-haspopup="menu" aria-expanded="false">
+        <div class="avatar" id="userAvatar">?</div>
+        <span class="profile-name" id="userName">—</span>
+        <span class="profile-caret" aria-hidden="true">▾</span>
+      </button>
+      <div class="profile-menu" id="profileMenu" role="menu" aria-hidden="true">
+        <button type="button" class="profile-menu-item" id="themeToggleBtn" role="menuitem">
+          <span class="profile-menu-icon" id="themeToggleIcon" aria-hidden="true">🌙</span>
+          <span class="profile-menu-label" id="themeToggleLabel">Dark mode</span>
+        </button>
+        <div class="profile-menu-divider"></div>
+        <button type="button" class="profile-menu-item" id="signOutBtn" role="menuitem">
+          <span class="profile-menu-icon" aria-hidden="true">↪</span>
+          <span class="profile-menu-label">Sign out</span>
+        </button>
+      </div>
     </div>
   </div>
 </header>
@@ -5116,15 +5177,30 @@ async function confirmAndSendDigest() {
 function renderUserChip() {
   if (!activeAccount) {
     document.getElementById("headerUser").style.display = "none";
-    document.getElementById("themeToggleBtn").style.display = "none";
     return;
   }
   const name = activeAccount.name || activeAccount.username || "Signed in";
   document.getElementById("userName").textContent = name;
   document.getElementById("userAvatar").textContent = initials(name);
   document.getElementById("headerUser").style.display = "inline-flex";
-  document.getElementById("themeToggleBtn").style.display = "inline-flex";
   syncThemeToggleIcon();
+}
+
+/* ---------- profile dropdown menu ---------- */
+function openProfileMenu() {
+  document.getElementById("profileMenu").classList.add("open");
+  document.getElementById("profileTrigger").setAttribute("aria-expanded", "true");
+  document.getElementById("profileMenu").setAttribute("aria-hidden", "false");
+}
+function closeProfileMenu() {
+  document.getElementById("profileMenu").classList.remove("open");
+  document.getElementById("profileTrigger").setAttribute("aria-expanded", "false");
+  document.getElementById("profileMenu").setAttribute("aria-hidden", "true");
+}
+function toggleProfileMenu() {
+  const menu = document.getElementById("profileMenu");
+  if (menu.classList.contains("open")) closeProfileMenu();
+  else openProfileMenu();
 }
 
 /* ---------- theme toggle (Nestor-only) ---------- */
@@ -5143,15 +5219,39 @@ function toggleTheme() {
 }
 function syncThemeToggleIcon() {
   const iconEl = document.getElementById("themeToggleIcon");
+  const labelEl = document.getElementById("themeToggleLabel");
   if (!iconEl) return;
-  // Show the destination state: in light mode show 🌙 (click to go dark);
-  // in dark mode show ☀️ (click to go light).
-  iconEl.textContent = currentTheme() === "dark" ? "☀️" : "🌙";
+  const isDark = currentTheme() === "dark";
+  // Icon + label both describe the destination state — clicking goes there.
+  iconEl.textContent = isDark ? "☀️" : "🌙";
+  if (labelEl) labelEl.textContent = isDark ? "Light mode" : "Dark mode";
 }
 document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("themeToggleBtn");
-  if (btn) btn.addEventListener("click", toggleTheme);
+  const themeBtn = document.getElementById("themeToggleBtn");
+  if (themeBtn) themeBtn.addEventListener("click", () => {
+    toggleTheme();
+    closeProfileMenu();
+  });
   syncThemeToggleIcon();
+  // Profile dropdown wiring
+  const trigger = document.getElementById("profileTrigger");
+  const menu = document.getElementById("profileMenu");
+  if (trigger) trigger.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleProfileMenu();
+  });
+  // Click outside closes
+  document.addEventListener("click", (e) => {
+    if (!menu || !menu.classList.contains("open")) return;
+    if (menu.contains(e.target) || (trigger && trigger.contains(e.target))) return;
+    closeProfileMenu();
+  });
+  // Esc closes
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && menu && menu.classList.contains("open")) {
+      closeProfileMenu();
+    }
+  });
 });
 
 /* ---------- bootstrap ---------- */
