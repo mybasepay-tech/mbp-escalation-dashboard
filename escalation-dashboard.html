@@ -2103,7 +2103,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "", timeWindow: null, aggregation: null, compareWith: null, synthesizeNarrative: false, docNeeded: null, financialMin: null, hasAssigneeUpdate: null };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "", timeWindow: null, aggregation: null, compareWith: null, synthesizeNarrative: false, docNeeded: null, financialMin: null, hasAssigneeUpdate: null, olderThanDays: null, noUpdateSince: null };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -2934,7 +2934,7 @@ function applyParsedFilters(parsed) {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null;
 
   const applied = []; // human-readable chips for the banner
 
@@ -3017,6 +3017,18 @@ function applyParsedFilters(parsed) {
   if (parsed.hasFinancial === true) {
     filters.hasFinancial = true;
     applied.push({ label: "", value: "Has financial impact" });
+  }
+  if (parsed.olderThanDays != null && Number.isFinite(Number(parsed.olderThanDays)) && Number(parsed.olderThanDays) > 0) {
+    filters.olderThanDays = Math.round(Number(parsed.olderThanDays));
+    applied.push({ label: "Submitted", value: `> ${filters.olderThanDays} days ago` });
+  }
+  if (parsed.noUpdateSince && typeof parsed.noUpdateSince === "string") {
+    const d = new Date(parsed.noUpdateSince);
+    if (!Number.isNaN(d.getTime())) {
+      filters.noUpdateSince = parsed.noUpdateSince;
+      const fmt = d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+      applied.push({ label: "No update since", value: fmt });
+    }
   }
   if (parsed.hasAssigneeUpdate === true) {
     filters.hasAssigneeUpdate = true;
@@ -3302,7 +3314,7 @@ function clearAiFilter() {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null;
   const resultCard = document.getElementById("aiResultCard");
   if (resultCard) resultCard.style.display = "none";
   document.getElementById("searchInput").value = "";
@@ -3678,6 +3690,19 @@ function applyFilters() {
       if (filters.hasAssigneeUpdate === true && !hasUpdate) return false;
       if (filters.hasAssigneeUpdate === false && hasUpdate) return false;
     }
+    if (filters.olderThanDays != null) {
+      if (!e.escalationDate) return false;
+      const ageDays = (Date.now() - new Date(e.escalationDate).getTime()) / 86400000;
+      if (ageDays <= filters.olderThanDays) return false;
+    }
+    if (filters.noUpdateSince) {
+      const cutoff = new Date(filters.noUpdateSince).getTime();
+      const activity = getLastAssigneeActivity(e);
+      // No usable activity date → exclude (we can't say it's been quiet since X).
+      if (!activity || !activity.date) return false;
+      const activityTime = new Date(activity.date).getTime();
+      if (Number.isNaN(activityTime) || activityTime >= cutoff) return false;
+    }
     if (q) {
       // Text search corpus: id + structured fields + issue taxonomy +
       // commentary (stripped). Cache stripped commentary on the item so the
@@ -3741,7 +3766,7 @@ function applyKpiPreset(preset) {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null;
   document.getElementById("aiResultCard").style.display = "none";
 
   if (preset === "open")        filters.status = "open";
@@ -3782,7 +3807,7 @@ function renderList() {
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
       filters.resolvedWithin = null; filters.hasFinancial = false;
       filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-      filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null;
+      filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null;
       document.getElementById("aiResultCard").style.display = "none";
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
