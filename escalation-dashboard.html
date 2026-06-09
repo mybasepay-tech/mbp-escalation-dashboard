@@ -396,7 +396,7 @@
   .esc-row:hover { background: var(--gray-bg); }
   .esc-row.selected { background: var(--emerald-bg); }
   .esc-row.selected.u-critical { border-left-color: var(--red); }
-  .esc-id-block { text-align: center; min-width: 64px; }
+  .esc-id-block { text-align: center; min-width: 96px; }
   .esc-id {
     font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px; color: var(--text-muted); font-weight: 600;
@@ -1016,8 +1016,34 @@
 
   /* Stale row styling: subtle left-edge marker so it's visible without
      being noisy when stale items are mixed with non-stale */
-  .esc-row.is-stale { box-shadow: inset 4px 0 0 #f59e0b; }
-  .esc-row.is-stale:hover { box-shadow: inset 4px 0 0 #ea580c; }
+  /* Stale row: matches Maggie's spreadsheet mental model — when the last
+     update is 7+ days old, the row reads red, not the prior subtle orange
+     left-edge marker. Healthy rows stay neutral (no special styling). */
+  .esc-row.is-stale {
+    background: rgba(220, 38, 38, 0.06);
+    box-shadow: inset 4px 0 0 #dc2626;
+  }
+  .esc-row.is-stale:hover {
+    background: rgba(220, 38, 38, 0.10);
+    box-shadow: inset 4px 0 0 #b91c1c;
+  }
+  html.dark-mode .esc-row.is-stale { background: rgba(220, 38, 38, 0.14); }
+  html.dark-mode .esc-row.is-stale:hover { background: rgba(220, 38, 38, 0.22); }
+  /* "Last update" prominent data cell — surfaces the date Maggie's been
+     tracking manually in her spreadsheet. Appears next to the relative-age
+     chip in the id-block so it's visible without opening the detail panel. */
+  .esc-row .esc-last-update {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    line-height: 1.3;
+  }
+  .esc-row .esc-last-update strong {
+    font-weight: 700;
+    color: var(--text);
+  }
+  .esc-row.is-stale .esc-last-update strong { color: #b91c1c; }
+  html.dark-mode .esc-row.is-stale .esc-last-update strong { color: #fca5a5; }
 
   /* Pills shown in the list row meta */
   .pill.last-update { background: var(--gray-bg); color: var(--text-muted); }
@@ -3845,14 +3871,24 @@ function renderList() {
       ageTooltip = e.escalationDate ? `Submitted on ${fmtDate(e.escalationDate)}` : "";
     }
     const who = e.customer || e.member || e.worker;
-    // "Last update" pill: only show for open items. Wording reflects whether
-    // we're showing a real update vs. just the item being untouched since creation.
-    let lastUpdatePill = "";
+    // Prominent "Last update" display under the ID — matches Maggie's
+    // spreadsheet mental model (absolute date next to the item) and turns
+    // red on stale items so the visual scan is unambiguous.
+    let lastUpdateBlock = "";
     if (isOpen && daysSinceUpdate != null) {
-      const lastText = daysSinceUpdate === 0 ? "today" : `${daysSinceUpdate}d ago`;
-      const lastLabel = lastActivity.source === "created" ? "no updates" : "last update";
-      const cls = stale ? "stale" : (daysSinceUpdate >= 5 ? "warn" : "");
-      lastUpdatePill = `<span class="pill last-update ${cls}" title="${lastActivity.source === "created" ? "No status updates logged yet" : "Most recent assignee status update"}">⏱ ${lastLabel}: ${lastText}</span>`;
+      if (lastActivity.source === "created") {
+        lastUpdateBlock = `<div class="esc-last-update" title="No status updates logged since submission">No updates · <strong>${daysSinceUpdate}d</strong></div>`;
+      } else {
+        const absDate = fmtDate(lastActivity.date);
+        const rel = daysSinceUpdate === 0 ? "today" : `${daysSinceUpdate}d ago`;
+        lastUpdateBlock = `<div class="esc-last-update" title="Last assignee status update on ${escapeHtml(absDate)}">Last update<br><strong>${escapeHtml(absDate)}</strong> · ${rel}</div>`;
+      }
+    }
+    // Keep a small pill in the meta row only for closed items (so reviewers
+    // can still see when something was last touched before close).
+    let lastUpdatePill = "";
+    if (!isOpen && lastActivity && lastActivity.date) {
+      lastUpdatePill = `<span class="pill last-update" title="Last activity before close">⏱ ${escapeHtml(fmtDate(lastActivity.date))}</span>`;
     }
     const followUp = isOpen ? getLastFollowUp(e) : null;
     const followUpPill = followUp
@@ -3863,6 +3899,7 @@ function renderList() {
         <div class="esc-id-block">
           <div class="esc-id">#${e.id}</div>
           <div class="esc-age ${ageClass}" title="${escapeHtml(ageTooltip)}">${escapeHtml(ageText)}</div>
+          ${lastUpdateBlock}
         </div>
         <div class="esc-main">
           <div class="esc-title">${escapeHtml(e.title)}</div>
@@ -5066,14 +5103,57 @@ async function submitNew() {
 /* ---------- export ---------- */
 function exportCsv() {
   const items = applyFilters();
-  const rows = [["ID","Submitted","Status","Urgency","Title","Assigned Dept","Assignee","Requesting Dept","Issue Type","Issue Category","Customer","Member","Worker","Financial Impact","Amount Remaining","Expected Resolution","Resolved","Days Open"]];
-  items.forEach(e => rows.push([
-    e.id, e.escalationDate, e.status, e.urgency, e.title, e.assignedDept, e.assignee || "",
-    e.requestingDept, e.issueType || "", e.issueCategory || "",
-    e.customer || "", e.member || "", e.worker || "",
-    e.financialImpact || 0, e.amountRemaining || 0,
-    e.expectedDate || "", e.resolvedDate || "", e.daysOpen || ""
-  ]));
+  // RFP-grade column set: every field Maggie's been compiling manually,
+  // plus the derived metrics (days to resolve, last update date, follow-up
+  // counts, internal-doc status). Order: identity → routing → people →
+  // timing → financials → workflow signals → content.
+  const header = [
+    "ID", "Submitted", "Status", "Urgency",
+    "Assigned Dept", "Requesting Dept", "Assignee", "Submitter",
+    "Issue Type", "Issue Category",
+    "Customer", "Member", "Worker", "Assignment ID",
+    "Expected Resolution", "Resolved Date",
+    "Days Open", "Days to Resolve", "Days in Current Dept",
+    "Last Assignee Update", "Days Since Last Update", "Status Updates Count", "Follow-ups Count",
+    "Awaiting Update (Stale)", "Past Expected Date",
+    "Financial Impact", "Amount Remaining",
+    "Internal Doc Needed", "Title", "Teams Post URL"
+  ];
+  const rows = [header];
+  items.forEach(e => {
+    const updates = parseUpdateMarkers(e.updates);
+    const followUps = parseFollowUpMarkers(e.updates);
+    const lastActivity = getLastAssigneeActivity(e);
+    const daysSinceUpdate = daysBetween(lastActivity?.date);
+    const daysToResolve = (e.status === "Complete" && e.escalationDate && e.resolvedDate)
+      ? Math.max(0, Math.round((new Date(e.resolvedDate).getTime() - new Date(e.escalationDate).getTime()) / 86400000))
+      : "";
+    const isStaleFlag = STATUS_OPEN.has(e.status) && isStale(e) ? "Yes" : "No";
+    const pastExpected = (STATUS_OPEN.has(e.status) && e.expectedDate && new Date(e.expectedDate) < new Date()) ? "Yes" : "No";
+    rows.push([
+      e.id,
+      e.escalationDate ? fmtDate(e.escalationDate) : "",
+      e.status, e.urgency,
+      e.assignedDept || "", e.requestingDept || "", e.assignee || "", e.submitter || "",
+      e.issueType || "", e.issueCategory || "",
+      e.customer || "", e.member || "", e.worker || "", e.assignmentId || "",
+      e.expectedDate ? fmtDate(e.expectedDate) : "",
+      e.resolvedDate ? fmtDate(e.resolvedDate) : "",
+      e.daysOpen ?? "",
+      daysToResolve,
+      e.daysCurrentDept ?? "",
+      (lastActivity?.date && lastActivity.source !== "created") ? fmtDate(lastActivity.date) : "",
+      daysSinceUpdate ?? "",
+      updates.length,
+      followUps.length,
+      isStaleFlag,
+      pastExpected,
+      e.financialImpact || 0, e.amountRemaining || 0,
+      e.docNeeded || "",
+      e.title || "",
+      e.teamsPost || ""
+    ]);
+  });
   const csv = rows.map(r => r.map(c => `"${String(c == null ? "" : c).replace(/"/g, '""')}"`).join(",")).join("\n");
   const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
