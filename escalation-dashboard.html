@@ -2177,7 +2177,26 @@ function computeDaysOpen(escDateIso, resolvedDateIso) {
   if (!escDateIso) return null;
   const start = new Date(escDateIso).getTime();
   const end = resolvedDateIso ? new Date(resolvedDateIso).getTime() : Date.now();
-  return Math.floor((end - start) / (1000 * 60 * 60 * 24));
+  // Clamp to 0 — a negative daysOpen means the source list has
+  // ResolvedDate < EscalationDate (data entry / migration artifact).
+  // The raw delta is preserved in the dashboard's _daysOpenRaw cache
+  // for the anomaly audit; see findDateAnomalies().
+  return Math.max(0, Math.floor((end - start) / (1000 * 60 * 60 * 24)));
+}
+// Surfaces items where ResolvedDate predates EscalationDate — a data
+// quality flag worth raising with the list owner. Returns
+// [{ id, title, escalationDate, resolvedDate, deltaDays }].
+function findDateAnomalies() {
+  return escalations
+    .filter(e => e.escalationDate && e.resolvedDate)
+    .map(e => {
+      const s = new Date(e.escalationDate).getTime();
+      const r = new Date(e.resolvedDate).getTime();
+      const delta = Math.floor((r - s) / 86400000);
+      return delta < 0 ? { id: e.id, title: e.title, escalationDate: e.escalationDate, resolvedDate: e.resolvedDate, deltaDays: delta } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.deltaDays - b.deltaDays);
 }
 function fmtMoney(n) {
   if (n == null || n === "" || isNaN(Number(n))) return "—";
