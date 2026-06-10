@@ -264,6 +264,8 @@
   .kpi-info .kpi-value { color: var(--blue); }
   .kpi-stale .kpi-value { color: #c2410c; }
   .kpi-stale { border-left: 3px solid #f59e0b; }
+  .kpi-aging .kpi-value { color: #b45309; }
+  .kpi-aging { border-left: 3px solid #d97706; }
 
   /* Secondary filter row: dept chips + assignee picker */
   .filter-bar {
@@ -1017,8 +1019,9 @@
   /* Stale row styling: subtle left-edge marker so it's visible without
      being noisy when stale items are mixed with non-stale */
   /* Stale row: matches Maggie's spreadsheet mental model — when the last
-     update is 7+ days old, the row reads red, not the prior subtle orange
-     left-edge marker. Healthy rows stay neutral (no special styling). */
+     update is 7+ days old, the row reads red. Yellow tier for "approaching
+     stale" (5–6 days since update) so she can chase before it turns red.
+     Healthy rows stay neutral (no special styling). */
   .esc-row.is-stale {
     background: rgba(220, 38, 38, 0.06);
     box-shadow: inset 4px 0 0 #dc2626;
@@ -1027,8 +1030,18 @@
     background: rgba(220, 38, 38, 0.10);
     box-shadow: inset 4px 0 0 #b91c1c;
   }
+  .esc-row.is-at-risk {
+    background: rgba(245, 158, 11, 0.06);
+    box-shadow: inset 4px 0 0 #f59e0b;
+  }
+  .esc-row.is-at-risk:hover {
+    background: rgba(245, 158, 11, 0.10);
+    box-shadow: inset 4px 0 0 #d97706;
+  }
   html.dark-mode .esc-row.is-stale { background: rgba(220, 38, 38, 0.14); }
   html.dark-mode .esc-row.is-stale:hover { background: rgba(220, 38, 38, 0.22); }
+  html.dark-mode .esc-row.is-at-risk { background: rgba(245, 158, 11, 0.12); }
+  html.dark-mode .esc-row.is-at-risk:hover { background: rgba(245, 158, 11, 0.20); }
   /* "Last update" prominent data cell — surfaces the date Maggie's been
      tracking manually in her spreadsheet. Appears next to the relative-age
      chip in the id-block so it's visible without opening the detail panel. */
@@ -3638,6 +3651,10 @@ function renderKpis() {
   const unassigned = open.filter(e => !e.assignee);
   const overdue = open.filter(e => e.expectedDate && new Date(e.expectedDate) < new Date());
   const stale = open.filter(isStale);
+  const aging = open.filter(e => {
+    if (!e.escalationDate) return false;
+    return (Date.now() - new Date(e.escalationDate).getTime()) / 86400000 > 10;
+  });
   const last30 = escalations.filter(e => e.status === "Complete" && e.resolvedDate && daysBetween(e.resolvedDate) <= 30);
   const totalImpact = open.reduce((s,e) => s + (Number(e.financialImpact) || 0), 0);
 
@@ -3656,6 +3673,11 @@ function renderKpis() {
       <div class="kpi-label">Awaiting update</div>
       <div class="kpi-value">${stale.length}</div>
       <div class="kpi-foot">no recent update</div>
+    </div>
+    <div class="kpi kpi-aging" data-preset="aging" title="Open items more than 10 days old — Maggie's aging review queue">
+      <div class="kpi-label">Aging Review</div>
+      <div class="kpi-value">${aging.length}</div>
+      <div class="kpi-foot">open · 10+ days old</div>
     </div>
     <div class="kpi kpi-accent" data-preset="overdue" title="Show active escalations past their expected date">
       <div class="kpi-label">Past Expected Date</div>
@@ -3780,20 +3802,27 @@ function applyFilters() {
 }
 
 // Fields the sort can target. Anything else is silently dropped on the way in.
-const SORTABLE_FIELDS = new Set(["daysOpen","escalationDate","modified","financialImpact","amountRemaining","daysCurrentDept"]);
+const SORTABLE_FIELDS = new Set(["daysOpen","escalationDate","modified","financialImpact","amountRemaining","daysCurrentDept","daysSinceUpdate"]);
 const SORTABLE_FIELD_LABELS = {
   daysOpen: "Days open",
   escalationDate: "Submitted",
   modified: "Last touched",
   financialImpact: "Financial impact",
   amountRemaining: "Amount remaining",
-  daysCurrentDept: "Days in dept"
+  daysCurrentDept: "Days in dept",
+  daysSinceUpdate: "Days since last update"
 };
 
 function compareEscalations(a, b, field, direction) {
   const dir = direction === "asc" ? 1 : -1;
   let av = a[field], bv = b[field];
-  if (field === "escalationDate" || field === "modified" || field === "resolvedDate") {
+  if (field === "daysSinceUpdate") {
+    // Computed at sort time; use the same source as the row's last-update pill.
+    const aDate = getLastAssigneeActivity(a)?.date;
+    const bDate = getLastAssigneeActivity(b)?.date;
+    av = aDate != null ? (daysBetween(aDate) ?? 0) : 0;
+    bv = bDate != null ? (daysBetween(bDate) ?? 0) : 0;
+  } else if (field === "escalationDate" || field === "modified" || field === "resolvedDate") {
     av = av ? new Date(av).getTime() : 0;
     bv = bv ? new Date(bv).getTime() : 0;
   } else {
@@ -3817,6 +3846,13 @@ function applyKpiPreset(preset) {
   if (preset === "open")        filters.status = "open";
   else if (preset === "unassigned") filters.status = "unassigned";
   else if (preset === "stale")      { filters.status = "open"; filters.stale = true; }
+  else if (preset === "aging")      {
+    // Maggie's aging review: open + 10+ days old, sorted by days since last update DESC
+    // so the items that need chasing surface first.
+    filters.status = "open";
+    filters.olderThanDays = 10;
+    filters.sort = { field: "daysSinceUpdate", direction: "desc" };
+  }
   else if (preset === "overdue")    { filters.status = "open"; filters.overdue = true; }
   else if (preset === "resolved30") { filters.status = "Complete"; filters.resolvedWithin = 30; }
   else if (preset === "financial")  { filters.status = "open"; filters.hasFinancial = true; }
@@ -3913,8 +3949,20 @@ function renderList() {
     const followUpPill = followUp
       ? `<span class="pill followup-pill" title="Most recent follow-up logged by Jenn or whoever is chasing">📞 nudged ${daysBetween(followUp.date)}d ago${followUp.by ? ` by ${escapeHtml(followUp.by)}` : ""}</span>`
       : "";
+    // At-risk: 5–6 days since last update on an open item, not yet stale.
+    // Yellow row treatment so Maggie can spot items about to flip red.
+    const atRisk = isOpen && !stale && daysSinceUpdate != null && daysSinceUpdate >= 5 && daysSinceUpdate <= 6;
+    // Reassignment signal: item has moved between depts (originalDept exists and
+    // doesn't match current assignedDept, OR daysCurrentDept is meaningfully
+    // less than daysOpen). Show a small pill so the reassignment is visible.
+    let reassignedPill = "";
+    if (isOpen && e.originalDept && e.assignedDept && e.originalDept !== e.assignedDept) {
+      reassignedPill = `<span class="pill" title="Originally assigned to ${escapeHtml(e.originalDept)}; reassigned to ${escapeHtml(e.assignedDept)}">↪ from ${escapeHtml(e.originalDept)}${e.daysCurrentDept != null ? ` · ${e.daysCurrentDept}d here` : ""}</span>`;
+    } else if (isOpen && e.daysCurrentDept != null && e.daysOpen != null && e.daysOpen - e.daysCurrentDept >= 7) {
+      reassignedPill = `<span class="pill" title="Item appears to have been reassigned mid-flight">↪ ${e.daysCurrentDept}d in current dept</span>`;
+    }
     return `
-      <div class="esc-row ${badgeClassUrgency(e.urgency)} ${selectedId === e.id ? "selected" : ""} ${stale ? "is-stale" : ""}" data-id="${e.id}">
+      <div class="esc-row ${badgeClassUrgency(e.urgency)} ${selectedId === e.id ? "selected" : ""} ${stale ? "is-stale" : atRisk ? "is-at-risk" : ""}" data-id="${e.id}">
         <div class="esc-id-block">
           <div class="esc-id">#${e.id}</div>
           <div class="esc-age ${ageClass}" title="${escapeHtml(ageTooltip)}">${escapeHtml(ageText)}</div>
@@ -3924,6 +3972,7 @@ function renderList() {
           <div class="esc-title">${escapeHtml(e.title)}</div>
           <div class="esc-meta">
             <span class="pill">📂 ${escapeHtml(e.assignedDept)}</span>
+            ${reassignedPill}
             ${e.assignee ? `<span class="pill">→ ${escapeHtml(e.assignee)}</span>` : `<span class="pill" style="color:var(--amber);font-weight:600">unassigned</span>`}
             ${who ? `<span class="pill">${escapeHtml(who)}</span>` : ""}
             ${e.financialImpact ? `<span class="pill">${fmtMoney(e.financialImpact)}</span>` : ""}
