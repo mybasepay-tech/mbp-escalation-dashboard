@@ -5171,21 +5171,49 @@ async function submitNew() {
 /* ---------- export ---------- */
 function exportCsv() {
   const items = applyFilters();
-  // RFP-grade column set: every field Maggie's been compiling manually,
-  // plus the derived metrics (days to resolve, last update date, follow-up
-  // counts, internal-doc status). Order: identity → routing → people →
-  // timing → financials → workflow signals → content.
+  // Column order + names match Maggie's existing spreadsheet so this CSV is a
+  // drop-in replacement. Maggie's columns come first (block 1) in her exact
+  // order. Additional fields the dashboard tracks come after (block 2) for
+  // anyone who wants the richer dataset (urgency, financials, follow-up
+  // counts, etc.). Sort and rename here, not in Excel.
   const header = [
-    "ID", "Submitted", "Status", "Urgency",
-    "Assigned Dept", "Requesting Dept", "Assignee", "Submitter",
-    "Issue Type", "Issue Category",
-    "Customer", "Member", "Worker", "Assignment ID",
-    "Expected Resolution", "Resolved Date",
-    "Days Open", "Days to Resolve", "Days in Current Dept",
-    "Last Assignee Update", "Days Since Last Update", "Status Updates Count", "Follow-ups Count",
-    "Awaiting Update (Stale)", "Past Expected Date",
-    "Financial Impact", "Amount Remaining",
-    "Internal Doc Needed", "Title", "Teams Post URL"
+    // ── Block 1: Maggie's spreadsheet columns ──
+    "Title",
+    "Requesting Dept",
+    "Status",
+    "Assigned Department Owner",
+    "Assigned To",
+    "Expected Resolution Date",
+    "Resolved Date",
+    "Issue Type",
+    "Issue Category Detail",
+    "Days Open",
+    "Date of Last Update",
+    "Original Assigned Dept",
+    "DateAssignedtoCurrent",
+    "DaysCurrentDept",
+    "Internal Documentation Needed",
+    "Internal Documentation Commentary",
+    "Days to Resolve",
+    "Teams Post",
+    "Item Type",
+    "Path",
+    // ── Block 2: Dashboard extras (after Maggie's set) ──
+    "ID",
+    "Submitted",
+    "Urgency",
+    "Submitter",
+    "Customer",
+    "Member",
+    "Worker",
+    "Assignment ID",
+    "Financial Impact",
+    "Amount Remaining",
+    "Days Since Last Update",
+    "Status Updates Count",
+    "Follow-ups Count",
+    "Awaiting Update (Stale)",
+    "Past Expected Date"
   ];
   const rows = [header];
   items.forEach(e => {
@@ -5198,28 +5226,51 @@ function exportCsv() {
       : "";
     const isStaleFlag = STATUS_OPEN.has(e.status) && isStale(e) ? "Yes" : "No";
     const pastExpected = (STATUS_OPEN.has(e.status) && e.expectedDate && new Date(e.expectedDate) < new Date()) ? "Yes" : "No";
+    // DateAssignedtoCurrent: SP doesn't expose this directly; approximate as
+    // today - daysCurrentDept so Maggie still has a date column to filter on.
+    const dateAssignedToCurrent = (e.daysCurrentDept != null && Number.isFinite(Number(e.daysCurrentDept)))
+      ? fmtDate(new Date(Date.now() - Number(e.daysCurrentDept) * 86400000).toISOString())
+      : "";
+    // Internal Documentation Commentary is rich-text HTML — strip tags for CSV.
+    const docCommentaryText = e.docCommentary ? stripHtmlTags(e.docCommentary) : "";
     rows.push([
-      e.id,
-      e.escalationDate ? fmtDate(e.escalationDate) : "",
-      e.status, e.urgency,
-      e.assignedDept || "", e.requestingDept || "", e.assignee || "", e.submitter || "",
-      e.issueType || "", e.issueCategory || "",
-      e.customer || "", e.member || "", e.worker || "", e.assignmentId || "",
+      // Block 1
+      e.title || "",
+      e.requestingDept || "",
+      e.status,
+      e.assignedDept || "",
+      e.assignee || "",
       e.expectedDate ? fmtDate(e.expectedDate) : "",
       e.resolvedDate ? fmtDate(e.resolvedDate) : "",
+      e.issueType || "",
+      e.issueCategory || "",
       e.daysOpen ?? "",
-      daysToResolve,
-      e.daysCurrentDept ?? "",
       (lastActivity?.date && lastActivity.source !== "created") ? fmtDate(lastActivity.date) : "",
+      e.originalDept || "",
+      dateAssignedToCurrent,
+      e.daysCurrentDept ?? "",
+      e.docNeeded || "",
+      docCommentaryText,
+      daysToResolve,
+      e.teamsPost || "",
+      "Item",
+      CONFIG.trackerWebUrl || "",
+      // Block 2
+      e.id,
+      e.escalationDate ? fmtDate(e.escalationDate) : "",
+      e.urgency,
+      e.submitter || "",
+      e.customer || "",
+      e.member || "",
+      e.worker || "",
+      e.assignmentId || "",
+      e.financialImpact || 0,
+      e.amountRemaining || 0,
       daysSinceUpdate ?? "",
       updates.length,
       followUps.length,
       isStaleFlag,
-      pastExpected,
-      e.financialImpact || 0, e.amountRemaining || 0,
-      e.docNeeded || "",
-      e.title || "",
-      e.teamsPost || ""
+      pastExpected
     ]);
   });
   const csv = rows.map(r => r.map(c => `"${String(c == null ? "" : c).replace(/"/g, '""')}"`).join(",")).join("\n");
