@@ -5177,6 +5177,8 @@ function exportCsv() {
   // anyone who wants the richer dataset (urgency, financials, follow-up
   // counts, etc.). Sort and rename here, not in Excel.
   const header = [
+    // ID first for sorting / pivoting; the rest matches Maggie's spreadsheet order.
+    "ID",
     // ── Block 1: Maggie's spreadsheet columns ──
     "Title",
     "Requesting Dept",
@@ -5199,7 +5201,6 @@ function exportCsv() {
     "Item Type",
     "Path",
     // ── Block 2: Dashboard extras (after Maggie's set) ──
-    "ID",
     "Submitted",
     "Urgency",
     "Submitter",
@@ -5234,6 +5235,7 @@ function exportCsv() {
     // Internal Documentation Commentary is rich-text HTML — strip tags for CSV.
     const docCommentaryText = e.docCommentary ? stripHtmlTags(e.docCommentary) : "";
     rows.push([
+      e.id,
       // Block 1
       e.title || "",
       e.requestingDept || "",
@@ -5256,7 +5258,6 @@ function exportCsv() {
       "Item",
       CONFIG.trackerWebUrl || "",
       // Block 2
-      e.id,
       e.escalationDate ? fmtDate(e.escalationDate) : "",
       e.urgency,
       e.submitter || "",
