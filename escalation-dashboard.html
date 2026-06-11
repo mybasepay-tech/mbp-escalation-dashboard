@@ -3639,10 +3639,54 @@ async function appendStatusUpdate(id, body, newStatus, docFields) {
 
 async function reassignEscalationById(id, lookupId) {
   if (!lookupId) throw new Error("Pick a person from the suggestions first.");
+  // Look up current status; if it's still "Not yet assigned" the dashboard
+  // should ALSO promote it to "Assigned" so the two fields don't drift out
+  // of sync (the issue Jennifer surfaced on #307 — assignee set but Status
+  // still "Not yet assigned" created a contradictory UI state).
+  const esc = escalations.find(x => x.id === id);
+  const fields = { AssignedToLookupId: String(lookupId) };
+  if (esc && esc.status === "Not yet assigned") {
+    fields.Status = "Assigned";
+  }
   return graphPatch(
     `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`,
-    { AssignedToLookupId: String(lookupId) }
+    fields
   );
+}
+
+// Find items whose assignee is set but Status is still "Not yet assigned" —
+// these are the data-inconsistency cases. Returns the list for triage; doesn't
+// modify anything. To fix in bulk, iterate and call reassignEscalationById,
+// or run promoteAssignedNotYetAssigned() below.
+function findAssignedButStatusNotPromoted() {
+  return escalations
+    .filter(e => e.assignee && e.status === "Not yet assigned")
+    .map(e => ({ id: e.id, title: e.title, assignee: e.assignee, dept: e.assignedDept }));
+}
+
+// One-shot bulk fix: promote Status to "Assigned" for every item that has an
+// assignee but status="Not yet assigned". Call from the console after a
+// findAssignedButStatusNotPromoted() review. Returns counts.
+async function promoteAssignedNotYetAssigned() {
+  const targets = escalations.filter(e => e.assignee && e.status === "Not yet assigned");
+  let ok = 0, fail = 0;
+  const failures = [];
+  for (const e of targets) {
+    try {
+      await graphPatch(
+        `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${e.id}/fields`,
+        { Status: "Assigned" }
+      );
+      ok++;
+    } catch (err) {
+      fail++;
+      failures.push({ id: e.id, error: err.message });
+    }
+  }
+  console.log(`Promoted ${ok}/${targets.length} items. ${fail} failures.`);
+  if (fail) console.log("Failures:", failures);
+  if (ok) await loadData(false);
+  return { promoted: ok, failed: fail, failures };
 }
 
 /* ---------- KPIs ---------- */
@@ -4073,6 +4117,7 @@ function renderDetail() {
         <span class="badge ${badgeClassUrgency(e.urgency)}">${escapeHtml(e.urgency)}</span>
         ${overdue ? `<span class="badge alert">Past expected date</span>` : ""}
         ${e.docNeeded === "Yes" ? `<span class="badge u-medium">Doc needed</span>` : ""}
+        ${e.assignee && e.status === "Not yet assigned" ? `<span class="badge alert" title="Assignee is set but Status was never promoted to Assigned — likely a Power Automate flow that updated AssignedTo without also updating Status. Pick a status from the dropdown to fix.">⚠ Status out of sync</span>` : ""}
       </div>
       <div class="detail-actions">
         <button class="btn btn-ai" data-action="summarize" data-id="${e.id}" title="Generate a short AI summary of this escalation">✨ Summarize</button>
