@@ -60,10 +60,25 @@ Detect and fix obvious inconsistencies **in the v2 copy**, recording a note each
 - **Resolved without date / date without resolved:** reconcile, note.
 - **Pending-* collapse:** record original legacy status in the note.
 
-Every correction → one `EscalationActivity` entry of `type: migration` plus a line in
-`migrationNotes`.
+Every correction (a.k.a. **migration normalization**) → one `EscalationActivity` entry of
+`type: migration_normalization` (system actor) plus a line in `migrationNotes`. See the
+event taxonomy in [`DATA_MODEL.md`](./DATA_MODEL.md) §3.
 
-## 5. Dry-run output
+## 5. Dry-run strategy
+- **Source of input (decision D7):** prefer an offline **read-only export/sample** provided
+  by Rod/Teri so the dry-run runs fully disconnected. Live read-only Graph access to legacy
+  lists is a fallback that requires explicit approval.
+- **Isolation:** the dry-run uses the `LegacyReader` only and has **no write path** to
+  legacy or v2 enabled (assert this at startup; fail closed).
+- **Determinism:** keyed on `legacyItemId` so the same input always yields the same
+  candidates; safe to re-run.
+- **Staged validation:** (1) parse/read, (2) map fields, (3) map status + run normalization
+  rules, (4) resolve identities/departments, (5) emit artifacts. Each stage logs counts and
+  unresolved items rather than failing the whole run.
+- **Review loop:** humans review the drift report and error log; mapping rules are adjusted
+  in docs; dry-run re-runs until clean. No "apply" until reviewed **and** approved.
+
+### Dry-run output
 A dry-run produces, **without writing to v2 or legacy**:
 - `migration-candidates.json` — proposed v2 records.
 - `migration-drift-report.csv` — every detected/corrected drift with before/after.
@@ -80,6 +95,6 @@ A dry-run produces, **without writing to v2 or legacy**:
 
 ## 7. Traceability guarantees
 - Every v2 record links back via `legacyItemId` + `legacyUrl`.
-- Every transformation is explained in `migrationNotes` and/or a `migration` activity
-  entry.
+- Every transformation is explained in `migrationNotes` and/or a `migration_normalization`
+  activity entry.
 - The legacy tracker is byte-for-byte unchanged after any migration run.

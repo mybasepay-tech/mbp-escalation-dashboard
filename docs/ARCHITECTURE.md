@@ -41,15 +41,20 @@
 - A single interface (`EscalationStore`) with methods like `listTickets(filter)`,
   `getTicket(id)`, `createTicket()`, `updateTicket()`, `addComment()`, `addActivity()`,
   `listTeams()`, `getSettings(dept)`.
-- Two implementations planned:
-  - `SharePointStore` (temporary backend, via Microsoft Graph).
+- Implementations (the backend is a swap behind this interface — decision **D3** in
+  [`DECISION_LOG.md`](./DECISION_LOG.md)):
+  - `MockStore` (in-memory, seedable) — the MVP backend; mock-first development.
+  - `SharePointStore` (temporary live backend, via Microsoft Graph).
   - `ApiStore` (target: REST/GraphQL over a managed DB).
+  - `DataverseStore` (target: Microsoft Dataverse / Power Platform alignment).
 - Migration uses a **separate** read-only `LegacyReader` (never the writable store).
 
 ### 3.3 Backend options
-- **Temporary:** new SharePoint lists dedicated to v2 (see `DATA_MODEL.md` storage list).
-  These are **new** lists — not the legacy "Escalation Tracker".
-- **Target:** cloud DB (e.g. Postgres/Cosmos) behind an API; Graph/SharePoint dropped.
+- **MVP:** `MockStore` only — no live backend, no production connection.
+- **Temporary (post-MVP):** new SharePoint lists dedicated to v2 (see `DATA_MODEL.md`
+  storage list). These are **new** lists — not the legacy "Escalation Tracker".
+- **Target (post-MVP):** managed DB behind an API (e.g. Postgres/Cosmos) **or** Dataverse;
+  Graph/SharePoint dropped. Final choice is decision **D3**.
 
 ## 4. Legacy system (as-is, for reference only)
 - Frontend: [`escalation-dashboard.html`](../escalation-dashboard.html) — single file,

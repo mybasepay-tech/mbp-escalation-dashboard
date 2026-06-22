@@ -31,16 +31,41 @@ New ──▶ Not yet assigned ──▶ Assigned ──▶ In Progress ──�
 - **Cancelled** is reachable from any non-terminal status (requires reason).
 - **Reopened** is reachable from Resolved or Closed, then flows back into In Progress.
 
-## 3. Status ↔ assignment consistency rules
-These prevent the legacy drift fixed in commit `72868ff` ("status/assignee drift").
-- If `assigneeId` is set and status is `Not yet assigned` → status should be **Assigned**
-  (or later). The UI must surface this inconsistency.
-- If status is `Assigned`/`In Progress`/`Pending Review` then `assignedDeptId` **must** be
-  set.
-- Clearing the assignee while status is `Assigned` should drop status back to **Not yet
-  assigned** (or prompt).
-- Setting status to `Resolved` sets `resolvedDate`; `Closed` sets `closedDate`.
-- `Reopened` clears `resolvedDate`/`closedDate` and requires a reason in activity.
+## 3. Assignment-driven auto-status rules
+These eliminate the legacy drift fixed in commit `72868ff` ("status/assignee drift") by
+keeping status and assignment consistent **automatically**, not just by warning.
+
+> Behavior (auto vs. prompt vs. warn-only) is decision **D2** in
+> [`DECISION_LOG.md`](./DECISION_LOG.md). Default recommendation below is **auto for
+> forward moves**, every auto-change writing an activity entry.
+
+### 3.1 Auto-status rules (recommended default)
+| Trigger | Auto effect | Activity |
+|---------|-------------|----------|
+| Assign a person while status is `New` or `Not yet assigned` | status → **Assigned** | `assignment_change` + `status_change` |
+| Assign to a department while status is `New` | status → **Not yet assigned** | `assignment_change` + `status_change` |
+| Clear the assignee while status is `Assigned` | status → **Not yet assigned** | `assignment_change` + `status_change` |
+| First substantive work update on an `Assigned` ticket | *(no auto-advance)* — user sets **In Progress** explicitly | — |
+| Set status `Resolved` | set `resolvedDate` | `status_change` |
+| Set status `Closed` | set `closedDate` | `status_change` |
+| Set status `Reopened` | clear `resolvedDate`/`closedDate`; require reason | `status_change` (with note) |
+
+- Auto-rules **never advance past `In Progress`** — review/resolution/closure are always
+  explicit human actions.
+- Auto-rules apply only to the forward `New → Not yet assigned → Assigned` band and the
+  symmetric assignee-clear; they never auto-cancel or auto-close.
+
+### 3.2 Invariants (always enforced)
+- If status ∈ {`Assigned`, `In Progress`, `Pending Review`} then `assignedDeptId` **must**
+  be set.
+- If `assigneeId` is set, status must be **`Assigned` or later** (auto-corrected per §3.1).
+- A ticket assigned to a person still belongs to its department queue (assignment never
+  removes it from the dept).
+
+### 3.3 Conflicts the UI must still surface
+- Imported/edge records that violate an invariant and cannot be auto-resolved are flagged
+  inline (e.g. assignee set but no department). Migration normalizes these in v2 only — see
+  [`MIGRATION_SPEC.md`](./MIGRATION_SPEC.md) §4.
 
 ## 4. Open vs. closed sets
 - **Open / active:** New, Not yet assigned, Assigned, In Progress, Pending Review,

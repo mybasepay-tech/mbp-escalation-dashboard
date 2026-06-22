@@ -66,6 +66,10 @@ swap.
 4. The **department queue is the main work panel**.
 5. Every person has a **"My Assigned Tickets"** view.
 6. A ticket assigned to a person **stays visible in its department queue**.
+7. Assignment is **status-aware**: assigning a person auto-advances a `New`/`Not yet
+   assigned` ticket to `Assigned`, and clearing the assignee reverts it — keeping status
+   and assignment consistent. See [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §3 (behavior
+   is decision **D2** in [`DECISION_LOG.md`](./DECISION_LOG.md)).
 
 ### Department panel (generic MVP)
 The generic department panel must support these views/filters:
@@ -105,5 +109,7 @@ one generic config; the config *shape* is defined now (see `EscalationSettings` 
 - v2 does **not** write back to the legacy list.
 - v2 does **not** depend on legacy Power Automate flows long-term.
 
-## 8. Open questions
-Tracked in [`RISKS_AND_OPEN_QUESTIONS.md`](./RISKS_AND_OPEN_QUESTIONS.md).
+## 8. Open questions & plan
+- Decisions tracked in [`DECISION_LOG.md`](./DECISION_LOG.md).
+- Risks/questions in [`RISKS_AND_OPEN_QUESTIONS.md`](./RISKS_AND_OPEN_QUESTIONS.md).
+- Build sequence in [`IMPLEMENTATION_PLAN.md`](./IMPLEMENTATION_PLAN.md).

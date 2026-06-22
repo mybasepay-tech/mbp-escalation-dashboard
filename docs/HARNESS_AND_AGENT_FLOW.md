@@ -63,8 +63,15 @@ Current    Product  Schema  Workflow    UI       Migration
 - Anything requiring a production action (cutover, permission change, list change) is
   **blocked pending explicit Rod approval**.
 
-## 5. Branch discipline
-- This scaffold lives on the planning branch
-  (`feature/mybasepay-escalation-v2-scaffold`).
+## 5. Relationship to the implementation plan
+- Build work follows the phased sequence in
+  [`../docs/IMPLEMENTATION_PLAN.md`](../docs/IMPLEMENTATION_PLAN.md); each phase names the
+  harness gate it must pass.
+- Choices made along the way are recorded in
+  [`../docs/DECISION_LOG.md`](../docs/DECISION_LOG.md) (referenced as D1–D9).
+
+## 6. Branch discipline
+- Planning/refinement happens on dedicated feature branches (Loop 1 scaffold, Loop 2
+  spec-refinement, …); merged to `main` via PR.
 - v2 build work proceeds on its own branches; no merges to anything that affects legacy.
 - Nothing in this repo writes to legacy SharePoint.
