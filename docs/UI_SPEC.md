@@ -47,8 +47,9 @@ Category, Tags, Expected Resolution, Days Open, Last Update.
   (optional).
 - Actions (role-gated): change status (valid transitions only), assign/reassign to person,
   set priority, add tag, comment.
-- Status/assignee consistency warnings surfaced inline (per
-  [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §3).
+- Assigning/clearing an assignee **auto-applies** the corresponding status change and
+  shows what changed (per [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §3); residual
+  inconsistencies that can't be auto-resolved are surfaced inline as warnings.
 
 ## 5. Intake form
 - Required fields driven by `EscalationSettings.requiredFields` (generic set in MVP).

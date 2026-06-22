@@ -14,7 +14,7 @@ traceability. **Never write back to legacy.**
 ## Must keep true
 - Legacy is read-only; legacy is byte-for-byte unchanged after any run.
 - Preserve `legacyItemId` + `legacyUrl`.
-- Drift corrected **in v2 only** with a `migrationNote` + `migration` activity entry
+- Drift corrected **in v2 only** with a `migrationNote` + `migration_normalization` activity entry
   (e.g. "Not yet assigned" + assignee → "Assigned").
 - Dry-run causes zero writes (legacy or v2).
 - Apply is idempotent and reversible without touching legacy.

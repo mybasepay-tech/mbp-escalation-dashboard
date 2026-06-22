@@ -28,7 +28,7 @@
 - [ ] Pending-* collapse recorded with original status in notes.
 - [ ] Complete → Closed/Resolved decision applied consistently and noted.
 - [ ] Negative/garbage day counts recomputed (clamped ≥ 0).
-- [ ] Every correction has a `migrationNote` and a `migration` activity entry.
+- [ ] Every correction has a `migrationNote` and a `migration_normalization` activity entry.
 
 ## Review
 - [ ] Drift report reviewed; surprises investigated.

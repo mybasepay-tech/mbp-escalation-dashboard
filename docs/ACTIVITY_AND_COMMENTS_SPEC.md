@@ -15,14 +15,19 @@ updates, follow-ups, and free text in one rich-text field).
 
 ## 2. Activity log
 - **Append-only and immutable.** Corrections are new entries, never edits/deletes.
-- Auto-generated on: ticket creation, status change, assignment change (person or dept),
-  priority change, key field changes, migration corrections.
+- Auto-generated on: ticket creation, status change (incl. assignment-driven auto-status),
+  assignment change (person or dept), priority change, key field changes, comments, notes,
+  and migration normalization.
 - Entry: `type`, `actorId`, `from`, `to`, `note`, `timestamp` (see
   [`DATA_MODEL.md`](./DATA_MODEL.md) §3).
-- `type` values: `created`, `status_change`, `assignment_change`, `field_change`,
-  `comment_ref`, `migration`.
-- Migration entries use a system actor and explain any drift correction (see
-  [`MIGRATION_SPEC.md`](./MIGRATION_SPEC.md) §4).
+- `type` values (authoritative taxonomy in [`DATA_MODEL.md`](./DATA_MODEL.md) §3):
+  `created`, `assignment_change`, `status_change`, `priority_change`, `field_change`,
+  `comment`, `note`, `migration_normalization`.
+- Assignment + auto-status: an assignment that triggers an auto-status change (see
+  [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §3) emits **both** `assignment_change` and
+  `status_change`.
+- `migration_normalization` entries use a system actor and explain any drift correction
+  (see [`MIGRATION_SPEC.md`](./MIGRATION_SPEC.md) §4).
 
 ## 3. Comments
 - Free-form (markdown), authored by a person.
@@ -30,8 +35,7 @@ updates, follow-ups, and free text in one rich-text field).
   SharePoint user IDs — preserve this capability).
 - Editable by author within policy; edits set `editedAt` (original retained server-side if
   feasible). Deletion is soft (audited).
-- Posting a comment may write a lightweight `comment_ref` activity entry for timeline
-  unification.
+- Posting a comment writes a `comment` activity entry for timeline unification.
 
 ## 4. Unified timeline (UI)
 - Ticket detail shows Activity and Comments, filterable to either.
@@ -46,8 +50,8 @@ updates, follow-ups, and free text in one rich-text field).
 - Map assignee/status updates → `EscalationActivity`; free-text discussion →
   `EscalationComments`.
 - **Preserve original text verbatim**; never lose legacy content.
-- Entries that can't be cleanly classified become comments with a `migration` activity
-  note.
+- Entries that can't be cleanly classified become comments with a `migration_normalization`
+  activity note.
 
 ## 6. Guarantees
 - Activity is never silently lost or rewritten.

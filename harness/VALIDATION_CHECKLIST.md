@@ -32,8 +32,17 @@
 ## Workflow consistency
 - [ ] All 9 lifecycle statuses defined (New, Not yet assigned, Assigned, In Progress,
       Pending Review, Resolved, Closed, Cancelled, Reopened).
-- [ ] Transitions and status/assignee consistency rules documented.
+- [ ] Transitions and invariants documented.
+- [ ] **Assignment-driven auto-status rules** documented (forward New→Assigned band; never
+      auto-advance past In Progress) and consistent with PRODUCT_SPEC + UI_SPEC.
 - [ ] Legacy → v2 status mapping documented.
+
+## Activity taxonomy consistency
+- [ ] `EscalationActivity.type` taxonomy identical in `DATA_MODEL.md` and
+      `ACTIVITY_AND_COMMENTS_SPEC.md` (created, assignment_change, status_change,
+      priority_change, field_change, comment, note, migration_normalization).
+- [ ] Assignment that triggers auto-status emits both `assignment_change` + `status_change`.
+- [ ] Migration corrections emit `migration_normalization`.
 
 ## Migration consistency
 - [ ] Legacy treated as read-only source; no write-back.
@@ -42,8 +51,15 @@
 - [ ] Field mapping covers known legacy fields.
 
 ## Architecture / safety
-- [ ] DAL seam keeps backend swappable (cloud/API-ready).
+- [ ] DAL seam (`EscalationStore`) keeps backend swappable (Mock / SharePoint / API /
+      Dataverse).
+- [ ] MVP is mock-first (`MockStore`); no live backend assumed.
 - [ ] No production-modification anywhere (see NO_PRODUCTION_MODIFICATION_CHECKLIST).
+
+## Plan & decisions
+- [ ] `IMPLEMENTATION_PLAN.md` exists with an ordered, gated MVP sequence.
+- [ ] `DECISION_LOG.md` exists; open decisions (D1–D9) are referenced where they block work.
+- [ ] Cross-doc references resolve (PRODUCT/STATUS/UI ↔ DECISION_LOG ↔ IMPLEMENTATION_PLAN).
 
 ## Sign-off
 - Verified by: ____________________   Date: __________

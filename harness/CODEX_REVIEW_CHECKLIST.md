@@ -13,11 +13,16 @@
 
 ## 2. Correctness
 - [ ] Status transitions match `STATUS_WORKFLOW.md`; invalid transitions blocked.
-- [ ] Status/assignee consistency rules enforced (no #307-style drift).
+- [ ] **Assignment-driven auto-status rules** enforced (assign → Assigned; clear → Not yet
+      assigned; never auto-advance past In Progress); no #307-style drift.
+- [ ] Each auto-status change emits both `assignment_change` and `status_change` activity.
+- [ ] Activity `type` values match the taxonomy in `DATA_MODEL.md` §3; activity is
+      append-only/immutable.
 - [ ] Assignment model correct: dept-only, person-only, and both; person-assigned stays
       visible in dept queue.
 - [ ] daysOpen computed and clamped ≥ 0.
-- [ ] Legacy field mapping matches `MIGRATION_SPEC.md`.
+- [ ] Legacy field mapping matches `MIGRATION_SPEC.md`; corrections emit
+      `migration_normalization`.
 
 ## 3. Traceability
 - [ ] `legacyItemId` + `legacyUrl` preserved.

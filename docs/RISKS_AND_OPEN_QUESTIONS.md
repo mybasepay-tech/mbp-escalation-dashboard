@@ -16,23 +16,35 @@
 | R8 | Premature cutover | Users disrupted | Phased, gated cutover; explicit Rod approval; reversible rollback. |
 | R9 | Identity/dept resolution gaps in migration | Unassigned/mis-routed tickets | Errors log + manual review; seed teams from leads/user lists. |
 | R10 | Scope creep into department-specific config in MVP | Delays MVP | Generic panel only; config *shape* defined, behavior deferred. |
+| R11 | Over-aggressive auto-status surprises users / hides intent | Wrong lifecycle state, distrust | Auto only for forward New→Assigned band; never past In Progress; every auto-change logged + shown; behavior gated by D2. |
+| R12 | DAL leakage (UI calling Graph/SharePoint directly) | Backend lock-in, accidental prod coupling | Single `EscalationStore` seam; lint/review rule forbidding direct Graph calls in UI; Codex check. |
 
 ## 2. Open questions (need Rod / stakeholder input)
 
-1. **Status semantics:** Does legacy "Complete" map to **Closed** or **Resolved (awaiting
-   closure)** by default? (Current default: Closed if `ResolvedDate` present.)
-2. **Pending-* collapse:** OK to collapse Pending Member/Research/Customer into a single
-   **Pending Review** (preserving original in notes), or keep distinct pending sub-states?
-3. **Target backend:** Stay on SharePoint, or commit to a managed DB + API for v2 prod?
-4. **App hosting:** SharePoint SiteAssets (like legacy) or a dedicated SPA host?
-5. **Entra app:** New v2 app registration, or reuse legacy (impacts permission isolation)?
-6. **Notifications:** What replaces legacy Power Automate flows in v2 (and when)?
-7. **Departments/queues:** Authoritative list of departments for `EscalationTeams` seed?
-8. **Required fields & categories:** Confirm the generic MVP set (intake validation).
-9. **Reporting parity:** Which exact CSVs/columns must match existing spreadsheets at MVP?
-10. **Retention:** How long does legacy stay readable post-cutover before any
+> Tracked with decision IDs in [`DECISION_LOG.md`](./DECISION_LOG.md). Items below note the
+> related decision (Dx).
+
+1. **App stack & hosting (D1):** SPA on a dedicated host, SPA on SharePoint SiteAssets, or
+   single-file like legacy? *Blocks Phase 0.*
+2. **Auto-status behavior (D2):** On assignment, should v2 **auto-set** status, **prompt**,
+   or **warn only**? (Recommend auto for forward moves.) *Blocks Phase 2.*
+3. **Target backend (D3):** Stay on SharePoint, or commit to a managed DB + API, or
+   **Dataverse** for v2 prod? (MVP is mock-first, so this is post-MVP.)
+4. **"Complete" mapping (D4):** Map legacy "Complete" to **Closed** or **Resolved (awaiting
+   closure)**? (Default: Closed if `ResolvedDate` present.)
+5. **Pending-* collapse (D5):** Collapse Pending Member/Research/Customer into a single
+   **Pending Review** (preserving original in notes), or keep distinct sub-states?
+6. **Entra app (D6):** New v2 app registration, or reuse legacy (impacts permission
+   isolation)?
+7. **Migration dry-run access (D7):** Provide a read-only **export/sample** for offline
+   dry-run, or approve read-only Graph access to legacy lists? *Blocks Phase 7 vs real data.*
+8. **Departments/queues (D8):** Authoritative list of departments for `EscalationTeams` seed?
+9. **Required fields & categories (D9):** Confirm the generic MVP set (intake validation).
+10. **Notifications:** What replaces legacy Power Automate flows in v2 (and when)?
+11. **Reporting parity:** Which exact CSVs/columns must match existing spreadsheets at MVP?
+12. **Retention:** How long does legacy stay readable post-cutover before any
     archival/decommission (which needs separate approval)?
-11. **Pilot group & timing:** Who pilots v2 in parallel run, and what defines "parity"?
+13. **Pilot group & timing:** Who pilots v2 in parallel run, and what defines "parity"?
 
 ## 3. Assumptions (validate)
 - Legacy lists `Escalation Tracker`, `Escalations Dept Leads`, `User Information List`

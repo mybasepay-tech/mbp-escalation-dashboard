@@ -54,11 +54,24 @@ target API backend):
 |-------|------|-------|
 | `id` | guid | |
 | `escalationId` | ref | |
-| `type` | enum | `created`, `status_change`, `assignment_change`, `field_change`, `comment_ref`, `migration`. |
+| `type` | enum | See event taxonomy below. |
 | `actorId` | ref → person | System actor for migration entries. |
 | `from` / `to` | json | Old/new values. |
 | `note` | text | Human-readable. |
 | `timestamp` | datetime | Immutable. |
+
+**Event taxonomy** (`type` values):
+
+| `type` | Emitted when |
+|--------|--------------|
+| `created` | Ticket created. |
+| `assignment_change` | Department or person assignment set/changed/cleared. |
+| `status_change` | Lifecycle status changes (including auto-status, see [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §3). |
+| `priority_change` | Priority/urgency changes. |
+| `field_change` | Any other tracked field changes (catch-all). |
+| `comment` | A comment is posted (links to `EscalationComments`). |
+| `note` | An internal note is added. |
+| `migration_normalization` | A legacy value was normalized during migration (drift correction); see [`MIGRATION_SPEC.md`](./MIGRATION_SPEC.md) §4. |
 
 Activity is **immutable** — corrections are new entries, never edits. See
 [`ACTIVITY_AND_COMMENTS_SPEC.md`](./ACTIVITY_AND_COMMENTS_SPEC.md).
