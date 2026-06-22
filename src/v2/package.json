@@ -1,0 +1,13 @@
+{
+  "name": "mbp-escalation-v2-foundation",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Mock-first implementation foundation for myBasePay Escalation System v2. Zero dependencies; isolated from the legacy dashboard.",
+  "scripts": {
+    "test": "node --test",
+    "demo": "node mock/demo.js"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
