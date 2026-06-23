@@ -7,7 +7,8 @@
   "scripts": {
     "test": "node --test",
     "demo": "node mock/demo.js",
-    "ui": "node ui/serve.js"
+    "ui": "node ui/serve.js",
+    "validate": "node scripts/validate.js"
   },
   "dependencies": {},
   "devDependencies": {}

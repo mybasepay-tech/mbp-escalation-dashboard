@@ -20,6 +20,28 @@ cd src/v2
 npm test        # alias for: node --test
 ```
 
+## Validate readiness (tests + safety scan)
+```bash
+cd src/v2
+npm run validate   # runs the suite + an aggregate safety/readiness scan
+```
+`validate` is local/mock only — it runs `node --test` and reads local files; it makes no
+network or production calls. It fails (non-zero) if any test fails or if any
+production-integration string, network call, or non-fake legacy domain is found.
+
+## Mock MVP demo readiness
+This is a **mock/local** MVP for decision review — see
+[`../../docs/MOCK_MVP_READINESS_REVIEW.md`](../../docs/MOCK_MVP_READINESS_REVIEW.md) and the
+walkthrough in [`../../docs/ROD_DEMO_SCRIPT.md`](../../docs/ROD_DEMO_SCRIPT.md). No backend
+adapter is built; backend work is gated by
+[`../../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md`](../../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md).
+Quick start for a demo:
+```bash
+cd src/v2
+npm run validate   # confirm green
+npm run ui         # open http://127.0.0.1:4173/ui/index.html
+```
+
 ## Inspect locally (CLI demo)
 ```bash
 cd src/v2

@@ -92,5 +92,39 @@
 
 ---
 
+## Post-mock-MVP status (Loop 6)
+
+> The mock MVP **demonstrates** behavior but **approves nothing**. Decisions stay as marked
+> until Rod explicitly approves them. "Demonstrated in mock" ≠ "decided".
+
+| ID | Topic | Recommendation after mock MVP | Blocks backend work? | Status |
+|----|-------|-------------------------------|----------------------|--------|
+| D1 | App stack / hosting | Component SPA behind the DAL (mock shell proves the shape) | No | Open |
+| D2 | Auto-status behavior | Keep **auto** forward (New/Not-yet-assigned → Assigned); demonstrated, tests green | No | Proposed — needs Rod confirm |
+| D3 | Target backend | Decide before any adapter: SharePoint (temp) vs. API+DB vs. **Dataverse** | **YES** | **Open — BLOCKING** |
+| D4 | "Complete" mapping | (a) Closed if `ResolvedDate` set, else Resolved | Yes (migration mapping) | Open |
+| D5 | Pending-* collapse | (a) collapse to **Pending Review**, keep original in note | Yes (migration mapping) | Open |
+| D6 | Entra app registration | New v2 app (isolate from legacy) | **YES** (any live auth) | **Open — BLOCKING** |
+| D7 | Legacy read access (dry-run) | Offline read-only export/sample first | **YES** (dry-run vs. real data) | **Open — BLOCKING** |
+| D8 | Dept/queue list | Confirm canonical departments + leads | Yes (seed realism) | Open |
+| D9 | Generic MVP config | Mirror legacy required fields/categories (generic default in place) | No | Proposed — needs Rod confirm |
+
+## Rod review required (before backend work)
+These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
+/ Dataverse / migration-dry-run work starts:
+
+1. **D3** backend choice.
+2. **D6** Entra app decision.
+3. **D7** legacy read-access method for the migration dry-run.
+4. Company-owned site/resource confirmation (v2 must not live on a personal site).
+5. Migration dry-run approval (read-only, **no write-back** to legacy).
+6. Rollback / **no-cutover** confirmation (legacy stays live and untouched).
+
+Full gate: [`../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md`](../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md).
+Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.md).
+
+---
+
 ## Resolved
-_(none yet)_
+_(none yet — no decision has been explicitly approved. D2 and D9 are demonstrated in the
+mock MVP but remain Proposed pending Rod confirmation.)_
