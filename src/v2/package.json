@@ -6,7 +6,8 @@
   "description": "Mock-first implementation foundation for myBasePay Escalation System v2. Zero dependencies; isolated from the legacy dashboard.",
   "scripts": {
     "test": "node --test",
-    "demo": "node mock/demo.js"
+    "demo": "node mock/demo.js",
+    "ui": "node ui/serve.js"
   },
   "dependencies": {},
   "devDependencies": {}
