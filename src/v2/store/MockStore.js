@@ -11,6 +11,7 @@ import {
 import { ACTIVITY_TYPE, OPEN_STATUSES } from '../domain/constants.js';
 import {
   assignToDepartment, assignToPerson, clearAssignee, changeStatus, changePriority,
+  addTag, removeTag,
 } from '../domain/rules.js';
 
 export class MockStore extends EscalationStore {
@@ -106,11 +107,37 @@ export class MockStore extends EscalationStore {
     return t;
   }
 
+  async addTag(id, tagId, opts = {}) {
+    const t = this.#require(id);
+    this.#record(addTag(t, tagId, opts));
+    return t;
+  }
+
+  async removeTag(id, tagId, opts = {}) {
+    const t = this.#require(id);
+    this.#record(removeTag(t, tagId, opts));
+    return t;
+  }
+
   // ----- Activity, comments, notes -----
   async listActivity(id) {
     return this.activity
       .filter((e) => e.escalationId === id)
       .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  }
+
+  /** Public comments for a ticket (separate stream from activity). */
+  async listComments(id) {
+    return this.comments
+      .filter((c) => c.escalationId === id)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  /** Internal notes for a ticket (separate stream from comments and activity). */
+  async listNotes(id) {
+    return this.notes
+      .filter((n) => n.escalationId === id)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
   async addComment(id, input) {

@@ -136,3 +136,30 @@ export function changePriority(ticket, toPriority, { actorId = null, now = new D
     actorId, from, to: toPriority, note: 'Priority changed', timestamp: now,
   })];
 }
+
+/**
+ * Add a tag (idempotent). Tag changes are recorded as `field_change` activity events
+ * (the documented catch-all in docs/DATA_MODEL.md §3), with the tag captured in `to`.
+ * @returns {import('./models.js').ActivityEvent[]}
+ */
+export function addTag(ticket, tagId, { actorId = null, now = new Date().toISOString() } = {}) {
+  if (ticket.tagIds.includes(tagId)) return [];
+  ticket.tagIds = [...ticket.tagIds, tagId];
+  stamp(ticket, now);
+  return [event(ticket, ACTIVITY_TYPE.FIELD_CHANGE, {
+    actorId, to: { addedTag: tagId }, note: `Tag added: ${tagId}`, timestamp: now,
+  })];
+}
+
+/**
+ * Remove a tag (no-op if absent).
+ * @returns {import('./models.js').ActivityEvent[]}
+ */
+export function removeTag(ticket, tagId, { actorId = null, now = new Date().toISOString() } = {}) {
+  if (!ticket.tagIds.includes(tagId)) return [];
+  ticket.tagIds = ticket.tagIds.filter((t) => t !== tagId);
+  stamp(ticket, now);
+  return [event(ticket, ACTIVITY_TYPE.FIELD_CHANGE, {
+    actorId, to: { removedTag: tagId }, note: `Tag removed: ${tagId}`, timestamp: now,
+  })];
+}

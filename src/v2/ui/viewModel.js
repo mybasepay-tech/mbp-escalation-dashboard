@@ -12,12 +12,19 @@ import { daysOpen } from '../domain/models.js';
 export async function loadContext(store) {
   const users = await store.listUsers();
   const departments = await store.listDepartments();
+  const tags = await store.listTags();
   return {
     usersById: new Map(users.map((u) => [u.id, u])),
     deptsById: new Map(departments.map((d) => [d.id, d])),
+    tagsById: new Map(tags.map((t) => [t.id, t])),
     users,
     departments,
+    tags,
   };
+}
+
+export function tagLabel(ctx, tagId) {
+  return ctx.tagsById?.get(tagId)?.label ?? tagId;
 }
 
 export function userName(ctx, id) {
@@ -44,6 +51,7 @@ export function ticketRow(ticket, ctx, now = new Date()) {
     daysOpen: daysOpen(ticket, now),
     hasLegacy: Boolean(ticket.legacyItemId || ticket.legacyUrl),
     isUnassignedPerson: !ticket.assigneeId,
+    tags: ticket.tagIds.map((id) => ({ id, label: tagLabel(ctx, id) })),
   };
 }
 
@@ -80,8 +88,36 @@ export function detailView(ticket, ctx, now = new Date()) {
     resolvedDate: ticket.resolvedDate,
     closedDate: ticket.closedDate,
     daysOpen: daysOpen(ticket, now),
+    tags: ticket.tagIds.map((id) => ({ id, label: tagLabel(ctx, id) })),
     legacy,
   };
+}
+
+/** Format public comments / internal notes for display. */
+export function commentView(comment, ctx) {
+  return {
+    id: comment.id,
+    author: userName(ctx, comment.authorId),
+    body: comment.body,
+    visibility: comment.visibility ?? 'public',
+    createdAt: comment.createdAt,
+  };
+}
+
+export function noteView(note, ctx) {
+  return {
+    id: note.id,
+    author: userName(ctx, note.authorId),
+    body: note.body,
+    visibility: note.visibility ?? 'internal',
+    createdAt: note.createdAt,
+  };
+}
+
+/** Tags available to add to a ticket (catalog minus tags already on it). */
+export function availableTags(ticket, ctx) {
+  const current = new Set(ticket.tagIds);
+  return ctx.tags.filter((t) => !current.has(t.id)).map((t) => ({ id: t.id, label: t.label }));
 }
 
 /** Human-readable summary for a single activity event. */
@@ -144,3 +180,68 @@ export function assignmentOptions(ctx) {
 
 export const PRIORITY_OPTIONS = Object.values(PRIORITY);
 export const ALL_STATUSES = Object.values(STATUS);
+
+const HIGH_PRIORITIES = new Set([PRIORITY.HIGH, PRIORITY.CRITICAL]);
+
+function hasLegacy(t) { return Boolean(t.legacyItemId || t.legacyUrl); }
+
+/**
+ * Department-panel filters. Each predicate runs over tickets ALREADY scoped to the
+ * department (so e.g. "assigned to me" means within this department). `ctx` carries the
+ * current user id.
+ */
+export const DEPARTMENT_FILTERS = [
+  { key: 'all', label: 'All department tickets', predicate: () => true },
+  { key: 'unassigned', label: 'Unassigned in department', predicate: (t) => !t.assigneeId },
+  { key: 'assigned_to_me', label: 'Assigned to me', predicate: (t, { currentUserId }) => t.assigneeId === currentUserId },
+  { key: 'assigned_to_others', label: 'Assigned to others', predicate: (t, { currentUserId }) => t.assigneeId && t.assigneeId !== currentUserId },
+  { key: 'in_progress', label: 'In progress', predicate: (t) => t.status === STATUS.IN_PROGRESS },
+  { key: 'pending_review', label: 'Pending review', predicate: (t) => t.status === STATUS.PENDING_REVIEW },
+  { key: 'resolved_awaiting_closure', label: 'Resolved awaiting closure', predicate: (t) => t.status === STATUS.RESOLVED },
+  { key: 'migrated', label: 'Migrated / legacy', predicate: (t) => hasLegacy(t) },
+  { key: 'high_priority', label: 'High priority', predicate: (t) => HIGH_PRIORITIES.has(t.priority) },
+];
+
+const FILTERS_BY_KEY = new Map(DEPARTMENT_FILTERS.map((f) => [f.key, f]));
+
+/** Apply a department filter by key. Unknown keys fall back to "all". */
+export function applyDepartmentFilter(tickets, key, { currentUserId } = {}) {
+  const filter = FILTERS_BY_KEY.get(key) ?? FILTERS_BY_KEY.get('all');
+  return tickets.filter((t) => filter.predicate(t, { currentUserId }));
+}
+
+/**
+ * Basic reporting over a set of tickets (mock data only). Pass the full ticket list and
+ * the current user id. `ctx` is used to resolve department names.
+ */
+export function buildReport(tickets, ctx, { currentUserId } = {}) {
+  const byStatus = {};
+  const byDepartment = {};
+  const byPriority = {};
+  let unassignedCount = 0;
+  let assignedToCurrentUser = 0;
+  let resolvedAwaitingClosure = 0;
+  let legacyCount = 0;
+
+  for (const t of tickets) {
+    byStatus[t.status] = (byStatus[t.status] ?? 0) + 1;
+    const dName = t.assignedDeptId ? deptName(ctx, t.assignedDeptId) : 'Unassigned department';
+    byDepartment[dName] = (byDepartment[dName] ?? 0) + 1;
+    byPriority[t.priority] = (byPriority[t.priority] ?? 0) + 1;
+    if (!t.assigneeId) unassignedCount += 1;
+    if (currentUserId && t.assigneeId === currentUserId) assignedToCurrentUser += 1;
+    if (t.status === STATUS.RESOLVED) resolvedAwaitingClosure += 1;
+    if (hasLegacy(t)) legacyCount += 1;
+  }
+
+  return {
+    total: tickets.length,
+    byStatus,
+    byDepartment,
+    byPriority,
+    unassignedCount,
+    assignedToCurrentUser,
+    resolvedAwaitingClosure,
+    legacyCount,
+  };
+}

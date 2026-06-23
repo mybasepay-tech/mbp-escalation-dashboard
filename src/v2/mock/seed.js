@@ -7,6 +7,7 @@
 import { STATUS, PRIORITY } from '../domain/constants.js';
 import {
   createTicket, createDepartment, createUser, createTag, createActivityEvent,
+  createComment, createNote,
 } from '../domain/models.js';
 import { MockStore } from '../store/MockStore.js';
 
@@ -26,6 +27,8 @@ export const USERS = [
 export const TAGS = [
   createTag({ id: 'tag_financial', label: 'financial' }),
   createTag({ id: 'tag_urgent', label: 'urgent' }),
+  createTag({ id: 'tag_member_impact', label: 'member-impact' }),
+  createTag({ id: 'tag_doc_needed', label: 'doc-needed' }),
 ];
 
 const T = '2026-06-01T09:00:00.000Z'; // fixed base timestamp for seed determinism
@@ -50,14 +53,15 @@ export const TICKETS = [
     id: 'esc_person', title: 'Assigned to Sarah in Benefits', status: STATUS.ASSIGNED,
     priority: PRIORITY.MEDIUM, assignedDeptId: 'dept_benefits', assigneeId: 'user_sarah',
     requestingDept: 'Member Services', submitterId: 'user_maggie', issueCategory: 'Claims',
-    createdAt: T, escalationDate: T, modifiedAt: T,
+    issueType: 'Claim reprocessing', createdAt: T, escalationDate: T, modifiedAt: T,
   }),
   // 4. In Progress ticket.
   createTicket({
     id: 'esc_in_progress', title: 'Investigation under way', status: STATUS.IN_PROGRESS,
     priority: PRIORITY.HIGH, assignedDeptId: 'dept_benefits', assigneeId: 'user_maggie',
     requestingDept: 'Operations', submitterId: 'user_sarah', issueCategory: 'Billing',
-    tagIds: ['tag_financial'], createdAt: T, escalationDate: T, modifiedAt: T,
+    issueType: 'Overbilling', tagIds: ['tag_financial', 'tag_member_impact'],
+    createdAt: T, escalationDate: T, modifiedAt: T,
   }),
   // 5. Pending Review ticket.
   createTicket({
@@ -107,6 +111,33 @@ export const ACTIVITY = [
     note: "Normalized legacy status drift (assignee present); see migrationNotes.",
     timestamp: '2026-06-01T08:30:00.000Z',
   }),
+  // Activity entries that accompany the seeded comment/note below.
+  createActivityEvent({
+    id: 'act_cmt_esc_in_progress', escalationId: 'esc_in_progress', type: 'comment',
+    actorId: 'user_maggie', note: 'Comment posted', timestamp: '2026-06-02T10:00:00.000Z',
+  }),
+  createActivityEvent({
+    id: 'act_note_esc_in_progress', escalationId: 'esc_in_progress', type: 'note',
+    actorId: 'user_maggie', note: 'Internal note added', timestamp: '2026-06-02T10:05:00.000Z',
+  }),
+];
+
+// Public comments (member/requester-facing) — a separate stream from activity.
+export const COMMENTS = [
+  createComment({
+    id: 'cmt_seed_1', escalationId: 'esc_in_progress', authorId: 'user_maggie',
+    body: 'Reached out to the billing vendor; awaiting their confirmation.',
+    createdAt: '2026-06-02T10:00:00.000Z',
+  }),
+];
+
+// Internal notes — separate from comments; carry visibility metadata.
+export const NOTES = [
+  createNote({
+    id: 'note_seed_1', escalationId: 'esc_in_progress', authorId: 'user_maggie',
+    body: 'Internal: vendor SLA is 3 business days — escalate to lead if no reply by Thursday.',
+    createdAt: '2026-06-02T10:05:00.000Z',
+  }),
 ];
 
 /** Build a fresh dataset object. */
@@ -115,10 +146,10 @@ export function buildSeed() {
     departments: DEPARTMENTS,
     users: USERS,
     tags: TAGS,
-    tickets: TICKETS.map((t) => ({ ...t })), // shallow clone so callers can mutate freely
+    tickets: TICKETS.map((t) => ({ ...t, tagIds: [...t.tagIds] })), // clone so callers can mutate freely
     activity: ACTIVITY.map((a) => ({ ...a })),
-    comments: [],
-    notes: [],
+    comments: COMMENTS.map((c) => ({ ...c })),
+    notes: NOTES.map((n) => ({ ...n })),
   };
 }
 
