@@ -3,15 +3,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { seededStore } from '../mock/seed.js';
-import { STATUS, ACTIVITY_TYPE } from '../domain/constants.js';
+import { STATUS, ACTIVITY_TYPE, OPEN_STATUSES, TERMINAL_STATUSES } from '../domain/constants.js';
 
 test('department queue includes person-assigned tickets', async () => {
   const store = seededStore();
   const queue = await store.departmentQueue('dept_benefits');
   const ids = queue.map((t) => t.id);
-  // esc_person and esc_in_progress are person-assigned but in Benefits — must appear.
+  // esc_person and esc_in_process are person-assigned but in Benefits — must appear.
   assert.ok(ids.includes('esc_person'), 'person-assigned ticket must stay in dept queue');
-  assert.ok(ids.includes('esc_in_progress'));
+  assert.ok(ids.includes('esc_in_process'));
   // esc_dept_only (no person) must also appear.
   assert.ok(ids.includes('esc_dept_only'));
   // Every queue item really belongs to the department.
@@ -23,9 +23,9 @@ test('My Assigned Tickets shows only the current user\'s assigned tickets', asyn
   const mine = await store.myAssignedTickets('user_sarah');
   assert.ok(mine.every((t) => t.assigneeId === 'user_sarah'));
   const ids = mine.map((t) => t.id).sort();
-  assert.deepEqual(ids, ['esc_person', 'esc_resolved']);
+  assert.deepEqual(ids, ['esc_complete', 'esc_pending_member', 'esc_pending_research', 'esc_person']);
   // Tickets assigned to others must not leak in.
-  assert.ok(!ids.includes('esc_in_progress')); // assigned to Maggie
+  assert.ok(!ids.includes('esc_in_process')); // assigned to Maggie
 });
 
 test('a person-assigned ticket appears in BOTH the dept queue and My Assigned Tickets', async () => {
@@ -48,9 +48,25 @@ test('assignment via the store records activity and applies auto-status', async 
 
 test('status change via the store records a status_change activity event', async () => {
   const store = seededStore();
-  await store.setStatus('esc_person', STATUS.IN_PROGRESS, { actorId: 'user_sarah', now: '2026-06-22T00:00:00.000Z' });
+  await store.setStatus('esc_person', STATUS.IN_PROCESS, { actorId: 'user_sarah', now: '2026-06-22T00:00:00.000Z' });
   const activity = await store.listActivity('esc_person');
-  assert.ok(activity.some((e) => e.type === ACTIVITY_TYPE.STATUS_CHANGE && e.to === STATUS.IN_PROGRESS));
+  assert.ok(activity.some((e) => e.type === ACTIVITY_TYPE.STATUS_CHANGE && e.to === STATUS.IN_PROCESS));
+});
+
+test('only the ticket owner can complete via the store; the worker is rejected', async () => {
+  const store = seededStore();
+  // esc_person: assignee=user_sarah, owner=user_teri.
+  await assert.rejects(
+    () => store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_sarah', now: '2026-06-22T00:00:00.000Z' }),
+    /Only the ticket owner can move a ticket to Complete/,
+  );
+  // Owner succeeds and a status_change event is recorded.
+  await store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_teri', now: '2026-06-22T00:00:00.000Z' });
+  const t = await store.getTicket('esc_person');
+  assert.equal(t.status, STATUS.COMPLETE);
+  assert.equal(t.completedDate, '2026-06-22T00:00:00.000Z');
+  const activity = await store.listActivity('esc_person');
+  assert.ok(activity.some((e) => e.type === ACTIVITY_TYPE.STATUS_CHANGE && e.to === STATUS.COMPLETE));
 });
 
 test('seed includes the legacy-migrated ticket with preserved fake legacy id + url', async () => {
@@ -63,13 +79,22 @@ test('seed includes the legacy-migrated ticket with preserved fake legacy id + u
   assert.ok(activity.some((e) => e.type === ACTIVITY_TYPE.MIGRATION_NORMALIZATION));
 });
 
-test('all eight required scenarios are present in the seed', async () => {
+test('the seed covers every required Loop 7 scenario and uses only valid statuses', async () => {
   const store = seededStore();
   const all = await store.listTickets();
   const statuses = new Set(all.map((t) => t.status));
-  for (const s of [STATUS.NEW, STATUS.NOT_YET_ASSIGNED, STATUS.ASSIGNED, STATUS.IN_PROGRESS,
-    STATUS.PENDING_REVIEW, STATUS.RESOLVED, STATUS.REOPENED]) {
+  for (const s of [STATUS.NEW, STATUS.NOT_YET_ASSIGNED, STATUS.ASSIGNED, STATUS.IN_PROCESS,
+    STATUS.PENDING_RESEARCH, STATUS.PENDING_MEMBER, STATUS.PENDING_CUSTOMER, STATUS.COMPLETE,
+    STATUS.REOPENED]) {
     assert.ok(statuses.has(s), `seed missing a ${s} ticket`);
+  }
+  // No ticket may carry a status outside the v2 vocabulary.
+  const valid = new Set([...OPEN_STATUSES, ...TERMINAL_STATUSES]);
+  assert.ok(all.every((t) => valid.has(t.status)), 'seed contains an unknown status');
+  // The completed ticket carries a completedDate (and only completed tickets do).
+  for (const t of all) {
+    if (t.status === STATUS.COMPLETE) assert.ok(t.completedDate, 'completed ticket needs a completedDate');
+    else assert.equal(t.completedDate, null, `${t.id} should not have a completedDate`);
   }
   assert.ok(all.some((t) => t.assignedDeptId && !t.assigneeId), 'missing department-only ticket');
   assert.ok(all.some((t) => t.assigneeId), 'missing person-assigned ticket');

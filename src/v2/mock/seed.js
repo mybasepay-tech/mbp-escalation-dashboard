@@ -33,62 +33,80 @@ export const TAGS = [
 
 const T = '2026-06-01T09:00:00.000Z'; // fixed base timestamp for seed determinism
 
-// ----- Tickets: one per required scenario -----
+// Department leads double as ticket owners (the closure authority for their queue).
+// ticketOwner is who alone may move a ticket to Complete; assigneeId is who does the work.
+// ----- Tickets: one per required scenario across the Loop 7 status vocabulary -----
 export const TICKETS = [
-  // 1. New ticket — no department, no person.
+  // 1. New ticket — no department, no person, no owner yet (untriaged).
   createTicket({
     id: 'esc_new', title: 'New escalation, untriaged', status: STATUS.NEW,
     priority: PRIORITY.MEDIUM, requestingDept: 'Member Services', submitterId: 'user_maggie',
     issueCategory: 'Eligibility', createdAt: T, escalationDate: T, modifiedAt: T,
   }),
-  // 2. Department-only ticket — assigned to a queue, no person.
+  // 2. Department-only ticket — assigned to a queue, no person. Owner = Benefits lead.
   createTicket({
     id: 'esc_dept_only', title: 'Routed to Benefits, awaiting pickup', status: STATUS.NOT_YET_ASSIGNED,
-    priority: PRIORITY.HIGH, assignedDeptId: 'dept_benefits', requestingDept: 'Member Services',
-    submitterId: 'user_maggie', issueCategory: 'Claims', tagIds: ['tag_urgent'],
-    createdAt: T, escalationDate: T, modifiedAt: T,
+    priority: PRIORITY.HIGH, assignedDeptId: 'dept_benefits', ticketOwner: 'user_teri',
+    requestingDept: 'Member Services', submitterId: 'user_maggie', issueCategory: 'Claims',
+    tagIds: ['tag_urgent'], createdAt: T, escalationDate: T, modifiedAt: T,
   }),
   // 3. Person-assigned ticket — assigned to a queue AND a person (stays visible in queue).
   createTicket({
     id: 'esc_person', title: 'Assigned to Sarah in Benefits', status: STATUS.ASSIGNED,
     priority: PRIORITY.MEDIUM, assignedDeptId: 'dept_benefits', assigneeId: 'user_sarah',
-    requestingDept: 'Member Services', submitterId: 'user_maggie', issueCategory: 'Claims',
-    issueType: 'Claim reprocessing', createdAt: T, escalationDate: T, modifiedAt: T,
+    ticketOwner: 'user_teri', requestingDept: 'Member Services', submitterId: 'user_maggie',
+    issueCategory: 'Claims', issueType: 'Claim reprocessing', createdAt: T, escalationDate: T, modifiedAt: T,
   }),
-  // 4. In Progress ticket.
+  // 4. In Process ticket — actively being worked.
   createTicket({
-    id: 'esc_in_progress', title: 'Investigation under way', status: STATUS.IN_PROGRESS,
+    id: 'esc_in_process', title: 'Investigation under way', status: STATUS.IN_PROCESS,
     priority: PRIORITY.HIGH, assignedDeptId: 'dept_benefits', assigneeId: 'user_maggie',
-    requestingDept: 'Operations', submitterId: 'user_sarah', issueCategory: 'Billing',
-    issueType: 'Overbilling', tagIds: ['tag_financial', 'tag_member_impact'],
+    ticketOwner: 'user_teri', requestingDept: 'Operations', submitterId: 'user_sarah',
+    issueCategory: 'Billing', issueType: 'Overbilling', tagIds: ['tag_financial', 'tag_member_impact'],
     createdAt: T, escalationDate: T, modifiedAt: T,
   }),
-  // 5. Pending Review ticket.
+  // 5. Pending Research — waiting on internal research.
   createTicket({
-    id: 'esc_pending_review', title: 'Work done, awaiting lead review', status: STATUS.PENDING_REVIEW,
-    priority: PRIORITY.MEDIUM, assignedDeptId: 'dept_payroll', assigneeId: 'user_jennifer',
-    requestingDept: 'Operations', submitterId: 'user_teri', issueCategory: 'Payroll',
-    createdAt: T, escalationDate: T, modifiedAt: T,
+    id: 'esc_pending_research', title: 'Waiting on benefits research', status: STATUS.PENDING_RESEARCH,
+    priority: PRIORITY.MEDIUM, assignedDeptId: 'dept_benefits', assigneeId: 'user_sarah',
+    ticketOwner: 'user_teri', requestingDept: 'Operations', submitterId: 'user_teri',
+    issueCategory: 'Eligibility', tagIds: ['tag_doc_needed'], createdAt: T, escalationDate: T, modifiedAt: T,
   }),
-  // 6. Resolved, awaiting closure.
+  // 6. Pending Member — waiting on the member.
   createTicket({
-    id: 'esc_resolved', title: 'Resolved, awaiting closure confirmation', status: STATUS.RESOLVED,
+    id: 'esc_pending_member', title: 'Awaiting documentation from member', status: STATUS.PENDING_MEMBER,
     priority: PRIORITY.LOW, assignedDeptId: 'dept_benefits', assigneeId: 'user_sarah',
-    requestingDept: 'Member Services', submitterId: 'user_maggie', issueCategory: 'Eligibility',
-    resolvedDate: '2026-06-10T12:00:00.000Z', createdAt: T, escalationDate: T, modifiedAt: '2026-06-10T12:00:00.000Z',
+    ticketOwner: 'user_teri', requestingDept: 'Member Services', submitterId: 'user_maggie',
+    issueCategory: 'Claims', createdAt: T, escalationDate: T, modifiedAt: T,
   }),
-  // 7. Reopened ticket.
+  // 7. Pending Customer — waiting on the customer/employer.
+  createTicket({
+    id: 'esc_pending_customer', title: 'Awaiting employer confirmation', status: STATUS.PENDING_CUSTOMER,
+    priority: PRIORITY.MEDIUM, assignedDeptId: 'dept_payroll', assigneeId: 'user_jennifer',
+    ticketOwner: 'user_jennifer', requestingDept: 'Operations', submitterId: 'user_teri',
+    issueCategory: 'Payroll', createdAt: T, escalationDate: T, modifiedAt: T,
+  }),
+  // 8. Complete — final official closure state (moved by the owner). completedDate set.
+  createTicket({
+    id: 'esc_complete', title: 'Closed out after resolution', status: STATUS.COMPLETE,
+    priority: PRIORITY.LOW, assignedDeptId: 'dept_benefits', assigneeId: 'user_sarah',
+    ticketOwner: 'user_teri', requestingDept: 'Member Services', submitterId: 'user_maggie',
+    issueCategory: 'Eligibility', completedDate: '2026-06-10T12:00:00.000Z',
+    createdAt: T, escalationDate: T, modifiedAt: '2026-06-10T12:00:00.000Z',
+  }),
+  // 9. Reopened ticket — a completed ticket that needed more work.
   createTicket({
     id: 'esc_reopened', title: 'Reopened after member follow-up', status: STATUS.REOPENED,
     priority: PRIORITY.HIGH, assignedDeptId: 'dept_payroll', assigneeId: 'user_jennifer',
-    requestingDept: 'Operations', submitterId: 'user_teri', issueCategory: 'Payroll',
-    createdAt: T, escalationDate: T, modifiedAt: T,
+    ticketOwner: 'user_jennifer', requestingDept: 'Operations', submitterId: 'user_teri',
+    issueCategory: 'Payroll', createdAt: T, escalationDate: T, modifiedAt: T,
   }),
-  // 8. Legacy migrated ticket — FAKE legacy id + FAKE legacy url + migration note.
+  // 10. Legacy migrated ticket — FAKE legacy id + FAKE legacy url + migration note.
   createTicket({
     id: 'esc_legacy_307', title: 'Migrated from legacy tracker', status: STATUS.ASSIGNED,
     priority: PRIORITY.MEDIUM, assignedDeptId: 'dept_benefits', assigneeId: 'user_maggie',
-    requestingDept: 'Member Services', submitterId: 'user_teri', issueCategory: 'Claims',
+    ticketOwner: 'user_teri', requestingDept: 'Member Services', submitterId: 'user_teri',
+    issueCategory: 'Claims',
     legacyItemId: '3071',
     legacyUrl: 'https://legacy.example.invalid/lists/escalations/items/3071',
     migrationNotes: "Legacy status was 'Not yet assigned' with an assignee; normalized to 'Assigned' on migration.",
@@ -113,11 +131,11 @@ export const ACTIVITY = [
   }),
   // Activity entries that accompany the seeded comment/note below.
   createActivityEvent({
-    id: 'act_cmt_esc_in_progress', escalationId: 'esc_in_progress', type: 'comment',
+    id: 'act_cmt_esc_in_process', escalationId: 'esc_in_process', type: 'comment',
     actorId: 'user_maggie', note: 'Comment posted', timestamp: '2026-06-02T10:00:00.000Z',
   }),
   createActivityEvent({
-    id: 'act_note_esc_in_progress', escalationId: 'esc_in_progress', type: 'note',
+    id: 'act_note_esc_in_process', escalationId: 'esc_in_process', type: 'note',
     actorId: 'user_maggie', note: 'Internal note added', timestamp: '2026-06-02T10:05:00.000Z',
   }),
 ];
@@ -125,7 +143,7 @@ export const ACTIVITY = [
 // Public comments (member/requester-facing) — a separate stream from activity.
 export const COMMENTS = [
   createComment({
-    id: 'cmt_seed_1', escalationId: 'esc_in_progress', authorId: 'user_maggie',
+    id: 'cmt_seed_1', escalationId: 'esc_in_process', authorId: 'user_maggie',
     body: 'Reached out to the billing vendor; awaiting their confirmation.',
     createdAt: '2026-06-02T10:00:00.000Z',
   }),
@@ -134,7 +152,7 @@ export const COMMENTS = [
 // Internal notes — separate from comments; carry visibility metadata.
 export const NOTES = [
   createNote({
-    id: 'note_seed_1', escalationId: 'esc_in_progress', authorId: 'user_maggie',
+    id: 'note_seed_1', escalationId: 'esc_in_process', authorId: 'user_maggie',
     body: 'Internal: vendor SLA is 3 business days — escalate to lead if no reply by Thursday.',
     createdAt: '2026-06-02T10:05:00.000Z',
   }),

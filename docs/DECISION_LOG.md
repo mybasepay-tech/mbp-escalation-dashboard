@@ -45,20 +45,33 @@
 - **Blocks:** post-MVP live backend (not MVP, which is mock-first).
 
 ### D4 — "Complete" → v2 status mapping
-- **Status:** Open (needs Rod)
-- **Context:** Legacy `Complete` is terminal-ish; v2 splits Resolved vs Closed.
-- **Options:** (a) `Complete` → **Closed** when `ResolvedDate` set, else **Resolved**;
-  (b) always **Closed**; (c) always **Resolved (awaiting closure)**.
-- **Recommendation:** (a). Record original in migration note.
-- **Blocks:** Phase 7 mapping finalization.
+- **Status:** Superseded by **D10** (Loop 7)
+- **Context:** Earlier mock builds split closure into Resolved vs Closed.
+- **Loop 7 outcome:** v2 now has a **single** `Complete` closure state (no separate
+  Resolved/Closed). Legacy `Complete` maps 1:1; set `completedDate` if a resolved/closed
+  date is present. See D10 and [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §5.
 
 ### D5 — Pending-* collapse
-- **Status:** Open (needs Rod)
+- **Status:** Superseded by **D10** (Loop 7)
 - **Context:** Legacy has Pending Member / Pending Research / Pending Customer.
-- **Options:** (a) collapse all into **Pending Review** (preserve original in note);
-  (b) keep distinct pending sub-states in v2.
-- **Recommendation:** (a) for MVP simplicity; revisit if leads need the distinction.
-- **Blocks:** Phase 2 status set + Phase 7 mapping.
+- **Loop 7 outcome:** v2 **keeps the three distinct Pending-\* states** (no collapse) to
+  match the familiar legacy vocabulary. Earlier "Pending Review" stand-in is removed.
+
+### D10 — Status vocabulary alignment + owner-only Complete (Loop 7)
+- **Status:** Proposed (needs Rod confirm) — demonstrated in mock
+- **Context:** Earlier mock builds used stand-in statuses (In Progress / Pending Review /
+  Resolved / Closed) that did not match what leads actually use. Loop 7 realigns v2 to the
+  real legacy vocabulary and clarifies who may close a ticket.
+- **Decision (demonstrated):**
+  - Statuses: New, Not yet assigned, Assigned, **In Process**, **Pending Research**,
+    **Pending Member**, **Pending Customer**, **Complete**, Cancelled, Reopened.
+  - **Complete** is the single final official closure state, and is **owner-only**:
+    only `ticketOwner` may move a ticket to Complete (`assigneeId`/worker may not).
+  - Data model adds **`ticketOwner`** and replaces `resolvedDate`/`closedDate` with a single
+    **`completedDate`** (set on Complete, cleared on Reopened).
+- **Blocks:** nothing (mock-only); supersedes D4 and D5.
+- See [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §1–§3 and
+  [`DATA_MODEL.md`](./DATA_MODEL.md) §2.
 
 ### D6 — Entra app registration
 - **Status:** Open (needs Rod)
@@ -102,12 +115,13 @@
 | D1 | App stack / hosting | Component SPA behind the DAL (mock shell proves the shape) | No | Open |
 | D2 | Auto-status behavior | Keep **auto** forward (New/Not-yet-assigned → Assigned); demonstrated, tests green | No | Proposed — needs Rod confirm |
 | D3 | Target backend | Decide before any adapter: SharePoint (temp) vs. API+DB vs. **Dataverse** | **YES** | **Open — BLOCKING** |
-| D4 | "Complete" mapping | (a) Closed if `ResolvedDate` set, else Resolved | Yes (migration mapping) | Open |
-| D5 | Pending-* collapse | (a) collapse to **Pending Review**, keep original in note | Yes (migration mapping) | Open |
+| D4 | "Complete" mapping | **Superseded by D10** — single `Complete` state, maps 1:1 | Yes (migration mapping) | Superseded |
+| D5 | Pending-* collapse | **Superseded by D10** — keep 3 distinct Pending-* states | Yes (migration mapping) | Superseded |
 | D6 | Entra app registration | New v2 app (isolate from legacy) | **YES** (any live auth) | **Open — BLOCKING** |
 | D7 | Legacy read access (dry-run) | Offline read-only export/sample first | **YES** (dry-run vs. real data) | **Open — BLOCKING** |
 | D8 | Dept/queue list | Confirm canonical departments + leads | Yes (seed realism) | Open |
 | D9 | Generic MVP config | Mirror legacy required fields/categories (generic default in place) | No | Proposed — needs Rod confirm |
+| D10 | Status vocab + owner-only Complete (Loop 7) | Align to legacy vocabulary; `Complete` owner-only; add `ticketOwner`/`completedDate` | No (mock-only) | Proposed — needs Rod confirm |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -126,5 +140,5 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
 ---
 
 ## Resolved
-_(none yet — no decision has been explicitly approved. D2 and D9 are demonstrated in the
-mock MVP but remain Proposed pending Rod confirmation.)_
+_(none yet — no decision has been explicitly approved. D2, D9, and D10 are demonstrated in
+the mock MVP but remain Proposed pending Rod confirmation. D4 and D5 are superseded by D10.)_

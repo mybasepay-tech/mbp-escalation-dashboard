@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { seededStore } from '../mock/seed.js';
-import { STATUS } from '../domain/constants.js';
+import { STATUS, PENDING_STATUSES } from '../domain/constants.js';
 import {
   loadContext, applyDepartmentFilter, DEPARTMENT_FILTERS, buildReport,
 } from '../ui/viewModel.js';
@@ -39,9 +39,11 @@ test('department filters: unassigned / assigned-to-me / assigned-to-others parti
 test('department filters: status-based filters select the right tickets', async () => {
   const store = seededStore();
   const tickets = await benefitsTickets(store);
-  assert.ok(applyDepartmentFilter(tickets, 'in_progress', {}).every((t) => t.status === STATUS.IN_PROGRESS));
-  assert.ok(applyDepartmentFilter(tickets, 'pending_review', {}).every((t) => t.status === STATUS.PENDING_REVIEW));
-  assert.ok(applyDepartmentFilter(tickets, 'resolved_awaiting_closure', {}).every((t) => t.status === STATUS.RESOLVED));
+  assert.ok(applyDepartmentFilter(tickets, 'in_process', {}).every((t) => t.status === STATUS.IN_PROCESS));
+  const pending = applyDepartmentFilter(tickets, 'pending', {});
+  assert.ok(pending.length >= 1);
+  assert.ok(pending.every((t) => PENDING_STATUSES.has(t.status)));
+  assert.ok(applyDepartmentFilter(tickets, 'completed', {}).every((t) => t.status === STATUS.COMPLETE));
 });
 
 test('department filters: migrated and high-priority', async () => {
@@ -58,8 +60,8 @@ test('department filters: migrated and high-priority', async () => {
 test('department filters: there are exactly the nine required filters', () => {
   const keys = DEPARTMENT_FILTERS.map((f) => f.key);
   assert.deepEqual(keys, [
-    'all', 'unassigned', 'assigned_to_me', 'assigned_to_others', 'in_progress',
-    'pending_review', 'resolved_awaiting_closure', 'migrated', 'high_priority',
+    'all', 'unassigned', 'assigned_to_me', 'assigned_to_others', 'in_process',
+    'pending', 'completed', 'migrated', 'high_priority',
   ]);
 });
 
@@ -80,7 +82,7 @@ test('reporting: counts over all mock tickets are correct', async () => {
   assert.equal(Object.values(report.byDepartment).reduce((a, b) => a + b, 0), report.total);
 
   // Cross-check specific counts against the seed.
-  assert.equal(report.resolvedAwaitingClosure, all.filter((t) => t.status === STATUS.RESOLVED).length);
+  assert.equal(report.completedCount, all.filter((t) => t.status === STATUS.COMPLETE).length);
   assert.equal(report.legacyCount, all.filter((t) => t.legacyItemId || t.legacyUrl).length);
   assert.equal(report.unassignedCount, all.filter((t) => !t.assigneeId).length);
   assert.equal(report.assignedToCurrentUser, all.filter((t) => t.assigneeId === 'user_sarah').length);

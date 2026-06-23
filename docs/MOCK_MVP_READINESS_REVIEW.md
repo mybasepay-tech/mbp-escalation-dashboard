@@ -73,7 +73,7 @@ See [`DECISION_LOG.md`](./DECISION_LOG.md) for full detail. Blocking items in **
 - **D7 — Legacy read access for migration dry-run** (offline export/sample vs. approved
   read-only Graph) — needed before any dry-run against real data.
 - D1 app stack/hosting (mock proves the shell; final stack still open).
-- D4 "Complete" mapping and D5 Pending-* collapse (needed to finalize migration mapping).
+- D10 status vocabulary + owner-only Complete (Loop 7; demonstrated, supersedes D4/D5).
 - D8 authoritative department/queue list; D9 generic config confirmation.
 
 Plus the non-negotiable gates in

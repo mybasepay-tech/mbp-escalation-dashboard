@@ -8,8 +8,8 @@ import { seededStore } from '../mock/seed.js';
 import {
   loadContext, ticketRows, detailView, activityLines,
   statusOptions, assignmentOptions, PRIORITY_OPTIONS,
-  commentView, noteView, availableTags, tagLabel,
-  DEPARTMENT_FILTERS, applyDepartmentFilter, buildReport,
+  commentView, noteView, availableTags, tagLabel, userName,
+  actorCanComplete, DEPARTMENT_FILTERS, applyDepartmentFilter, buildReport,
 } from './viewModel.js';
 
 // ----- State -----
@@ -79,6 +79,7 @@ function ticketListItem(r) {
   const meta = el('div', { class: 'meta' }, [
     el('span', { text: `Dept: ${r.deptName}` }),
     el('span', { class: r.isUnassignedPerson ? 'badge unassigned' : '', text: `Assignee: ${r.assigneeName}` }),
+    el('span', { text: `Owner: ${r.ownerName}` }),
     el('span', { text: `${r.daysOpen}d open` }),
   ]);
   const children = [
@@ -152,7 +153,7 @@ async function renderReport() {
     el('h4', { text: 'At a glance' }),
     kv('Unassigned', rep.unassignedCount),
     kv(`Assigned to ${ctx.usersById.get(currentUserId)?.displayName ?? 'me'}`, rep.assignedToCurrentUser),
-    kv('Resolved awaiting closure', rep.resolvedAwaitingClosure),
+    kv('Completed', rep.completedCount),
     kv('Legacy / migrated', rep.legacyCount),
   ]));
   report.appendChild(breakdownCard('By status', rep.byStatus));
@@ -192,14 +193,15 @@ async function renderDetail() {
   // Field grid
   const dl = el('dl');
   const pairs = [
-    ['Department', dv.deptName],
-    ['Assignee', dv.assigneeName],
+    ['Department / queue', dv.deptName],
+    ['Assigned person', dv.assigneeName],
+    ['Ticket owner', dv.ownerName],
     ['Requesting dept', dv.requestingDept || '—'],
     ['Submitter', dv.submitterName],
     ['Issue category', dv.issueCategory || '—'],
     ['Escalated', fmtDate(dv.escalationDate)],
     ['Expected resolution', fmtDate(dv.expectedResolutionDate)],
-    ['Resolved', fmtDate(dv.resolvedDate)],
+    ['Completed', fmtDate(dv.completedDate)],
     ['Days open', String(dv.daysOpen)],
   ];
   for (const [k, v] of pairs) { dl.appendChild(el('dt', { text: k })); dl.appendChild(el('dd', { text: v })); }
@@ -311,15 +313,24 @@ async function buildControls(ticket) {
     el('div', { class: 'actions' }, [personSel, personBtn, clearBtn]),
   ]));
 
-  // Status
+  // Status. Complete is owner-only, so the option is shown only when the current mock user
+  // owns the ticket (the store rule enforces this too — the UI just avoids dead options).
   const statusSel = el('select');
-  fillSelect(statusSel, statusOptions(ticket).map((s) => ({ id: s, label: s })), ticket.status);
+  fillSelect(statusSel, statusOptions(ticket, { currentUserId }).map((s) => ({ id: s, label: s })), ticket.status);
   const statusBtn = el('button', { class: 'btn', text: 'Set status' });
   statusBtn.addEventListener('click', () => act(async () => {
     try { await store.setStatus(ticket.id, statusSel.value, { actorId: currentUserId }); }
     catch (err) { window.alert(err.message); }
   }));
-  wrap.appendChild(controlBlock('Status', statusSel, statusBtn));
+  const ownerName = userName(ctx, ticket.ticketOwner);
+  const completeHint = actorCanComplete(ticket, currentUserId)
+    ? 'You own this ticket — you can move it to Complete.'
+    : `Only the ticket owner (${ownerName}) can move this ticket to Complete.`;
+  wrap.appendChild(el('div', { class: 'control' }, [
+    el('span', { text: 'Status' }),
+    el('div', { class: 'actions' }, [statusSel, statusBtn]),
+    el('span', { class: 'hint', text: completeHint }),
+  ]));
 
   // Priority
   const prioSel = el('select');

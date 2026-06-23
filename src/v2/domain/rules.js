@@ -16,6 +16,15 @@ function stamp(ticket, now) {
   ticket.modifiedAt = now;
 }
 
+/**
+ * Only the ticket owner may move a ticket to Complete (docs/STATUS_WORKFLOW.md §3.2).
+ * `ticketOwner` is the closure authority; `assigneeId` (the worker) does NOT grant it.
+ * Returns false when there is no owner or the actor is not the owner.
+ */
+export function canComplete(ticket, actorId) {
+  return Boolean(ticket.ticketOwner && actorId && actorId === ticket.ticketOwner);
+}
+
 function event(ticket, type, { actorId = null, from = null, to = null, note = '', timestamp }) {
   return createActivityEvent({ escalationId: ticket.id, type, actorId, from, to, note, timestamp });
 }
@@ -48,7 +57,7 @@ export function assignToDepartment(ticket, deptId, { actorId = null, now = new D
 /**
  * Assign (or change) the person.
  * Auto-status: if status is New or Not yet assigned, auto-move to Assigned.
- * Per spec, NEVER auto-move beyond Assigned (In Progress and later are untouched).
+ * Per spec, NEVER auto-move beyond Assigned (In Process and later are untouched).
  * @returns {import('./models.js').ActivityEvent[]}
  */
 export function assignToPerson(ticket, userId, { actorId = null, now = new Date().toISOString() } = {}) {
@@ -108,10 +117,15 @@ export function changeStatus(ticket, toStatus, {
     throw new Error(`Illegal status transition: ${from} -> ${toStatus}`);
   }
 
+  // Owner-only Complete (docs/STATUS_WORKFLOW.md §3.2). Auto-status never targets Complete,
+  // so this gate only affects explicit user actions.
+  if (toStatus === STATUS.COMPLETE && !canComplete(ticket, actorId)) {
+    throw new Error('Only the ticket owner can move a ticket to Complete');
+  }
+
   // Date side-effects (docs/STATUS_WORKFLOW.md §3).
-  if (toStatus === STATUS.RESOLVED) ticket.resolvedDate = now;
-  if (toStatus === STATUS.CLOSED) ticket.closedDate = now;
-  if (toStatus === STATUS.REOPENED) { ticket.resolvedDate = null; ticket.closedDate = null; }
+  if (toStatus === STATUS.COMPLETE) ticket.completedDate = now;
+  if (toStatus === STATUS.REOPENED) ticket.completedDate = null;
 
   ticket.status = toStatus;
   stamp(ticket, now);

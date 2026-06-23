@@ -5,8 +5,9 @@
 // Both ui/app.js (browser) and tests/ui-smoke.test.js (node) import this, so the UI and
 // its tests share one source of truth.
 
-import { STATUS, PRIORITY, ALLOWED_TRANSITIONS, ACTIVITY_TYPE } from '../domain/constants.js';
+import { STATUS, PRIORITY, ALLOWED_TRANSITIONS, ACTIVITY_TYPE, PENDING_STATUSES } from '../domain/constants.js';
 import { daysOpen } from '../domain/models.js';
+import { canComplete } from '../domain/rules.js';
 
 /** Build id->object lookups from the store's reference data. */
 export async function loadContext(store) {
@@ -46,6 +47,8 @@ export function ticketRow(ticket, ctx, now = new Date()) {
     priority: ticket.priority,
     assigneeId: ticket.assigneeId,
     assigneeName: userName(ctx, ticket.assigneeId),
+    ownerId: ticket.ticketOwner,
+    ownerName: userName(ctx, ticket.ticketOwner),
     deptId: ticket.assignedDeptId,
     deptName: deptName(ctx, ticket.assignedDeptId),
     daysOpen: daysOpen(ticket, now),
@@ -80,13 +83,14 @@ export function detailView(ticket, ctx, now = new Date()) {
     requestingDept: ticket.requestingDept,
     assigneeId: ticket.assigneeId,
     assigneeName: userName(ctx, ticket.assigneeId),
+    ownerId: ticket.ticketOwner,
+    ownerName: userName(ctx, ticket.ticketOwner),
     deptId: ticket.assignedDeptId,
     deptName: deptName(ctx, ticket.assignedDeptId),
     submitterName: userName(ctx, ticket.submitterId),
     escalationDate: ticket.escalationDate,
     expectedResolutionDate: ticket.expectedResolutionDate,
-    resolvedDate: ticket.resolvedDate,
-    closedDate: ticket.closedDate,
+    completedDate: ticket.completedDate,
     daysOpen: daysOpen(ticket, now),
     tags: ticket.tagIds.map((id) => ({ id, label: tagLabel(ctx, id) })),
     legacy,
@@ -164,10 +168,23 @@ export function activityLines(events, ctx) {
   return events.map((e) => activityLine(e, ctx));
 }
 
-/** Status options for the status control: current status + its allowed transition targets. */
-export function statusOptions(ticket) {
+/**
+ * Status options for the status control: current status + its allowed transition targets.
+ * Complete is owner-only, so it is offered ONLY when the current user is the ticket owner
+ * (mirrors the rules.canComplete guard the store enforces). Pass `{ currentUserId }` so the
+ * control never shows an option the action would reject.
+ */
+export function statusOptions(ticket, { currentUserId = null } = {}) {
   const targets = ALLOWED_TRANSITIONS[ticket.status] ?? [];
-  return [...new Set([ticket.status, ...targets])];
+  const visible = targets.filter(
+    (s) => s !== STATUS.COMPLETE || canComplete(ticket, currentUserId),
+  );
+  return [...new Set([ticket.status, ...visible])];
+}
+
+/** True if the given (mock) user may move this ticket to Complete. Thin re-export for the UI. */
+export function actorCanComplete(ticket, currentUserId) {
+  return canComplete(ticket, currentUserId);
 }
 
 /** All assignable people and departments (for the assignment controls). */
@@ -195,9 +212,9 @@ export const DEPARTMENT_FILTERS = [
   { key: 'unassigned', label: 'Unassigned in department', predicate: (t) => !t.assigneeId },
   { key: 'assigned_to_me', label: 'Assigned to me', predicate: (t, { currentUserId }) => t.assigneeId === currentUserId },
   { key: 'assigned_to_others', label: 'Assigned to others', predicate: (t, { currentUserId }) => t.assigneeId && t.assigneeId !== currentUserId },
-  { key: 'in_progress', label: 'In progress', predicate: (t) => t.status === STATUS.IN_PROGRESS },
-  { key: 'pending_review', label: 'Pending review', predicate: (t) => t.status === STATUS.PENDING_REVIEW },
-  { key: 'resolved_awaiting_closure', label: 'Resolved awaiting closure', predicate: (t) => t.status === STATUS.RESOLVED },
+  { key: 'in_process', label: 'In process', predicate: (t) => t.status === STATUS.IN_PROCESS },
+  { key: 'pending', label: 'Pending (any)', predicate: (t) => PENDING_STATUSES.has(t.status) },
+  { key: 'completed', label: 'Completed', predicate: (t) => t.status === STATUS.COMPLETE },
   { key: 'migrated', label: 'Migrated / legacy', predicate: (t) => hasLegacy(t) },
   { key: 'high_priority', label: 'High priority', predicate: (t) => HIGH_PRIORITIES.has(t.priority) },
 ];
@@ -220,7 +237,7 @@ export function buildReport(tickets, ctx, { currentUserId } = {}) {
   const byPriority = {};
   let unassignedCount = 0;
   let assignedToCurrentUser = 0;
-  let resolvedAwaitingClosure = 0;
+  let completedCount = 0;
   let legacyCount = 0;
 
   for (const t of tickets) {
@@ -230,7 +247,7 @@ export function buildReport(tickets, ctx, { currentUserId } = {}) {
     byPriority[t.priority] = (byPriority[t.priority] ?? 0) + 1;
     if (!t.assigneeId) unassignedCount += 1;
     if (currentUserId && t.assigneeId === currentUserId) assignedToCurrentUser += 1;
-    if (t.status === STATUS.RESOLVED) resolvedAwaitingClosure += 1;
+    if (t.status === STATUS.COMPLETE) completedCount += 1;
     if (hasLegacy(t)) legacyCount += 1;
   }
 
@@ -241,7 +258,7 @@ export function buildReport(tickets, ctx, { currentUserId } = {}) {
     byPriority,
     unassignedCount,
     assignedToCurrentUser,
-    resolvedAwaitingClosure,
+    completedCount,
     legacyCount,
   };
 }

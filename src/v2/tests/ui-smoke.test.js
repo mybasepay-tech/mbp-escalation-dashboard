@@ -32,7 +32,7 @@ test('My Assigned rows show only the current mock user\'s tickets', async () => 
   const rows = ticketRows(await store.myAssignedTickets('user_sarah'), ctx);
   assert.ok(rows.length > 0);
   assert.ok(rows.every((r) => r.assigneeId === 'user_sarah'));
-  assert.ok(!rows.some((r) => r.id === 'esc_in_progress')); // Maggie's
+  assert.ok(!rows.some((r) => r.id === 'esc_in_process')); // Maggie's
 });
 
 test('detailView exposes a legacy block only when legacy metadata is present', async () => {
@@ -58,11 +58,33 @@ test('activityLines renders readable summaries for key event types', async () =>
 
 test('statusOptions includes the current status plus allowed transition targets', async () => {
   const store = seededStore();
-  const t = await store.getTicket('esc_person'); // Assigned
+  const t = await store.getTicket('esc_person'); // Assigned, owner = user_teri
   const opts = statusOptions(t);
   assert.ok(opts.includes(STATUS.ASSIGNED));        // current
-  assert.ok(opts.includes(STATUS.IN_PROGRESS));     // allowed target
-  assert.ok(!opts.includes(STATUS.CLOSED));         // not a direct target
+  assert.ok(opts.includes(STATUS.IN_PROCESS));      // allowed target
+  assert.ok(opts.includes(STATUS.PENDING_RESEARCH)); // allowed target
+});
+
+test('statusOptions offers Complete only to the ticket owner', async () => {
+  const store = seededStore();
+  const t = await store.getTicket('esc_person'); // owner = user_teri, assignee = user_sarah
+  // The worker (or anyone but the owner) must not see Complete as an option.
+  assert.ok(!statusOptions(t, { currentUserId: 'user_sarah' }).includes(STATUS.COMPLETE));
+  assert.ok(!statusOptions(t, {}).includes(STATUS.COMPLETE));
+  // The owner does.
+  assert.ok(statusOptions(t, { currentUserId: 'user_teri' }).includes(STATUS.COMPLETE));
+});
+
+test('detailView exposes ticket owner and completed date', async () => {
+  const store = seededStore();
+  const ctx = await loadContext(store);
+  const completed = detailView(await store.getTicket('esc_complete'), ctx);
+  assert.equal(completed.ownerName, 'Teri', 'owner name resolved for display');
+  assert.equal(completed.ownerId, 'user_teri');
+  assert.equal(completed.completedDate, '2026-06-10T12:00:00.000Z', 'completed date surfaced');
+  // A still-open ticket has no completed date.
+  const open = detailView(await store.getTicket('esc_person'), ctx);
+  assert.equal(open.completedDate, null);
 });
 
 test('controller flow: assigning a person from New auto-advances to Assigned with activity', async () => {

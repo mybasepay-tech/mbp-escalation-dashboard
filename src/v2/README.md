@@ -136,10 +136,13 @@ one possible future adapter behind this seam.
 - Adding a person while status is **New** or **Not yet assigned** auto-moves to
   **Assigned**. Status is **never** auto-advanced beyond Assigned.
 - Clearing the assignee on an **Assigned** ticket reverts to **Not yet assigned**.
+- **Complete** is the single final official closure state and is **owner-only**: only a
+  ticket's `ticketOwner` may move it to Complete (the worker/`assigneeId` may not). Moving to
+  Complete sets `completedDate`; **Reopened** clears it.
 - Every assignment, status, priority, comment, and note change records an immutable
   activity event.
 
 ## Sample scenarios in the seed
-New · Department-only · Person-assigned · In Progress · Pending Review · Resolved
-(awaiting closure) · Reopened · Legacy-migrated (with **fake** legacy id `3071` and a
-**fake** `legacy.example.invalid` URL + migration normalization note).
+New · Department-only · Person-assigned · In Process · Pending Research · Pending Member ·
+Pending Customer · Complete · Reopened · Legacy-migrated (with **fake** legacy id `3071` and
+a **fake** `legacy.example.invalid` URL + migration normalization note).

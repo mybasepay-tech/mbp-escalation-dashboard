@@ -9,8 +9,8 @@ const NOW = '2026-06-22T00:00:00.000Z';
 
 test('public comments and internal notes are separate streams', async () => {
   const store = seededStore();
-  const comments = await store.listComments('esc_in_progress');
-  const notes = await store.listNotes('esc_in_progress');
+  const comments = await store.listComments('esc_in_process');
+  const notes = await store.listNotes('esc_in_process');
   assert.ok(comments.length >= 1);
   assert.ok(notes.length >= 1);
   // No id overlap between the two streams.
@@ -23,13 +23,13 @@ test('public comments and internal notes are separate streams', async () => {
 
 test('comments and notes are NOT part of the activity stream (no giant text field)', async () => {
   const store = seededStore();
-  const activity = await store.listActivity('esc_in_progress');
+  const activity = await store.listActivity('esc_in_process');
   // Activity holds typed events, not comment/note bodies.
   for (const e of activity) {
     assert.ok(!('body' in e), 'activity events must not carry comment/note bodies');
   }
   // The ticket itself stores no monolithic history blob.
-  const t = await store.getTicket('esc_in_progress');
+  const t = await store.getTicket('esc_in_process');
   assert.equal(t.statusUpdates, undefined);
   assert.equal(t.history, undefined);
 });
@@ -79,12 +79,12 @@ test('adding a tag is idempotent and records a field_change activity event', asy
 
 test('removing a tag updates the ticket and records a field_change activity event', async () => {
   const store = seededStore();
-  // esc_in_progress is seeded with tag_financial + tag_member_impact.
-  await store.removeTag('esc_in_progress', 'tag_financial', { actorId: 'user_maggie', now: NOW });
-  const t = await store.getTicket('esc_in_progress');
+  // esc_in_process is seeded with tag_financial + tag_member_impact.
+  await store.removeTag('esc_in_process', 'tag_financial', { actorId: 'user_maggie', now: NOW });
+  const t = await store.getTicket('esc_in_process');
   assert.ok(!t.tagIds.includes('tag_financial'));
   assert.ok(t.tagIds.includes('tag_member_impact'));
-  const removed = (await store.listActivity('esc_in_progress'))
+  const removed = (await store.listActivity('esc_in_process'))
     .some((e) => e.type === ACTIVITY_TYPE.FIELD_CHANGE && e.to?.removedTag === 'tag_financial');
   assert.ok(removed);
 });

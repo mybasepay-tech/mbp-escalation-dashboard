@@ -120,14 +120,14 @@ export function createActivityEvent({
  * @property {string} priority
  * @property {string} issueCategory
  * @property {string} issueType
- * @property {?string} assignedDeptId   // department/queue assignment
- * @property {?string} assigneeId       // person assignment
+ * @property {?string} assignedDeptId   // departmentQueue — which department owns the queue/context
+ * @property {?string} assigneeId       // assignedTo — person currently responsible for the work
+ * @property {?string} ticketOwner      // owner who alone may move the ticket to Complete
  * @property {?string} submitterId
  * @property {string} requestingDept
  * @property {?string} escalationDate
  * @property {?string} expectedResolutionDate
- * @property {?string} resolvedDate
- * @property {?string} closedDate
+ * @property {?string} completedDate     // set when status → Complete; cleared on Reopened
  * @property {string[]} tagIds
  * @property {?string} legacyItemId      // preserved on migration; fake in mock data
  * @property {?string} legacyUrl         // preserved on migration; fake in mock data
@@ -147,12 +147,12 @@ export function createTicket({
   issueType = '',
   assignedDeptId = null,
   assigneeId = null,
+  ticketOwner = null,
   submitterId = null,
   requestingDept = '',
   escalationDate = new Date().toISOString(),
   expectedResolutionDate = null,
-  resolvedDate = null,
-  closedDate = null,
+  completedDate = null,
   tagIds = [],
   legacyItemId = null,
   legacyUrl = null,
@@ -162,8 +162,8 @@ export function createTicket({
 }) {
   return {
     id, title, description, status, priority, issueCategory, issueType,
-    assignedDeptId, assigneeId, submitterId, requestingDept,
-    escalationDate, expectedResolutionDate, resolvedDate, closedDate,
+    assignedDeptId, assigneeId, ticketOwner, submitterId, requestingDept,
+    escalationDate, expectedResolutionDate, completedDate,
     tagIds, legacyItemId, legacyUrl, migrationNotes, createdAt, modifiedAt,
   };
 }
@@ -174,7 +174,7 @@ export function createTicket({
  */
 export function daysOpen(ticket, now = new Date()) {
   const start = new Date(ticket.escalationDate ?? ticket.createdAt);
-  const end = ticket.resolvedDate ? new Date(ticket.resolvedDate) : now;
+  const end = ticket.completedDate ? new Date(ticket.completedDate) : now;
   const ms = end.getTime() - start.getTime();
   return Math.max(0, Math.floor(ms / 86_400_000));
 }

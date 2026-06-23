@@ -30,14 +30,14 @@ target API backend):
 | `priority` / `urgency` | enum | e.g. Low/Med/High/Critical. |
 | `issueCategory` | string/enum | Category (department-configurable later). |
 | `issueType` | string/enum | Sub-type. |
-| `assignedDeptId` | ref → `EscalationTeams` | Department/queue assignment. |
-| `assigneeId` | ref → person | Person assignment (nullable). |
+| `assignedDeptId` | ref → `EscalationTeams` | Department/queue assignment (the `departmentQueue` context). |
+| `assigneeId` | ref → person | Person responsible for the work (`assignedTo`, nullable). |
+| `ticketOwner` | ref → person | Closure authority — the only person who may move the ticket to **Complete** (nullable). Distinct from `assigneeId`. See [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §3.2. |
 | `submitterId` | ref → person | Who raised it. |
 | `requestingDept` | string | Originating department. |
 | `escalationDate` | datetime | Created/escalated. |
 | `expectedResolutionDate` | datetime | Used for overdue/at-risk. |
-| `resolvedDate` | datetime | Set on Resolved. |
-| `closedDate` | datetime | Set on Closed. |
+| `completedDate` | datetime | Set when status → **Complete**; cleared on **Reopened**. (Loop 7 replaced the earlier `resolvedDate`/`closedDate` pair.) |
 | `financialImpactAmount` | money | Optional. |
 | `amountRemaining` | money | Optional. |
 | `tags` | refs → `EscalationTags` | Many-to-many. |
