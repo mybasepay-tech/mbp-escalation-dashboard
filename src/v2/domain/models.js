@@ -56,6 +56,7 @@ export function createTag({ id = newId('tag'), label }) {
  * @property {string} authorId
  * @property {string} body
  * @property {string[]} mentions
+ * @property {'public'} visibility    // comments are member/requester-facing
  * @property {string} createdAt
  * @property {?string} editedAt
  */
@@ -63,9 +64,9 @@ export function createTag({ id = newId('tag'), label }) {
 /** @returns {Comment} */
 export function createComment({
   id = newId('cmt'), escalationId, authorId, body, mentions = [],
-  createdAt = new Date().toISOString(), editedAt = null,
+  visibility = 'public', createdAt = new Date().toISOString(), editedAt = null,
 }) {
-  return { id, escalationId, authorId, body, mentions, createdAt, editedAt };
+  return { id, escalationId, authorId, body, mentions, visibility, createdAt, editedAt };
 }
 
 /**
@@ -74,14 +75,20 @@ export function createComment({
  * @property {string} escalationId
  * @property {string} authorId
  * @property {string} body            // internal note (not member-facing)
+ * @property {'internal'} visibility  // modeled for future permission gating
  * @property {string} createdAt
  */
 
-/** @returns {Note} */
+/**
+ * Internal note. `visibility` defaults to 'internal' and is carried so future loops can
+ * gate who sees notes; in the MVP mock everything is visible.
+ * @returns {Note}
+ */
 export function createNote({
-  id = newId('note'), escalationId, authorId, body, createdAt = new Date().toISOString(),
+  id = newId('note'), escalationId, authorId, body,
+  visibility = 'internal', createdAt = new Date().toISOString(),
 }) {
-  return { id, escalationId, authorId, body, createdAt };
+  return { id, escalationId, authorId, body, visibility, createdAt };
 }
 
 /**

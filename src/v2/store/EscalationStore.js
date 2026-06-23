@@ -22,10 +22,16 @@ export class EscalationStore {
   async clearAssignee(_id, _opts) { throw new Error('not implemented'); }
   async setStatus(_id, _status, _opts) { throw new Error('not implemented'); }
   async setPriority(_id, _priority, _opts) { throw new Error('not implemented'); }
+  async addTag(_id, _tagId, _opts) { throw new Error('not implemented'); }
+  async removeTag(_id, _tagId, _opts) { throw new Error('not implemented'); }
 
-  // ----- Activity, comments, notes -----
+  // ----- Activity, comments, notes (three separate streams) -----
   /** @returns {Promise<import('../domain/models.js').ActivityEvent[]>} */
   async listActivity(_id) { throw new Error('not implemented'); }
+  /** Public comments (member/requester-facing). @returns {Promise<import('../domain/models.js').Comment[]>} */
+  async listComments(_id) { throw new Error('not implemented'); }
+  /** Internal notes (visibility metadata for future permissions). @returns {Promise<import('../domain/models.js').Note[]>} */
+  async listNotes(_id) { throw new Error('not implemented'); }
   async addComment(_id, _input) { throw new Error('not implemented'); }
   async addNote(_id, _input) { throw new Error('not implemented'); }
 

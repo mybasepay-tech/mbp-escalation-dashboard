@@ -91,3 +91,47 @@ select { padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; 
   font-size: 10px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted);
   border: 1px solid var(--border); border-radius: 4px; padding: 0 4px;
 }
+
+/* Filter bar */
+.filter-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.filter-bar[hidden] { display: none; }
+.filter-btn {
+  font-size: 12px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 999px;
+  background: #fff; cursor: pointer; color: var(--muted);
+}
+.filter-btn[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); border-color: var(--accent); }
+
+/* Tag chips */
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 5px; font-size: 12px;
+  background: #eef1f6; color: #374151; border-radius: 999px; padding: 2px 8px;
+}
+.chip .x { cursor: pointer; border: none; background: none; color: var(--muted); font-size: 13px; line-height: 1; padding: 0; }
+.chip .x:hover { color: #a33; }
+.ticket-item .tags { margin-top: 6px; }
+.chip.mini { font-size: 11px; padding: 1px 7px; }
+
+/* Detail sub-sections */
+.section { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 12px; }
+.section h3 { font-size: 13px; margin: 0 0 8px; }
+.entry { font-size: 13px; padding: 6px 0; border-bottom: 1px dashed var(--border); }
+.entry:last-child { border-bottom: none; }
+.entry .head { display: flex; gap: 8px; align-items: baseline; }
+.entry .who { color: var(--accent); font-size: 12px; }
+.entry .when { color: var(--muted); font-size: 11px; }
+.entry .vis { font-size: 10px; text-transform: uppercase; border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; color: var(--muted); }
+.entry .body { margin-top: 2px; }
+.add-row { display: flex; gap: 6px; margin-top: 8px; }
+.add-row textarea { flex: 1; min-height: 38px; border: 1px solid var(--border); border-radius: 6px; padding: 6px; font: inherit; resize: vertical; }
+.notes-section { background: #fcfbf7; border-radius: 8px; padding: 10px 12px; }
+.notes-section h3::after { content: " (internal)"; color: var(--muted); font-weight: normal; font-size: 11px; }
+
+/* Reporting */
+.report { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.report[hidden] { display: none; }
+.report .card { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: #fff; }
+.report .card h4 { margin: 0 0 6px; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.report .big { font-size: 26px; font-weight: 700; }
+.report .kv { display: flex; justify-content: space-between; font-size: 13px; padding: 2px 0; }
+.report .kv span:last-child { font-variant-numeric: tabular-nums; color: var(--muted); }

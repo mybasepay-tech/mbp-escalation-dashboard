@@ -48,9 +48,26 @@ The UI shell provides:
 - **Assignment controls** (assign department, assign person, unassign), **status** and
   **priority** controls — all routed through the existing `MockStore`/rules, so assigning a
   person to a New / Not-yet-assigned ticket **auto-moves it to Assigned**.
-- An **activity trail** that updates as you act (assignment / status / priority events).
+- An **activity trail** that updates as you act (assignment / status / priority / comment /
+  note / tag events).
 - A **legacy metadata** block shown only on migrated tickets (fake id + `.invalid` URL).
 - A mock **user** and **department** switcher in the header.
+
+### Loop 5 features (comments, notes, tags, filters, reporting)
+- **Three separate streams** on ticket detail: **Public comments**, **Internal notes**
+  (carry `visibility: 'internal'` metadata for future permission gating), and the immutable
+  **Activity trail**. Comments and notes are stored as discrete records — never as one giant
+  history text field. Posting a comment emits a `comment` activity event; posting a note
+  emits a `note` event.
+- **Tags**: add tags from the catalog and remove them via the chip's ×; tag changes emit
+  `field_change` activity events and show as chips in both the list and detail.
+- **Department-panel filters** (Department queue tab): all · unassigned in department ·
+  assigned to me · assigned to others · in progress · pending review · resolved awaiting
+  closure · migrated/legacy · high priority. Department queue still includes
+  person-assigned tickets; "My Assigned Tickets" is unchanged.
+- **Reporting tab**: totals plus breakdowns by status / department / priority, and counts
+  for unassigned, assigned-to-current-user, resolved-awaiting-closure, and legacy/migrated.
+  Reporting reads mock data only.
 
 All UI data comes from the in-memory seed; nothing is persisted and no live system is
 contacted.
@@ -75,10 +92,12 @@ src/v2/
     app.js         # DOM rendering + controller (imports MockStore/rules/seed)
     serve.js       # local-only static server (node:http, loopback)
   tests/
-    rules.test.js     # auto-status + activity-event behavior
-    store.test.js     # queue / My Assigned views, activity recording, seed coverage
-    safety.test.js    # no production strings / network calls; fake legacy domain
-    ui-smoke.test.js  # view-model rendering + UI-specific safety scan
+    rules.test.js        # auto-status + activity-event behavior
+    store.test.js        # queue / My Assigned views, activity recording, seed coverage
+    interactions.test.js # comments vs notes separation, activity events, tag add/remove
+    views.test.js        # department filters + basic reporting counts
+    safety.test.js       # no production strings / network calls; fake legacy domain
+    ui-smoke.test.js     # view-model rendering + UI-specific safety scan
   README.md
 ```
 
