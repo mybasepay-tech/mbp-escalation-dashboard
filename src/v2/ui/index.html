@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Escalation System v2 — Mock UI Shell</title>
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <strong>Escalation System v2</strong>
+      <span class="sub">Mock UI Shell</span>
+    </div>
+    <div class="banner" role="status">
+      Mock data only — not connected to any live system (no Graph / SharePoint / production).
+    </div>
+    <div class="ctx-controls">
+      <label>Current user
+        <select id="userSelect"></select>
+      </label>
+      <label>Department
+        <select id="deptSelect"></select>
+      </label>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel list-panel">
+      <div class="tabs" role="tablist">
+        <button class="tab" id="tabDept" role="tab" aria-selected="true">Department queue</button>
+        <button class="tab" id="tabMine" role="tab" aria-selected="false">My assigned tickets</button>
+      </div>
+      <p class="panel-hint" id="listHint"></p>
+      <ul class="ticket-list" id="ticketList"></ul>
+    </section>
+
+    <section class="panel detail-panel" id="detailPanel">
+      <p class="empty" id="detailEmpty">Select a ticket to see details.</p>
+      <article class="detail" id="detail" hidden></article>
+    </section>
+  </main>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

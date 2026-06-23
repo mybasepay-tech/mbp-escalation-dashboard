@@ -20,7 +20,7 @@ cd src/v2
 npm test        # alias for: node --test
 ```
 
-## Inspect locally (demo)
+## Inspect locally (CLI demo)
 ```bash
 cd src/v2
 npm run demo    # alias for: node mock/demo.js
@@ -28,6 +28,32 @@ npm run demo    # alias for: node mock/demo.js
 The demo prints the seeded Benefits Ops department queue (showing that person-assigned
 tickets stay in the queue), Sarah's "My Assigned Tickets", then assigns the New ticket and
 shows the auto-status change to **Assigned** plus the activity trail.
+
+## Run the mock UI shell (browser)
+```bash
+cd src/v2
+npm run ui      # alias for: node ui/serve.js  (starts a LOCAL static server)
+```
+Then open the printed URL: **http://127.0.0.1:4173/ui/index.html**
+(set `PORT` to change the port, e.g. `PORT=4199 npm run ui`).
+
+> A tiny built-in (`node:http`) static server is used because browsers block ES-module
+> imports over `file://`. It binds to **loopback only**, serves files from `src/v2` only
+> (path traversal is rejected), and makes **no** outbound/production calls.
+
+The UI shell provides:
+- **Department queue** panel (includes tickets assigned to a person) and **My Assigned
+  Tickets** panel (current mock user only) — toggle via the tabs.
+- A **ticket list** with status/priority/legacy badges, and a **ticket detail** pane.
+- **Assignment controls** (assign department, assign person, unassign), **status** and
+  **priority** controls — all routed through the existing `MockStore`/rules, so assigning a
+  person to a New / Not-yet-assigned ticket **auto-moves it to Assigned**.
+- An **activity trail** that updates as you act (assignment / status / priority events).
+- A **legacy metadata** block shown only on migrated tickets (fake id + `.invalid` URL).
+- A mock **user** and **department** switcher in the header.
+
+All UI data comes from the in-memory seed; nothing is persisted and no live system is
+contacted.
 
 ## Layout
 ```
@@ -42,10 +68,17 @@ src/v2/
   mock/
     seed.js        # fabricated sample data (all required scenarios)
     demo.js        # local inspection script
+  ui/
+    index.html     # mock UI shell entry point
+    styles.css     # self-contained styles (no external fonts/CDNs)
+    viewModel.js   # pure render-ready view-model (shared by UI + tests, no DOM)
+    app.js         # DOM rendering + controller (imports MockStore/rules/seed)
+    serve.js       # local-only static server (node:http, loopback)
   tests/
-    rules.test.js  # auto-status + activity-event behavior
-    store.test.js  # queue / My Assigned views, activity recording, seed coverage
-    safety.test.js # no production strings / network calls; fake legacy domain
+    rules.test.js     # auto-status + activity-event behavior
+    store.test.js     # queue / My Assigned views, activity recording, seed coverage
+    safety.test.js    # no production strings / network calls; fake legacy domain
+    ui-smoke.test.js  # view-model rendering + UI-specific safety scan
   README.md
 ```
 
