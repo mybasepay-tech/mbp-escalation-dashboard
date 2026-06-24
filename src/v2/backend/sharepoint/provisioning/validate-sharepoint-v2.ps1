@@ -48,7 +48,13 @@ if (-not $Execute) {
 Assert-ModuleOrExplain
 Import-Module PnP.PowerShell
 Write-Host "[connect] Connecting interactively (read-only validation) to the configured non-production test site..." -ForegroundColor Yellow
-Connect-PnPOnline -Url $config.siteReferencePlaceholder -Interactive
+# PnP.PowerShell 2.x+ requires an Entra App Registration client id for interactive auth. The
+# client id is a runtime, GIT-IGNORED config value (a public app identifier, not a secret) and
+# is never committed. Fall back to plain -Interactive only if no client id is configured.
+$connectParams = @{ Url = $config.siteReferencePlaceholder; Interactive = $true }
+$clientId = Get-ConfigValue $config 'clientId'
+if (-not [string]::IsNullOrWhiteSpace($clientId)) { $connectParams['ClientId'] = $clientId }
+Connect-PnPOnline @connectParams
 
 $web = Get-PnPWeb
 foreach ($tok in @('legacy','tracker','prod','production')) {
@@ -69,7 +75,7 @@ foreach ($listName in $expectedLists) {
   $liveFields = @((Get-PnPField -List $listName | ForEach-Object { $_.InternalName }))
   $missing = @($defFields | Where-Object { $liveFields -notcontains $_ })
   if ($missing.Count -eq 0) { $results += "OK    $listName ($($defFields.Count) columns)" }
-  else { $results += "FIELDS MISSING in $listName: $([string]::Join(', ', $missing))" }
+  else { $results += "FIELDS MISSING in ${listName}: $([string]::Join(', ', $missing))" }
 }
 
 Write-Report -Title 'Validation report' -Lines $results
