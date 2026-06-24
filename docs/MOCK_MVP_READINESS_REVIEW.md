@@ -123,6 +123,22 @@ Loop 10 made the backend-swap promise **executable**, still entirely design-only
 `MockStore` remains the only active backend; the `EscalationStore` abstraction is intact; no
 live integration, no flows.
 
+### Loop 11 — backend decision, parallel-run & cutover readiness (design-only)
+- **D3 DECIDED:** the backend target is **SharePoint List v2 / Microsoft List v2**. This
+  closes the previously-blocking backend choice; it does **not** authorize a live build (still
+  gated by D6/D7 and the checklists).
+- **D14 (Accepted) — parallel-run transition:** the legacy tracker **stays operational** and
+  is the source of truth for users while v2 is built separately, with a staged cutover and
+  rollback at every step. See [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md).
+- **D15 (Accepted) — no legacy writeback:** no writeback to legacy during MVP/build/migration
+  unless separately approved; drift is corrected in the v2 copy only.
+- **New docs:** [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md),
+  [`LEGACY_TO_V2_MAPPING_PLAN.md`](./LEGACY_TO_V2_MAPPING_PLAN.md),
+  [`AI_AUTONOMY_GUARDRAILS.md`](./AI_AUTONOMY_GUARDRAILS.md). Power Automate stays deferred
+  (D11); `SharePointStore` stays a design-only stub (D13); Graph/live stays blocked.
+- Still **design-only**: no live integration, no real lists/flows, no legacy writeback;
+  `MockStore` active; `EscalationStore` intact.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;
@@ -135,7 +151,7 @@ live integration, no flows.
 ## 5. Decisions needed before backend work
 See [`DECISION_LOG.md`](./DECISION_LOG.md) for full detail. Blocking items in **bold**:
 
-- **D3 — Target backend** (SharePoint temp vs. managed API/DB vs. Dataverse).
+- ~~**D3 — Target backend**~~ **DECIDED (Loop 11): SharePoint List v2 / Microsoft List v2.**
 - **D6 — Entra app registration** (new v2 app vs. reuse legacy) — needed before any live
   auth.
 - **D7 — Legacy read access for migration dry-run** (offline export/sample vs. approved

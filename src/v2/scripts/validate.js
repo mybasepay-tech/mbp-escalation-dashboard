@@ -132,6 +132,40 @@ function checkAdapterStub() {
   record(problems.length === 0, 'SharePointStore adapter is design-only (no SDK/network/secrets)', problems.join('; '));
 }
 
+// ----- 9. Transition governance docs (decision, parallel-run, guardrails, no-writeback) -----
+function checkTransitionDocs() {
+  const REPO_ROOT = dirname(dirname(V2_ROOT)); // .../mbp-escalation-dashboard
+  const docs = join(REPO_ROOT, 'docs');
+  const problems = [];
+  const want = (rel, res) => {
+    const p = join(docs, rel);
+    let text;
+    try { text = readFileSync(p, 'utf8'); } catch { problems.push(`${rel} missing`); return; }
+    for (const [why, re] of res) if (!re.test(text)) problems.push(`${rel}: ${why}`);
+  };
+  want('DECISION_LOG.md', [
+    ['D3 accepted as SharePoint v2', /SharePoint List v2 \/ Microsoft List v2/],
+    ['D3 marked DECIDED', /### D3 —[\s\S]*?DECIDED/i],
+    ['D14 parallel-run present', /### D14 —/],
+    ['D15 writeback policy present', /### D15 —/],
+  ]);
+  want('PARALLEL_RUN_AND_CUTOVER_PLAN.md', [
+    ['mentions parallel-run', /parallel[- ]run/i],
+    ['mentions cutover', /cutover/i],
+    ['mentions rollback', /rollback/i],
+    ['prohibits legacy writeback', /\bno\b[\s\S]{0,40}writeback|writeback[\s\S]{0,40}\bno\b|no legacy writeback/i],
+  ]);
+  want('LEGACY_TO_V2_MAPPING_PLAN.md', [
+    ['legacy read-only', /read-only/i],
+    ['no writeback', /\bno\b[\s\S]{0,30}writeback/i],
+  ]);
+  want('AI_AUTONOMY_GUARDRAILS.md', [
+    ['autonomous actions', /without approval|autonomous/i],
+    ['approval-gated actions', /approval/i],
+  ]);
+  record(problems.length === 0, 'Transition governance docs present + consistent (D3/D14/D15, no legacy writeback)', problems.join('; '));
+}
+
 // ----- run -----
 console.log('Escalation v2 — local readiness validation (mock/local only)\n');
 runTests();
@@ -142,6 +176,7 @@ scanLegacyWriteBack();
 scanServerLoopback();
 checkSharePointSchema();
 checkAdapterStub();
+checkTransitionDocs();
 
 let allOk = true;
 for (const r of results) {

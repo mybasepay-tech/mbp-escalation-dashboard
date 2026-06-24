@@ -1,13 +1,16 @@
 # Backend Adapter Plan — Escalation System v2
 
-> **Loop 8, design-only.** Plans the seam between the current in-memory backend and a future
-> live backend. **No live integration is built here** — no Graph, SharePoint, Dataverse,
-> Azure, network code, credentials, or Power Automate flows. The MVP backend remains
-> `MockStore`.
+> **Loop 8 (updated Loop 11), design-only.** Plans the seam between the current in-memory
+> backend and the future live backend. **The backend target is SharePoint List v2 (decision
+> D3, accepted Loop 11).** **No live integration is built here** — no Graph, SharePoint,
+> Dataverse, Azure, network code, credentials, or Power Automate flows (PA deferred — D11).
+> The MVP backend remains `MockStore`. During the transition the **legacy tracker stays
+> operational and is never written to** (D14/D15).
 >
 > See [`SHAREPOINT_V2_BACKEND_READINESS.md`](./SHAREPOINT_V2_BACKEND_READINESS.md),
-> [`ARCHITECTURE.md`](./ARCHITECTURE.md) §3.2, and the contract in
-> [`../src/v2/store/EscalationStore.js`](../src/v2/store/EscalationStore.js).
+> [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md),
+> [`STORE_CONTRACT.md`](./STORE_CONTRACT.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md) §3.2, and
+> the contract in [`../src/v2/store/EscalationStore.js`](../src/v2/store/EscalationStore.js).
 
 ## 1. The seam
 All UI and app logic depend **only** on the abstract `EscalationStore` contract — never on a
@@ -129,6 +132,8 @@ Any adapter must implement the entire `EscalationStore` contract with the same s
 ## 8. No live integration yet (scope guard)
 This plan adds **no** live backend, network code, credentials, environment variables, app
 registrations, tenant/client IDs, secrets, live URLs, or Power Automate flows. It is design
-documentation plus a design-only schema. Live adapter work is **blocked** on D3/D6/D7 and the
-backend-adapter readiness checklist. The `EscalationStore` abstraction is preserved exactly
-as-is.
+documentation plus a design-only schema. **D3 is decided (SharePoint v2)**, but live adapter
+work is still **blocked** on **D6/D7** and the backend-adapter / dry-run checklists, and
+proceeds only via the staged
+[`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md) with **no legacy
+writeback** (D15). The `EscalationStore` abstraction is preserved exactly as-is.

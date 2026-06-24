@@ -1,17 +1,22 @@
 # SharePoint List v2 — Backend Readiness (design-only, no flows)
 
-> **Loop 8.** This document prepares the v2 system for a *future* SharePoint List backend.
-> It is **design-only**. Nothing here connects to, provisions, or modifies SharePoint,
-> Microsoft Graph, Dataverse, Azure Functions, or any live service. **No Power Automate
-> flows are created.** No credentials, tenant IDs, client IDs, secrets, site URLs, or OAuth
-> scopes are introduced. The MVP remains the in-memory `MockStore`.
+> **Loop 8 (updated Loop 11).** This document prepares the v2 system for a SharePoint List
+> backend. **As of Loop 11, SharePoint List v2 / Microsoft List v2 is the ACCEPTED backend
+> target (decision D3)** — no longer provisional. It remains **design-only**: nothing here
+> connects to, provisions, or modifies SharePoint, Microsoft Graph, Dataverse, Azure
+> Functions, or any live service. **No Power Automate flows are created** (deferred — D11). No
+> credentials, tenant IDs, client IDs, secrets, site URLs, or OAuth scopes are introduced. The
+> MVP remains the in-memory `MockStore`; the legacy tracker **stays operational and is never
+> written to** during the transition (D14/D15).
 >
 > Companion docs: [`BACKEND_ADAPTER_PLAN.md`](./BACKEND_ADAPTER_PLAN.md),
-> [`DATA_MODEL.md`](./DATA_MODEL.md), [`DECISION_LOG.md`](./DECISION_LOG.md) (D3, D11),
+> [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md),
+> [`LEGACY_TO_V2_MAPPING_PLAN.md`](./LEGACY_TO_V2_MAPPING_PLAN.md),
+> [`DATA_MODEL.md`](./DATA_MODEL.md), [`DECISION_LOG.md`](./DECISION_LOG.md) (D3, D11, D14, D15),
 > [`MIGRATION_SPEC.md`](./MIGRATION_SPEC.md). Design artifact:
 > [`../src/v2/backend/sharepoint/schema.sharepoint-v2.json`](../src/v2/backend/sharepoint/schema.sharepoint-v2.json).
 
-## 1. Why SharePoint List v2 is the provisional backend target
+## 1. Why SharePoint List v2 is the accepted backend target (D3)
 - **Lowest friction to a working backend.** The team and tenant already run on Microsoft
   365 / SharePoint. A v2 list set can be stood up by an admin without new infrastructure,
   hosting, or licensing decisions.
@@ -20,11 +25,13 @@
 - **Built-in views, indexing, and permissions.** SharePoint gives list views, column
   indexes, and item/list permissions out of the box — enough for an MVP queue tool.
 - **Behind the `EscalationStore` seam.** Because all app logic depends only on the
-  `EscalationStore` contract (not on any backend), SharePoint is just *one possible adapter*.
-  Choosing it now does not lock us in — D3 (managed API/DB vs. Dataverse vs. SharePoint)
-  stays open, and a later swap is a new adapter, not a rewrite.
-- **Provisional, not final.** This is the *MVP phase-1 readiness target*, explicitly
-  reversible. See §9 risks and the recommendation checkpoint in §11.
+  `EscalationStore` contract (not on any backend), SharePoint is just *one adapter*. D3 is now
+  **decided** (SharePoint v2), but the seam keeps a future re-platform possible — a swap would
+  be a new adapter, not a rewrite.
+- **Accepted (Loop 11).** D3 closes the backend choice as SharePoint v2. This decides the
+  *target*; it does **not** authorize a live build (still gated by D6/D7 and the checklists).
+  Dataverse/managed-API remain reconsiderable only if SharePoint limits become blocking — see
+  the recommendation checkpoint in §11.
 
 ## 2. Why Power Automate is deferred for MVP phase 1
 - **Avoids opaque, hard-to-version logic.** Flows live outside the repo, are hard to code
@@ -200,12 +207,13 @@ step-by-step recipe lives in
    the backend-adapter readiness checklist.
 7. Run the **mock-parity contract tests** against a disposable test site before any cutover.
 
-## 11. Claude / AI recommendation checkpoint (for the later architecture decision)
-> A decision aid for a *future* loop. Not a decision; D3/D11 remain owned by Rod.
+## 11. Claude / AI recommendation checkpoint (revisit triggers)
+> **D3 is now decided: SharePoint List v2 (Loop 11).** This section is retained as a
+> *revisit guide* — the conditions under which the team should reconsider the platform later.
 
-**Current recommendation:** SharePoint List v2 with **no flows** is the right MVP phase-1
-readiness path — it minimizes new moving parts, keeps all business logic in the testable
-domain layer, and stays fully behind the swap seam.
+**Standing recommendation:** SharePoint List v2 with **no flows** is the right MVP phase-1
+path — it minimizes new moving parts, keeps all business logic in the testable domain layer,
+and stays fully behind the swap seam.
 
 **Reconsider Power Automate / Graph / Azure when any of these become true:**
 - Notifications (email/Teams) or scheduled SLA escalations become MVP-required → a *single,

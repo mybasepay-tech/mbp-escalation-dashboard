@@ -1,7 +1,12 @@
 # Migration Spec — Legacy → v2
 
 > Planning scaffold. **The legacy tracker is a READ-ONLY source.** Migration never writes
-> back to it. See [`harness/MIGRATION_DRY_RUN_CHECKLIST.md`](../harness/MIGRATION_DRY_RUN_CHECKLIST.md)
+> back to it (decision **D15**). The backend target is **SharePoint List v2** (decision **D3**,
+> Loop 11) and migration runs under the staged
+> [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md). For the
+> build-ready, field-by-field handling of the chosen backend see
+> [`LEGACY_TO_V2_MAPPING_PLAN.md`](./LEGACY_TO_V2_MAPPING_PLAN.md). See also
+> [`harness/MIGRATION_DRY_RUN_CHECKLIST.md`](../harness/MIGRATION_DRY_RUN_CHECKLIST.md)
 > and [`harness/NO_PRODUCTION_MODIFICATION_CHECKLIST.md`](../harness/NO_PRODUCTION_MODIFICATION_CHECKLIST.md).
 
 ## 1. Principles
@@ -39,7 +44,7 @@ writable v2 store and the legacy reader are separate components and must never b
 | `OriginalAssignedDept` | `migrationNotes` | Keep as history note. |
 | `EscalationDate` | `escalationDate` | |
 | `ExpectedResolutionDate` | `expectedResolutionDate` | |
-| `ResolvedDate` | `resolvedDate` | |
+| `ResolvedDate` | `completedDate` | Loop 7 (D10): single `completedDate`; set only when status maps to **Complete**. |
 | `FinancialImpactAmount` | `financialImpactAmount` | |
 | `AmountRemaining` | `amountRemaining` | |
 | `MemberName`/`CustomerName`/`WorkerName` | (structured fields/notes) | Keep. |
