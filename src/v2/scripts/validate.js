@@ -220,6 +220,18 @@ function checkLiveClientGate() {
   record(problems.length === 0, 'Live SharePoint client gate present + fail-closed (D21, no committed live markers)', problems.join('; '));
 }
 
+// ----- 8e. Runtime config + secrets stay git-ignored; none committed (D22) -----
+function checkRuntimeConfigIgnored() {
+  const provIgnore = (() => { try { return readFileSync(join(V2_ROOT, 'backend', 'sharepoint', 'provisioning', '.gitignore'), 'utf8'); } catch { return ''; } })();
+  const liveIgnore = (() => { try { return readFileSync(join(V2_ROOT, 'backend', 'sharepoint', 'live', '.gitignore'), 'utf8'); } catch { return ''; } })();
+  const problems = [];
+  if (!/provision\.config\.json/.test(provIgnore)) problems.push('provisioning/.gitignore must ignore provision.config.json');
+  for (const [why, re] of [['testsite.config.json', /testsite\.config\.json/], ['transport bootstrap', /transport/i], ['.env', /\.env/], ['secrets', /secret/i]]) {
+    if (!re.test(liveIgnore)) problems.push(`live/.gitignore must ignore ${why}`);
+  }
+  record(problems.length === 0, 'Runtime config + secrets git-ignored (D22, no committed live config)', problems.join('; '));
+}
+
 // ----- 9. Transition governance docs (decision, parallel-run, guardrails, no-writeback) -----
 function checkTransitionDocs() {
   const REPO_ROOT = dirname(dirname(V2_ROOT)); // .../mbp-escalation-dashboard
@@ -385,6 +397,7 @@ checkAdapterStub();
 checkFakeSimulator();
 checkResilienceHardening();
 checkLiveClientGate();
+checkRuntimeConfigIgnored();
 checkTransitionDocs();
 checkPhase2Docs();
 checkLocalFirstDocs();

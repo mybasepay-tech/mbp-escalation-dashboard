@@ -235,6 +235,20 @@ Loop 17 built the bridge to live without committing anything live:
 - No live run was performed (no runtime config/auth present); `MockStore` remains the active UI
   backend; both contracts still pass.
 
+### Loop 18 — live test-site execution prep (D22; no live run)
+Execution-prep only — verified readiness without touching anything live:
+- **Fail-closed verified:** the provisioning dry-run and the live runner both **reject** the
+  example-default config (`phase2Approved=false` + placeholder site reference). Good.
+- **Ignore rules verified + guarded:** runtime config (`provision.config.json`,
+  `testsite.config.json`), the transport bootstrap (`transport.local.js`), `.env`, and secrets
+  are git-ignored; a committed guard test + `npm run validate` check (D22) keep those rules from
+  regressing.
+- **Live run SKIPPED — reason:** `PnP.PowerShell` is not installed, and the approved
+  non-production test-site reference, D6 app/auth, and transport bootstrap are not present. Per
+  the safety rules, nothing was faked.
+- No runtime config / transport bootstrap was committed; no real lists, no flows, no legacy
+  writeback; `MockStore` remains the active UI backend.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

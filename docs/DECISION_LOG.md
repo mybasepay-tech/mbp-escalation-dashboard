@@ -334,6 +334,27 @@
   supplies the git-ignored config + auth against the approved non-production test site.
 - **Blocks:** nothing in-repo; it *governs* the live test-site execution.
 
+### D22 — Live execution requires local git-ignored config + transport; repo stays secret-free (Loop 18)
+- **Status:** **Accepted** (execution-prep; no live run performed this loop).
+- **Context:** The live run needs runtime config, auth, a transport bootstrap, and the
+  `PnP.PowerShell` module — none of which are committed or available in CI. The committed repo
+  must remain free of live identifiers and secrets **by construction**, and the ignore rules
+  that guarantee this must not silently regress.
+- **Decision:**
+  - Runtime config (`provision.config.json`, `testsite.config.json`), the transport bootstrap
+    (`transport.local.js` / `*.transport.js`), `.env`, auth caches, and live reports are
+    **git-ignored** and **never committed**; only `*.example.json` + code/docs are tracked.
+  - A committed **guard test** + a `npm run validate` check assert those ignore rules stay in
+    place, so a future edit can't accidentally start tracking a secret-bearing file.
+  - Live execution proceeds **only** when an operator supplies the git-ignored config + auth +
+    transport against the approved **non-production** test site, and every fail-closed guard
+    passes. Loop 18 verified the scripts **fail closed** on example defaults and that the
+    runtime-config paths are git-ignored; it performed **no live run** (PnP module + approved
+    site reference + auth not present).
+- **Scope:** repo-level safety + execution-prep. `MockStore` remains the active UI backend; no
+  live integration, no real lists/flows, no legacy writeback.
+- **Blocks:** nothing in-repo; it documents and guards the live-execution preconditions.
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -364,6 +385,7 @@
 | D19 | Simulator-first adapter validation (Loop 15) | SharePointStore passes the store contract against a local FakeSharePoint simulator before live execution | No (sequences adapter work) | **Accepted** (local/simulated) |
 | D20 | Adapter resilience hardening (Loop 16) | Prove throttling retry, ETag conflict retry, activity idempotency/compensation, tag-link uniqueness locally before live | No (gates live readiness) | **Accepted** (local/simulated) |
 | D21 | Live real-client execution gate (Loop 17) | Fail-closed `SharePointLiveClient` (injected transport, no SDK/secrets in git) + gated runner; store-contract acceptance | No (governs live execution) | **Accepted** (gate committed) |
+| D22 | Live execution prerequisites (Loop 18) | Runtime config + transport bootstrap stay local/git-ignored; committed guard keeps repo secret-free; no live run yet | No (execution-prep) | **Accepted** (prep only) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -420,6 +442,10 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   or identifiers in git) plus a gated runner enforce approvals and refuse legacy/production. Live
   execution runs only with operator-supplied git-ignored config + interactive auth against the
   approved non-production test site; the store-contract first-green run is the acceptance gate.
+- **D22 — Live execution prerequisites (Loop 18): Accepted.** Runtime config + transport
+  bootstrap stay local and git-ignored; a committed guard test + validate check keep the repo
+  secret-free. Loop 18 verified fail-closed behavior and ignore rules but performed no live run
+  (PnP module + approved site reference + auth not present).
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional
