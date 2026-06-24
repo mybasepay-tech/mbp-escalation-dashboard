@@ -149,8 +149,10 @@ any live work:
 
 ## 8. Future Graph / SharePoint adapter approach
 - **A single new class `SharePointStore extends EscalationStore`** implementing the exact
-  same contract as `MockStore` (see [`BACKEND_ADAPTER_PLAN.md`](./BACKEND_ADAPTER_PLAN.md)).
-  Callers/UI do not change.
+  same contract as `MockStore` (see [`BACKEND_ADAPTER_PLAN.md`](./BACKEND_ADAPTER_PLAN.md)). A
+  **design-only stub** already exists ([`../src/v2/store/SharePointStore.js`](../src/v2/store/SharePointStore.js))
+  — it mirrors the interface and throws a clear design-only error on every call; no network,
+  no SDKs. Callers/UI do not change.
 - **Access via Microsoft Graph list APIs** (`/sites/{site}/lists/{list}/items`) using a
   dedicated v2 Entra app (D6) with least-privilege scopes — **not built now**.
 - **Translation layer** maps model ↔ columns using the `mapsTo` metadata already in the
@@ -159,9 +161,10 @@ any live work:
   ticket mutations (mirroring `MockStore.#record`).
 - **No Power Automate dependency**: the adapter does the reads/writes directly; flows, if
   ever added, would be additive (e.g. notifications), never the system of record.
-- **Mock parity is the contract test**: the same `store.test.js` / `interactions.test.js`
-  suites should pass against `SharePointStore` (run against a disposable test site) before
-  any cutover.
+- **Mock parity is the contract test (D13)**: the reusable store contract
+  ([`STORE_CONTRACT.md`](./STORE_CONTRACT.md)) — which passes against `MockStore` today — is
+  the **acceptance gate**. `SharePointStore` ships only when it passes the *identical* contract
+  run against a disposable test site, before any cutover.
 
 ## 9. Risks and open questions
 - **OQ-1 — D3 not decided.** SharePoint is *provisional*. If D3 lands on Dataverse or a

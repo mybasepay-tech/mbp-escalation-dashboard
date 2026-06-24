@@ -104,6 +104,7 @@ src/v2/
   store/
     EscalationStore.js  # abstract data-access contract (the swap seam)
     MockStore.js        # in-memory implementation (the only backend in MVP)
+    SharePointStore.js  # DESIGN-ONLY stub — mirrors the interface, throws not-connected
   mock/
     seed.js        # fabricated sample data (all required scenarios)
     demo.js        # local inspection script
@@ -127,6 +128,9 @@ src/v2/
     safety.test.js       # no production strings / network calls; fake legacy domain
     ui-smoke.test.js     # view-model rendering + UI-specific safety scan
     sharepoint-schema.test.js  # design-only schema parses, lists/fields, no live markers
+    store-contract.test.js     # runs the reusable store contract on MockStore; asserts SharePointStore is design-only
+    store-contract/
+      contract.js              # reusable EscalationStore behavioral contract (backend-agnostic)
   README.md
 ```
 
@@ -136,6 +140,14 @@ All app logic depends on the `EscalationStore` contract, not on any backend. The
 without changing callers — see [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
 §3.2. **Microsoft Graph is explicitly NOT part of this foundation**; it would only ever be
 one possible future adapter behind this seam.
+
+A reusable **store contract** ([`tests/store-contract/contract.js`](./tests/store-contract/contract.js),
+documented in [`../../docs/STORE_CONTRACT.md`](../../docs/STORE_CONTRACT.md)) defines the
+behavior every `EscalationStore` must satisfy. It runs against `MockStore` today and is the
+**acceptance gate** for any future adapter (decision **D13**).
+[`store/SharePointStore.js`](./store/SharePointStore.js) is a **design-only stub**: it mirrors
+the interface and throws a clear design-only error on every operation — no network, no SDK
+imports, no secrets. `MockStore` remains the only real backend.
 
 ## SharePoint backend readiness (design-only — no live services)
 `backend/sharepoint/schema.sharepoint-v2.json` is a **static, design-only** blueprint of the

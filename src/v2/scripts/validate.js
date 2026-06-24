@@ -115,6 +115,23 @@ function checkSharePointSchema() {
   record(ok, 'SharePoint v2 schema valid + design-only (no live markers)', detail);
 }
 
+// ----- 8. Future adapter stub stays design-only (no SDKs, no network, throws) -----
+function checkAdapterStub() {
+  const path = join(V2_ROOT, 'store', 'SharePointStore.js');
+  const src = readFileSync(path, 'utf8');
+  const problems = [];
+  if (!/design-only and not connected/i.test(src)) problems.push('missing the design-only error message');
+  const SDK = [
+    /@microsoft\/microsoft-graph-client/i, /@pnp\/sp/i, /@azure\//i, /@microsoft\/sp-/i,
+    /isomorphic-fetch|node-fetch|cross-fetch/i,
+  ];
+  for (const re of SDK) if (re.test(src)) problems.push(`live SDK import (${re})`);
+  if (/\bfetch\s*\(/.test(src)) problems.push('fetch() call');
+  if (/XMLHttpRequest/.test(src)) problems.push('XMLHttpRequest');
+  if (/process\.env/.test(src)) problems.push('environment variable use');
+  record(problems.length === 0, 'SharePointStore adapter is design-only (no SDK/network/secrets)', problems.join('; '));
+}
+
 // ----- run -----
 console.log('Escalation v2 — local readiness validation (mock/local only)\n');
 runTests();
@@ -124,6 +141,7 @@ scanLegacyDomain();
 scanLegacyWriteBack();
 scanServerLoopback();
 checkSharePointSchema();
+checkAdapterStub();
 
 let allOk = true;
 for (const r of results) {
