@@ -1,0 +1,7 @@
+# NEVER commit real runtime config or reports. Only the *.example.json is tracked.
+provision.config.json
+*.local.json
+*.secret.json
+*-report.json
+*-report.txt
+*.report.*

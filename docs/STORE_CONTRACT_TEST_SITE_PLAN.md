@@ -47,7 +47,9 @@ async function makeSharePointTestStore(seed) {
 - The factory **never** references legacy and **never** writes outside the test site.
 
 ## 3. Setup / teardown expectations
-- **Setup:** ensure the 8 lists exist (built via the runbook), then load the seed for the run's
+- **Setup:** ensure the 8 lists exist — built via the scripted, fail-closed provisioning
+  package ([`../src/v2/backend/sharepoint/provisioning/`](../src/v2/backend/sharepoint/provisioning/),
+  D18) and confirmed by `validate-sharepoint-v2.ps1` — then load the seed for the run's
   namespace. Setup must be **idempotent** and **fail-closed** if it detects a non-test target.
 - **Teardown:** remove all rows created by the run (by `RunTag`, see §4); optionally delete the
   whole disposable site at the end of a session. Teardown runs even on test failure.

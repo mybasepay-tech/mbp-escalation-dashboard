@@ -1,0 +1,13 @@
+{
+  "_comment": "EXAMPLE provisioning config — PLACEHOLDERS ONLY. Copy to provision.config.json (GIT-IGNORED) and fill in your APPROVED non-production test-site values at runtime. NEVER commit real values: no real site URL, tenant ID, client ID, secret, or user-specific identifier belongs in git. Safe defaults below are intentionally fail-closed (phase2Approved=false) so the example cannot provision anything as-is.",
+  "environmentLabel": "test",
+  "siteReferencePlaceholder": "<TEST_SITE_REFERENCE>",
+  "phase2Approved": false,
+  "nonProductionOnly": true,
+  "legacyWritebackAllowed": false,
+  "powerAutomateAllowed": false,
+  "allowCleanup": false,
+  "listPrefix": "Escalations_v2_",
+  "runNamespace": "ct_local_example",
+  "operatorNotes": "Set phase2Approved=true and replace siteReferencePlaceholder with the approved non-production test-site reference in your git-ignored provision.config.json. Do not point at legacy or production. No Power Automate flows are created. No writeback to legacy."
+}

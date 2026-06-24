@@ -1,10 +1,12 @@
-# SharePoint v2 — Phase-2 Test-Site Build Runbook (design-only)
+# SharePoint v2 — Phase-2 Test-Site Build Runbook
 
-> ⚠️ **DESIGN-ONLY. DO NOT RUN AGAINST PRODUCTION OR LEGACY.** This is a step-by-step recipe
-> for building the v2 lists on a **disposable, company-owned, non-production SharePoint test
-> site** — to be executed **only after** the approvals in §3 are in place. This document does
-> not connect to anything, creates no lists, adds no credentials, and authorizes nothing on
-> its own. It introduces no tenant IDs, client IDs, site URLs, secrets, or live endpoints.
+> ✅ **Phase 2 is approved (Rod/IT).** Execution is now permitted **only** against a
+> **disposable, company-owned, non-production SharePoint test site**, via the **scripted,
+> fail-closed provisioning package**
+> ([`../src/v2/backend/sharepoint/provisioning/`](../src/v2/backend/sharepoint/provisioning/),
+> decision **D18**). This runbook document itself connects to nothing and contains no tenant
+> IDs, client IDs, site URLs, secrets, or live endpoints — those are supplied at runtime in an
+> operator's **git-ignored** config. **DO NOT RUN AGAINST PRODUCTION OR LEGACY.**
 >
 > Phase mapping: this is **Phase 2** of
 > [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md). The legacy tracker
@@ -63,6 +65,12 @@ any Power Automate flow, any production data migration, enabling end users, or c
 - No tenant-level changes are required or permitted.
 
 ## 6. List creation sequence
+> **Execution:** the scripted package automates §6–§9 from the schema in this exact dependency
+> order — `provision-sharepoint-v2.ps1` (dry-run by default; `-Execute` to apply), then
+> `validate-sharepoint-v2.ps1`, with `cleanup-sharepoint-v2-testsite.ps1` for rollback. See
+> [`../src/v2/backend/sharepoint/provisioning/README.md`](../src/v2/backend/sharepoint/provisioning/README.md)
+> and the [provisioning safety checklist](../harness/SHAREPOINT_V2_PROVISIONING_SAFETY_CHECKLIST.md).
+
 Create lists in **dependency order** so lookups resolve. Internal names **must** equal the
 schema keys.
 1. `Escalations_v2_Departments`

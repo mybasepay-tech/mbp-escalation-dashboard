@@ -234,6 +234,56 @@ function checkLocalFirstDocs() {
   record(problems.length === 0, 'Local-first model + Phase-2 approval package present (D17, OneDrive not backend)', problems.join('; '));
 }
 
+// ----- 12. SharePoint v2 provisioning package (config-driven, fail-closed, non-production) -----
+function checkProvisioningPackage() {
+  const dir = join(V2_ROOT, 'backend', 'sharepoint', 'provisioning');
+  const problems = [];
+  const files = [
+    'provision-sharepoint-v2.ps1', 'validate-sharepoint-v2.ps1',
+    'cleanup-sharepoint-v2-testsite.ps1', 'provisioning.common.ps1',
+    'provision.config.example.json', 'README.md', 'provisioning-manifest.json', '.gitignore',
+  ];
+  const texts = {};
+  for (const f of files) {
+    const fp = join(dir, f);
+    try { texts[f] = readFileSync(fp, 'utf8'); } catch { problems.push(`${f} missing`); }
+  }
+  // Real runtime config must never be committed.
+  try { statSync(join(dir, 'provision.config.json')); problems.push('provision.config.json must NOT be committed'); } catch { /* good */ }
+
+  const common = texts['provisioning.common.ps1'] || '';
+  for (const [why, re] of [
+    ['fail-closed gate', /Assert-SafeConfig/], ['phase2Approved gate', /phase2Approved/],
+    ['nonProductionOnly gate', /nonProductionOnly/], ['no legacy writeback gate', /legacyWritebackAllowed/],
+    ['no Power Automate gate', /powerAutomateAllowed/], ['references schema', /schema\.sharepoint-v2\.json/],
+  ]) if (!re.test(common)) problems.push(`common helper: missing ${why}`);
+
+  // Example config safe defaults.
+  if (texts['provision.config.example.json']) {
+    let cfg;
+    try { cfg = JSON.parse(texts['provision.config.example.json']); } catch { problems.push('example config not valid JSON'); }
+    if (cfg) {
+      if (cfg.phase2Approved !== false) problems.push('example phase2Approved must be false');
+      if (cfg.nonProductionOnly !== true) problems.push('example nonProductionOnly must be true');
+      if (cfg.legacyWritebackAllowed !== false) problems.push('example legacyWritebackAllowed must be false');
+      if (cfg.powerAutomateAllowed !== false) problems.push('example powerAutomateAllowed must be false');
+      if (cfg.allowCleanup !== false) problems.push('example allowCleanup must be false');
+    }
+  }
+
+  // No live markers in any tracked package file.
+  const LIVE = [
+    ['Graph host', /graph\.microsoft\.com/i], ['SharePoint host', /\bsharepoint\.com/i],
+    ['Azure host', /microsoftonline\.com|azurewebsites\.net/i], ['REST path', /_api\/web|\/v1\.0\/sites/i],
+    ['GUID', /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i],
+    ['secret', /(client_secret|clientSecret|api[_-]?key)\s*[:=]/i], ['http URL', /https?:\/\/[a-z0-9.-]+/i],
+  ];
+  for (const [f, text] of Object.entries(texts)) {
+    for (const [why, re] of LIVE) if (re.test(text)) problems.push(`${f}: live marker (${why})`);
+  }
+  record(problems.length === 0, 'SharePoint v2 provisioning package config-driven + fail-closed (D18, no live markers)', problems.join('; '));
+}
+
 // ----- run -----
 console.log('Escalation v2 — local readiness validation (mock/local only)\n');
 runTests();
@@ -247,6 +297,7 @@ checkAdapterStub();
 checkTransitionDocs();
 checkPhase2Docs();
 checkLocalFirstDocs();
+checkProvisioningPackage();
 
 let allOk = true;
 for (const r of results) {

@@ -170,6 +170,22 @@ Loop 13 clarified where things live and packaged the approval ask:
 - Still **design-only**: no live integration, no real lists/flows, no credentials/URLs, no
   OneDrive backend, no legacy writeback; `SharePointStore` stub; `MockStore` active.
 
+### Loop 14 — SharePoint v2 provisioning package (Phase 2 approved; controlled execution)
+Phase 2 is approved (Rod/IT). Loop 14 added the **scripted, config-driven, fail-closed**
+provisioning package — still safe-by-construction and committing **no** live anything:
+- **Provisioning package** ([`../src/v2/backend/sharepoint/provisioning/`](../src/v2/backend/sharepoint/provisioning/)):
+  `provision` / `validate` / `cleanup` PowerShell scripts + a shared fail-closed safety helper,
+  a placeholder example config, a manifest, a `.gitignore`, and a README.
+- **Fail-closed gate (D18):** scripts refuse to act unless `phase2Approved=true`,
+  `nonProductionOnly=true`, `legacyWritebackAllowed=false`, `powerAutomateAllowed=false`, a
+  non-production label, the `Escalations_v2_` prefix, and a non-legacy target; live connects
+  re-check the web and abort on legacy/production tokens. Dry-run is the default.
+- **No secrets in git:** real `provision.config.json` is **git-ignored**; interactive auth
+  only; missing module/auth → clear prerequisite error (no faking).
+- **Safety checklist:** [`../harness/SHAREPOINT_V2_PROVISIONING_SAFETY_CHECKLIST.md`](../harness/SHAREPOINT_V2_PROVISIONING_SAFETY_CHECKLIST.md).
+- Still: **no** real lists created by committing this, **no** Power Automate, **no** legacy
+  writeback, **no** production cutover; `SharePointStore` remains a stub; `MockStore` active.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

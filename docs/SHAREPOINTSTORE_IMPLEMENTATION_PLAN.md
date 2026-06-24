@@ -28,6 +28,12 @@ SDKs, makes no network calls, and holds no config. This plan describes what repl
 throws **later**, on a test site.
 
 ## 3. Future implementation scope
+> **Prerequisite (D18):** the test site must first be provisioned and **validated against the
+> schema** using the scripted, fail-closed package
+> ([`../src/v2/backend/sharepoint/provisioning/`](../src/v2/backend/sharepoint/provisioning/))
+> before adapter implementation begins. Build lists → `validate-sharepoint-v2.ps1` green →
+> implement `SharePointStore` → store-contract first green run.
+
 - A single `SharePointStore` class translating the contract ↔ SharePoint list items.
 - Access via Microsoft Graph list APIs using the D6 app (least-privilege, test-site scope) —
   **not built now**.

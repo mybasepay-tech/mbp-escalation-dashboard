@@ -242,6 +242,29 @@
 - **Scope:** design-only. Reinforces D14 (legacy operational) and D15 (no writeback).
 - **Blocks:** nothing; it is a standing storage-location rule.
 
+### D18 — SharePoint v2 provisioning is scripted, config-driven, and fail-closed (Loop 14)
+- **Status:** **Accepted** (Phase 2 approved by Rod/IT; controlled execution).
+- **Context:** With Phase 2 approved, the test-site build must be repeatable, safe, and
+  reviewable — not hand-clicked — and must be impossible to misfire against legacy/production.
+- **Decision:**
+  - Provisioning is performed by a **scripted, config-driven** package
+    ([`../src/v2/backend/sharepoint/provisioning/`](../src/v2/backend/sharepoint/provisioning/)):
+    `provision` / `validate` / `cleanup` PowerShell scripts plus a shared fail-closed safety
+    helper, driven by the schema and an operator-supplied **git-ignored** config.
+  - **Fail-closed & non-production-first:** every script refuses to act unless
+    `phase2Approved=true`, `nonProductionOnly=true`, `legacyWritebackAllowed=false`,
+    `powerAutomateAllowed=false`, a non-production `environmentLabel`, the `Escalations_v2_`
+    prefix, and a non-legacy/non-production target. Live connection re-checks the connected web
+    and aborts on legacy/production tokens.
+  - **No secrets in git:** real config (`provision.config.json`) is git-ignored; scripts use
+    interactive auth only and store no credentials. Missing module/auth → clear prerequisite
+    error, never a fake result.
+  - The package must **validate against the schema** (8 lists) and be confirmed before any
+    `SharePointStore` adapter implementation proceeds (composes with D16's contract gate).
+- **Scope:** execution-ready for a **non-production test site only**; no real lists are created
+  by committing this package. No Power Automate, no legacy writeback, no production cutover.
+- **Blocks:** nothing in-repo; it *governs* the Phase-2 build execution.
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -268,6 +291,7 @@
 | D15 | Legacy writeback policy (Loop 11) | No writeback to legacy during MVP/build/migration unless separately approved | No (standing rule) | **Accepted** |
 | D16 | Phase-2 build governance (Loop 12) | Test-site build is runbook-driven; adapter must pass the store contract before any production step | No (gates Phase 2) | **Accepted** |
 | D17 | Local-first storage model (Loop 13) | Repo-local mock/design now; real data only in dedicated SharePoint v2 lists later; OneDrive is not backend storage | No (standing rule) | **Accepted** |
+| D18 | Provisioning is scripted + fail-closed (Loop 14) | Config-driven, non-production-first PowerShell provisioning; no secrets in git; validate vs. schema before adapter | No (governs Phase 2) | **Accepted** (Phase 2 approved) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -306,6 +330,11 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   mock/design artifacts now (`C:\dev\mbp-escalation-dashboard`); real data only in dedicated
   SharePoint v2 lists later (test site → production, gated). OneDrive synced folders are not
   backend storage.
+- **D18 — Provisioning scripted + fail-closed (Loop 14): Accepted.** Phase 2 approved;
+  provisioning is a config-driven, non-production-first, fail-closed PowerShell package with no
+  secrets in git, validated against the schema before adapter implementation. No live lists are
+  created by committing it; execution requires an operator's git-ignored config + interactive
+  auth against the approved test site.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional
