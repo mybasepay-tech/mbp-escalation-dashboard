@@ -265,6 +265,27 @@
   by committing this package. No Power Automate, no legacy writeback, no production cutover.
 - **Blocks:** nothing in-repo; it *governs* the Phase-2 build execution.
 
+### D19 — SharePointStore is validated against a local simulator before live execution (Loop 15)
+- **Status:** **Accepted** (design/local; no live work).
+- **Context:** The adapter's tricky logic (ETag concurrency, ticket+activity atomicity, the D12
+  one-active-link-per-(ticket,tag) rule, paging, null-not-found) should be proven with zero live
+  dependencies before spending a live test site.
+- **Decision:**
+  - A local, in-memory **FakeSharePoint simulator**
+    ([`../src/v2/backend/sharepoint/fake/`](../src/v2/backend/sharepoint/fake/)) models item
+    ids, ETags, 404/412/429, paging, filtering, and active-link soft-delete — **no network, no
+    SDKs, no auth, no URLs**.
+  - **`SharePointStore`** is implemented to operate against an **injected** client and must pass
+    the **same store contract** as `MockStore` (D13/D16), run against the simulator
+    ([`../src/v2/tests/sharepoint-store-simulated-contract.test.js`](../src/v2/tests/sharepoint-store-simulated-contract.test.js)).
+    Without an injected client it remains **fail-closed** (design-only).
+  - The simulated green contract run is the **prerequisite** to live test-site execution; the
+    live first-green run remains the true acceptance gate (real SharePoint quirks surface only
+    there).
+- **Scope:** fully local/simulated. `MockStore` remains the active UI backend; no live
+  integration, no real lists, no legacy writeback, no Power Automate.
+- **Blocks:** nothing; it *sequences* adapter validation ahead of live execution.
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -292,6 +313,7 @@
 | D16 | Phase-2 build governance (Loop 12) | Test-site build is runbook-driven; adapter must pass the store contract before any production step | No (gates Phase 2) | **Accepted** |
 | D17 | Local-first storage model (Loop 13) | Repo-local mock/design now; real data only in dedicated SharePoint v2 lists later; OneDrive is not backend storage | No (standing rule) | **Accepted** |
 | D18 | Provisioning is scripted + fail-closed (Loop 14) | Config-driven, non-production-first PowerShell provisioning; no secrets in git; validate vs. schema before adapter | No (governs Phase 2) | **Accepted** (Phase 2 approved) |
+| D19 | Simulator-first adapter validation (Loop 15) | SharePointStore passes the store contract against a local FakeSharePoint simulator before live execution | No (sequences adapter work) | **Accepted** (local/simulated) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -335,6 +357,10 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   secrets in git, validated against the schema before adapter implementation. No live lists are
   created by committing it; execution requires an operator's git-ignored config + interactive
   auth against the approved test site.
+- **D19 — Simulator-first adapter validation (Loop 15): Accepted.** `SharePointStore` is
+  implemented against an injected client and passes the same store contract as `MockStore` via a
+  local, in-memory FakeSharePoint simulator (no network/SDK/auth). Default (no client) stays
+  fail-closed. This precedes — and de-risks — live test-site execution.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional

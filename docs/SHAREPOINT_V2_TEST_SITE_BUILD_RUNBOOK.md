@@ -140,9 +140,11 @@ After **all** lists: run the schema-conformance spot-check (list/column/index/vi
       validation.
 
 ## 13. Store contract test preparation
-- [ ] Implement `SharePointStore` per
-      [`SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md`](./SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md)
-      (test-site only).
+- [ ] **Already done locally (D19):** `SharePointStore` passes the store contract against the
+      in-memory FakeSharePoint simulator — see
+      [`SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md`](./SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md) and
+      `src/v2/tests/sharepoint-store-simulated-contract.test.js`. For the live run, swap the fake
+      for a real client behind the same `makeStore(seed)` factory (test-site only).
 - [ ] Wire it into the existing harness via a `makeStore(seed)` factory that loads the standard
       seed into the test site — see [`STORE_CONTRACT_TEST_SITE_PLAN.md`](./STORE_CONTRACT_TEST_SITE_PLAN.md).
 - [ ] Run the **same** store contract that passes against `MockStore` (D13). A **first green

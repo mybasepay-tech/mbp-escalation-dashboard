@@ -37,12 +37,16 @@ UI / viewModel / app  ──►  EscalationStore (abstract contract)
 - It is the **only** backend in the MVP and the **reference behavior** all future adapters
   must match.
 
-## 3. Future backend — `SharePointStore` (design-only stub exists)
-- `class SharePointStore extends EscalationStore` now exists as a **design-only stub**
-  ([`../src/v2/store/SharePointStore.js`](../src/v2/store/SharePointStore.js)): it mirrors the
-  full interface and **throws a clear design-only error on every operation**. No network, no
-  SDK imports, no credentials/env vars/secrets/live URLs. Each method documents its future
-  list mapping (e.g. `setStatus -> Tickets.Status + Activity(status_change)`).
+## 3. Future backend — `SharePointStore` (implemented against an injected client; live deferred)
+- `class SharePointStore extends EscalationStore`
+  ([`../src/v2/store/SharePointStore.js`](../src/v2/store/SharePointStore.js)) is **fail-closed
+  by default** (no injected client → throws the design-only error) and **operational when given
+  an injected client**. No network, no SDK imports, no credentials/env vars/secrets/live URLs.
+- **Loop 15 (D19):** it is validated locally by passing the **same store contract** as
+  `MockStore`, run against the in-memory **FakeSharePoint simulator**
+  ([`../src/v2/backend/sharepoint/fake/`](../src/v2/backend/sharepoint/fake/)). A real Graph/PnP
+  client would be a drop-in replacement for the injected fake. Mapping is table-driven via
+  [`../src/v2/backend/sharepoint/mapping.js`](../src/v2/backend/sharepoint/mapping.js).
 - It will be backed by the design-only schema in
   [`../src/v2/backend/sharepoint/schema.sharepoint-v2.json`](../src/v2/backend/sharepoint/schema.sharepoint-v2.json),
   reached via Microsoft Graph list APIs using a dedicated v2 Entra app (D6) — **none of

@@ -1,76 +1,244 @@
-// SharePointStore — DESIGN-ONLY adapter stub (NOT connected).
+// SharePointStore — EscalationStore adapter for SharePoint List v2.
 //
-// This is a placeholder for a *future* EscalationStore adapter backed by SharePoint List v2
-// (see docs/SHAREPOINT_V2_BACKEND_READINESS.md and the design-only schema at
-// backend/sharepoint/schema.sharepoint-v2.json). It exists so the shape of the future
-// adapter is visible and so the store contract harness has a concrete class to assert is
-// "design-only" — NOT to perform any live work.
+// Two modes:
+//   * DESIGN-ONLY (default, no client): every operation throws a clear design-only error.
+//     This is the safe default and what ships until a live build is approved.
+//   * LOCAL/SIMULATED (constructed with an injected client): operates against an injected
+//     SharePoint-like client. In this repo the only such client is the in-memory
+//     FakeSharePointClient (backend/sharepoint/fake/) — NO network, NO Graph/PnP/Azure SDK, NO
+//     auth, NO URLs. Swapping in a real client later is an implementation detail behind the
+//     same method surface; the store contract does not change.
 //
 // HARD RULES (enforced by tests/safety.test.js, scripts/validate.js, and the contract tests):
 //   * No network calls — this file performs no HTTP I/O and uses no browser request APIs.
 //   * No SDK imports — no Microsoft Graph client, no SharePoint client, no Azure client.
 //   * No credentials, environment variables, tenant/client IDs, secrets, or live URLs.
-//   * Every operation throws a clear design-only error. MockStore is the only real backend.
-//
-// When a controlled build is eventually approved (gated by D3/D6/D7 and the dry-run
-// checklist), this stub becomes a real adapter that translates the EscalationStore contract
-// to SharePoint list items using the `mapsTo` metadata in the schema. Until then it stays
-// inert.
+//   * Business rules live in domain/rules.js; this adapter orchestrates persistence only.
+//   * Never writes to legacy. Tags use the Escalations_v2_TicketTags link list (D12).
 
 import { EscalationStore } from './EscalationStore.js';
+import { createTicket, createComment, createNote, createActivityEvent, newId } from '../domain/models.js';
+import { ACTIVITY_TYPE, OPEN_STATUSES } from '../domain/constants.js';
+import {
+  assignToDepartment, assignToPerson, clearAssignee, changeStatus, changePriority,
+} from '../domain/rules.js';
+import {
+  LISTS, LINK_COLS,
+  ticketToFields, fieldsToTicket, activityToFields, fieldsToActivity,
+  commentToFields, fieldsToComment, noteToFields, fieldsToNote,
+  fieldsToDept, fieldsToUser, fieldsToTag,
+} from '../backend/sharepoint/mapping.js';
 
-/** The single message every design-only operation throws. Exported for tests. */
+/** The single message every design-only (no-client) operation throws. Exported for tests. */
 export const DESIGN_ONLY_MESSAGE =
   'SharePointStore is design-only and not connected. Use MockStore for local MVP.';
 
 export class SharePointStore extends EscalationStore {
   /**
-   * Construction is allowed (so the contract harness and docs can reference the class), but
-   * NOTHING live happens here: no client is created, no config is read, no secret is stored.
-   * @param {object} [opts] - reserved for a future { siteRef, listMap } shape; ignored now.
+   * @param {object} [opts]
+   * @param {object} [opts.client] - an injected SharePoint-like client (e.g. FakeSharePointClient).
+   *   Omit for the fail-closed design-only stub.
    */
   constructor(opts = {}) {
     super();
-    // Intentionally do not retain `opts` — there is no live config in the design-only stub.
-    void opts;
-    /** Marker so callers/tests can detect the stub without instantiating behavior. */
-    this.designOnly = true;
+    this._client = opts.client ?? null;
+    /** True when no client is injected: every operation fails closed. */
+    this.designOnly = !this._client;
   }
 
-  /** Throw the standard design-only error, naming the future SharePoint mapping. */
-  #notConnected(method, mapping) {
-    throw new Error(`${DESIGN_ONLY_MESSAGE} (${method} -> ${mapping})`);
+  #client() {
+    if (!this._client) throw new Error(DESIGN_ONLY_MESSAGE);
+    return this._client;
   }
 
-  // ----- Tickets ----- (future: Escalations_v2_Tickets)
-  async getTicket(_id) { this.#notConnected('getTicket', 'Escalations_v2_Tickets item by TicketKey'); }
-  async listTickets(_filter = {}) { this.#notConnected('listTickets', 'Escalations_v2_Tickets indexed view query'); }
-  async createTicket(_input) { this.#notConnected('createTicket', 'Escalations_v2_Tickets item create + Activity append'); }
+  // ----- internal helpers (LOCAL/SIMULATED mode) -----
+  #ticketRecord(ticketKey) {
+    const { items } = this.#client().query(LISTS.TICKETS, { filter: { TicketKey: ticketKey }, top: 1 });
+    return items[0] ?? null;
+  }
 
-  // ----- Assignment & lifecycle ----- (future: patch Tickets + append Escalations_v2_Activity)
-  async assignDepartment(_id, _deptId, _opts) { this.#notConnected('assignDepartment', 'Tickets.AssignedDeptKey + Activity(assignment_change)'); }
-  async assignPerson(_id, _userId, _opts) { this.#notConnected('assignPerson', 'Tickets.AssigneeKey + Activity(assignment_change)'); }
-  async clearAssignee(_id, _opts) { this.#notConnected('clearAssignee', 'Tickets.AssigneeKey=null + Activity(assignment_change)'); }
-  async setStatus(_id, _status, _opts) { this.#notConnected('setStatus', 'Tickets.Status + Activity(status_change)'); }
-  async setPriority(_id, _priority, _opts) { this.#notConnected('setPriority', 'Tickets.Priority + Activity(priority_change)'); }
+  #requireTicketRecord(ticketKey) {
+    const rec = this.#ticketRecord(ticketKey);
+    if (!rec) throw new Error(`Unknown ticket: ${ticketKey}`);
+    return rec;
+  }
 
-  // ----- Tags ----- (future: Escalations_v2_TicketTags link list — D12, soft-delete)
-  async addTag(_id, _tagId, _opts) { this.#notConnected('addTag', 'Escalations_v2_TicketTags upsert active link + Activity(field_change)'); }
-  async removeTag(_id, _tagId, _opts) { this.#notConnected('removeTag', 'Escalations_v2_TicketTags soft-delete link + Activity(field_change)'); }
+  #activeLinks(ticketKey) {
+    return this.#client().queryAll(LISTS.TICKET_TAGS, { [LINK_COLS.TICKET]: ticketKey, [LINK_COLS.ACTIVE]: true });
+  }
 
-  // ----- Activity, comments, notes ----- (three separate lists)
-  async listActivity(_id) { this.#notConnected('listActivity', 'Escalations_v2_Activity by EscalationKey, asc'); }
-  async listComments(_id) { this.#notConnected('listComments', 'Escalations_v2_Comments by EscalationKey, asc'); }
-  async listNotes(_id) { this.#notConnected('listNotes', 'Escalations_v2_InternalNotes by EscalationKey, asc'); }
-  async addComment(_id, _input) { this.#notConnected('addComment', 'Escalations_v2_Comments create + Activity(comment)'); }
-  async addNote(_id, _input) { this.#notConnected('addNote', 'Escalations_v2_InternalNotes create + Activity(note)'); }
+  #tagIdsFor(ticketKey) {
+    return this.#activeLinks(ticketKey).map((r) => r.fields[LINK_COLS.TAG]);
+  }
 
-  // ----- Views ----- (future: indexed SharePoint views)
-  async departmentQueue(_deptId, _opts) { this.#notConnected('departmentQueue', 'Tickets "Open by Department" view'); }
-  async myAssignedTickets(_userId, _opts) { this.#notConnected('myAssignedTickets', 'Tickets "My Assigned" view'); }
+  #findLink(ticketKey, tagKey, activeOnly) {
+    const filter = { [LINK_COLS.TICKET]: ticketKey, [LINK_COLS.TAG]: tagKey };
+    if (activeOnly) filter[LINK_COLS.ACTIVE] = true;
+    return this.#client().query(LISTS.TICKET_TAGS, { filter, top: 1 }).items[0] ?? null;
+  }
+
+  #materialize(rec) {
+    return fieldsToTicket(rec.fields, this.#tagIdsFor(rec.fields.TicketKey));
+  }
+
+  #allTickets() {
+    return this.#client().queryAll(LISTS.TICKETS).map((rec) => this.#materialize(rec));
+  }
+
+  #appendActivity(event) {
+    this.#client().createItem(LISTS.ACTIVITY, activityToFields(event));
+  }
+
+  // Read the ticket, apply a domain rule (which mutates it + returns events), persist both.
+  // The rule throws BEFORE mutating on an illegal transition / owner gate, so nothing persists.
+  #mutateWithRule(ticketKey, ruleFn) {
+    const rec = this.#requireTicketRecord(ticketKey);
+    const ticket = this.#materialize(rec);
+    const events = ruleFn(ticket);
+    this.#client().updateItem(LISTS.TICKETS, rec.id, ticketToFields(ticket), { ifMatch: rec.etag });
+    for (const e of events) this.#appendActivity(e);
+    return ticket;
+  }
+
+  #tagLabel(tagKey) {
+    const rec = this.#client().query(LISTS.TAGS, { filter: { TagKey: tagKey }, top: 1 }).items[0];
+    return rec ? rec.fields.Label : null;
+  }
+
+  // ----- Tickets -----
+  async getTicket(id) {
+    const rec = this.#ticketRecord(id);
+    return rec ? this.#materialize(rec) : null;
+  }
+
+  async listTickets(filter = {}) {
+    let out = this.#allTickets();
+    if (filter.deptId) out = out.filter((t) => t.assignedDeptId === filter.deptId);
+    if (filter.assigneeId) out = out.filter((t) => t.assigneeId === filter.assigneeId);
+    if (filter.status) out = out.filter((t) => t.status === filter.status);
+    if (filter.openOnly) out = out.filter((t) => OPEN_STATUSES.has(t.status));
+    return out;
+  }
+
+  async createTicket(input) {
+    this.#client();
+    const ticket = createTicket(input);
+    this.#client().createItem(LISTS.TICKETS, ticketToFields(ticket));
+    for (const tagId of ticket.tagIds) this.#createLink(ticket.id, tagId, { now: ticket.createdAt, actorId: input.submitterId ?? null, source: 'manual' });
+    this.#appendActivity(createActivityEvent({
+      escalationId: ticket.id, type: ACTIVITY_TYPE.CREATED,
+      actorId: input.submitterId ?? null, to: { status: ticket.status },
+      note: 'Ticket created', timestamp: ticket.createdAt,
+    }));
+    return ticket;
+  }
+
+  // ----- Assignment & lifecycle (each records activity via domain rules) -----
+  async assignDepartment(id, deptId, opts = {}) { return this.#mutateWithRule(id, (t) => assignToDepartment(t, deptId, opts)); }
+  async assignPerson(id, userId, opts = {}) { return this.#mutateWithRule(id, (t) => assignToPerson(t, userId, opts)); }
+  async clearAssignee(id, opts = {}) { return this.#mutateWithRule(id, (t) => clearAssignee(t, opts)); }
+  async setStatus(id, status, opts = {}) { return this.#mutateWithRule(id, (t) => changeStatus(t, status, opts)); }
+  async setPriority(id, priority, opts = {}) { return this.#mutateWithRule(id, (t) => changePriority(t, priority, opts)); }
+
+  // ----- Tags (Escalations_v2_TicketTags link list, soft-delete, D12) -----
+  #createLink(ticketKey, tagKey, { now, actorId = null, source = 'manual' }) {
+    this.#client().createItem(LISTS.TICKET_TAGS, {
+      [LINK_COLS.KEY]: newId('tt'),
+      [LINK_COLS.TICKET]: ticketKey,
+      [LINK_COLS.TAG]: tagKey,
+      [LINK_COLS.ACTIVE]: true,
+      [LINK_COLS.REMOVED_AT]: null,
+      [LINK_COLS.LABEL_SNAPSHOT]: this.#tagLabel(tagKey),
+      [LINK_COLS.SOURCE]: source,
+      [LINK_COLS.CREATED_AT]: now,
+      [LINK_COLS.CREATED_BY]: actorId,
+    });
+  }
+
+  async addTag(id, tagId, opts = {}) {
+    const rec = this.#requireTicketRecord(id);
+    const now = opts.now ?? new Date().toISOString();
+    if (this.#findLink(id, tagId, true)) return this.#materialize(rec); // idempotent: active link exists
+    const inactive = this.#findLink(id, tagId, false);
+    if (inactive) {
+      this.#client().updateItem(LISTS.TICKET_TAGS, inactive.id,
+        { [LINK_COLS.ACTIVE]: true, [LINK_COLS.REMOVED_AT]: null }, { ifMatch: inactive.etag });
+    } else {
+      this.#createLink(id, tagId, { now, actorId: opts.actorId ?? null, source: 'manual' });
+    }
+    this.#appendActivity(createActivityEvent({
+      escalationId: id, type: ACTIVITY_TYPE.FIELD_CHANGE, actorId: opts.actorId ?? null,
+      to: { addedTag: tagId }, note: `Tag added: ${tagId}`, timestamp: now,
+    }));
+    return this.#materialize(this.#requireTicketRecord(id));
+  }
+
+  async removeTag(id, tagId, opts = {}) {
+    const rec = this.#requireTicketRecord(id);
+    const now = opts.now ?? new Date().toISOString();
+    const active = this.#findLink(id, tagId, true);
+    if (!active) return this.#materialize(rec); // no-op when absent
+    this.#client().updateItem(LISTS.TICKET_TAGS, active.id,
+      { [LINK_COLS.ACTIVE]: false, [LINK_COLS.REMOVED_AT]: now }, { ifMatch: active.etag });
+    this.#appendActivity(createActivityEvent({
+      escalationId: id, type: ACTIVITY_TYPE.FIELD_CHANGE, actorId: opts.actorId ?? null,
+      to: { removedTag: tagId }, note: `Tag removed: ${tagId}`, timestamp: now,
+    }));
+    return this.#materialize(this.#requireTicketRecord(id));
+  }
+
+  // ----- Activity, comments, notes (three separate lists) -----
+  async listActivity(id) {
+    return this.#client().queryAll(LISTS.ACTIVITY, { EscalationKey: id })
+      .map((r) => fieldsToActivity(r.fields))
+      .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
+  }
+
+  async listComments(id) {
+    return this.#client().queryAll(LISTS.COMMENTS, { EscalationKey: id })
+      .map((r) => fieldsToComment(r.fields))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async listNotes(id) {
+    return this.#client().queryAll(LISTS.NOTES, { EscalationKey: id })
+      .map((r) => fieldsToNote(r.fields))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async addComment(id, input) {
+    this.#requireTicketRecord(id);
+    const comment = createComment({ ...input, escalationId: id });
+    this.#client().createItem(LISTS.COMMENTS, commentToFields(comment));
+    this.#appendActivity(createActivityEvent({
+      escalationId: id, type: ACTIVITY_TYPE.COMMENT, actorId: comment.authorId,
+      note: 'Comment posted', timestamp: comment.createdAt,
+    }));
+    return comment;
+  }
+
+  async addNote(id, input) {
+    this.#requireTicketRecord(id);
+    const note = createNote({ ...input, escalationId: id });
+    this.#client().createItem(LISTS.NOTES, noteToFields(note));
+    this.#appendActivity(createActivityEvent({
+      escalationId: id, type: ACTIVITY_TYPE.NOTE, actorId: note.authorId,
+      note: 'Internal note added', timestamp: note.createdAt,
+    }));
+    return note;
+  }
+
+  // ----- Views -----
+  async departmentQueue(deptId, { openOnly = false } = {}) {
+    return this.#allTickets().filter((t) => t.assignedDeptId === deptId && (!openOnly || OPEN_STATUSES.has(t.status)));
+  }
+
+  async myAssignedTickets(userId, { openOnly = false } = {}) {
+    return this.#allTickets().filter((t) => t.assigneeId === userId && (!openOnly || OPEN_STATUSES.has(t.status)));
+  }
 
   // ----- Reference data -----
-  async listDepartments() { this.#notConnected('listDepartments', 'Escalations_v2_Departments'); }
-  async listUsers() { this.#notConnected('listUsers', 'Escalations_v2_Users / Person columns'); }
-  async listTags() { this.#notConnected('listTags', 'Escalations_v2_Tags dictionary'); }
+  async listDepartments() { return this.#client().queryAll(LISTS.DEPARTMENTS).map((r) => fieldsToDept(r.fields)); }
+  async listUsers() { return this.#client().queryAll(LISTS.USERS).map((r) => fieldsToUser(r.fields)); }
+  async listTags() { return this.#client().queryAll(LISTS.TAGS).map((r) => fieldsToTag(r.fields)); }
 }

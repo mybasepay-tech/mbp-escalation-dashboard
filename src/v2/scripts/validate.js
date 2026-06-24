@@ -115,21 +115,50 @@ function checkSharePointSchema() {
   record(ok, 'SharePoint v2 schema valid + design-only (no live markers)', detail);
 }
 
-// ----- 8. Future adapter stub stays design-only (no SDKs, no network, throws) -----
+// Shared: assert a source file has no live SDK / network / secret / URL markers.
+const NO_LIVE = [
+  ['Graph SDK', /@microsoft\/microsoft-graph-client/i], ['PnP SDK', /@pnp\/sp/i],
+  ['Azure SDK', /@azure\//i], ['SPFx SDK', /@microsoft\/sp-/i],
+  ['fetch polyfill', /isomorphic-fetch|node-fetch|cross-fetch/i],
+  ['fetch() call', /\bfetch\s*\(/], ['XMLHttpRequest', /XMLHttpRequest/],
+  ['env var', /process\.env/], ['Graph host', /graph\.microsoft\.com/i],
+  ['SharePoint host', /\bsharepoint\.com/i], ['http URL', /https?:\/\/[a-z0-9.-]+/i],
+  ['GUID', /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i],
+  ['secret', /(client_secret|clientSecret|api[_-]?key)\s*[:=]/i],
+];
+function scanNoLive(src, label) {
+  const hits = [];
+  for (const [why, re] of NO_LIVE) if (re.test(src)) hits.push(`${label}: ${why}`);
+  return hits;
+}
+
+// ----- 8. SharePointStore adapter: fail-closed by default, no live deps -----
 function checkAdapterStub() {
-  const path = join(V2_ROOT, 'store', 'SharePointStore.js');
-  const src = readFileSync(path, 'utf8');
+  const src = readFileSync(join(V2_ROOT, 'store', 'SharePointStore.js'), 'utf8');
   const problems = [];
   if (!/design-only and not connected/i.test(src)) problems.push('missing the design-only error message');
-  const SDK = [
-    /@microsoft\/microsoft-graph-client/i, /@pnp\/sp/i, /@azure\//i, /@microsoft\/sp-/i,
-    /isomorphic-fetch|node-fetch|cross-fetch/i,
-  ];
-  for (const re of SDK) if (re.test(src)) problems.push(`live SDK import (${re})`);
-  if (/\bfetch\s*\(/.test(src)) problems.push('fetch() call');
-  if (/XMLHttpRequest/.test(src)) problems.push('XMLHttpRequest');
-  if (/process\.env/.test(src)) problems.push('environment variable use');
-  record(problems.length === 0, 'SharePointStore adapter is design-only (no SDK/network/secrets)', problems.join('; '));
+  // Default (no injected client) must remain fail-closed.
+  if (!/this\.designOnly\s*=\s*!this\._client/.test(src)) problems.push('default mode is not fail-closed (designOnly = !client)');
+  if (!/#client\(\)\s*\{[\s\S]*?DESIGN_ONLY_MESSAGE/.test(src)) problems.push('client guard does not throw the design-only error');
+  problems.push(...scanNoLive(src, 'SharePointStore.js'));
+  record(problems.length === 0, 'SharePointStore adapter fail-closed by default + no live deps', problems.join('; '));
+}
+
+// ----- 8b. FakeSharePoint simulator exists and is local-only (no network/SDK/markers) -----
+function checkFakeSimulator() {
+  const dir = join(V2_ROOT, 'backend', 'sharepoint', 'fake');
+  const problems = [];
+  const required = ['FakeSharePointClient.js', 'FakeSharePointList.js', 'FakeSharePointErrors.js'];
+  for (const f of required) {
+    try {
+      const src = readFileSync(join(dir, f), 'utf8');
+      problems.push(...scanNoLive(src, f));
+    } catch { problems.push(`${f} missing`); }
+  }
+  // The mapping module the adapter + seeder share must also stay live-marker-free.
+  try { problems.push(...scanNoLive(readFileSync(join(V2_ROOT, 'backend', 'sharepoint', 'mapping.js'), 'utf8'), 'mapping.js')); }
+  catch { problems.push('mapping.js missing'); }
+  record(problems.length === 0, 'FakeSharePoint simulator present + local-only (no network/SDK/markers)', problems.join('; '));
 }
 
 // ----- 9. Transition governance docs (decision, parallel-run, guardrails, no-writeback) -----
@@ -294,6 +323,7 @@ scanLegacyWriteBack();
 scanServerLoopback();
 checkSharePointSchema();
 checkAdapterStub();
+checkFakeSimulator();
 checkTransitionDocs();
 checkPhase2Docs();
 checkLocalFirstDocs();

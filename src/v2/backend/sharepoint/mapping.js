@@ -1,0 +1,87 @@
+// mapping.js — domain model <-> SharePoint v2 column translation (aligned with the schema).
+//
+// Shared by SharePointStore and the fake seeder so both use the SAME column internal names as
+// schema.sharepoint-v2.json. Pure data + functions; no I/O, no network. `tagIds` is NOT a
+// ticket column (D12) — it is materialized from the Escalations_v2_TicketTags link list.
+
+export const LISTS = Object.freeze({
+  TICKETS: 'Escalations_v2_Tickets',
+  ACTIVITY: 'Escalations_v2_Activity',
+  COMMENTS: 'Escalations_v2_Comments',
+  NOTES: 'Escalations_v2_InternalNotes',
+  TAGS: 'Escalations_v2_Tags',
+  TICKET_TAGS: 'Escalations_v2_TicketTags',
+  DEPARTMENTS: 'Escalations_v2_Departments',
+  USERS: 'Escalations_v2_Users',
+});
+
+export const ALL_LISTS = Object.freeze(Object.values(LISTS));
+
+// Field specs: [domainProp, columnInternalName, isJsonEncoded?]
+const TICKET_SPEC = [
+  ['id', 'TicketKey'], ['title', 'Title'], ['description', 'Description'],
+  ['status', 'Status'], ['priority', 'Priority'], ['issueCategory', 'IssueCategory'],
+  ['issueType', 'IssueType'], ['assignedDeptId', 'AssignedDeptKey'], ['assigneeId', 'AssigneeKey'],
+  ['ticketOwner', 'TicketOwnerKey'], ['submitterId', 'SubmitterKey'], ['requestingDept', 'RequestingDept'],
+  ['escalationDate', 'EscalationDate'], ['expectedResolutionDate', 'ExpectedResolutionDate'],
+  ['completedDate', 'CompletedDate'], ['legacyItemId', 'LegacyItemId'], ['legacyUrl', 'LegacyUrl'],
+  ['migrationNotes', 'MigrationNotes'], ['createdAt', 'CreatedAt'], ['modifiedAt', 'ModifiedAt'],
+];
+const ACTIVITY_SPEC = [
+  ['id', 'ActivityKey'], ['escalationId', 'EscalationKey'], ['type', 'Type'], ['actorId', 'ActorKey'],
+  ['from', 'FromValue', true], ['to', 'ToValue', true], ['note', 'ActivityNote'], ['timestamp', 'Timestamp'],
+];
+const COMMENT_SPEC = [
+  ['id', 'CommentKey'], ['escalationId', 'EscalationKey'], ['authorId', 'AuthorKey'], ['body', 'Body'],
+  ['mentions', 'Mentions', true], ['visibility', 'Visibility'], ['createdAt', 'CreatedAt'], ['editedAt', 'EditedAt'],
+];
+const NOTE_SPEC = [
+  ['id', 'NoteKey'], ['escalationId', 'EscalationKey'], ['authorId', 'AuthorKey'], ['body', 'Body'],
+  ['visibility', 'Visibility'], ['createdAt', 'CreatedAt'],
+];
+const DEPT_SPEC = [
+  ['id', 'DeptKey'], ['name', 'Name'], ['leadIds', 'LeadKeys', true], ['memberIds', 'MemberKeys', true],
+];
+const USER_SPEC = [
+  ['id', 'UserKey'], ['displayName', 'DisplayName'], ['email', 'Email'], ['departmentIds', 'DepartmentKeys', true],
+];
+const TAG_SPEC = [['id', 'TagKey'], ['label', 'Label']];
+
+// TicketTags link list columns (no domain object — managed directly by the adapter, D12).
+export const LINK_COLS = Object.freeze({
+  KEY: 'TicketTagKey', TICKET: 'TicketKey', TAG: 'TagKey', ACTIVE: 'IsActive',
+  REMOVED_AT: 'RemovedAt', LABEL_SNAPSHOT: 'TagLabelSnapshot', SOURCE: 'Source',
+  CREATED_AT: 'CreatedAt', CREATED_BY: 'CreatedBy',
+});
+
+function toFields(spec, obj) {
+  const fields = {};
+  for (const [prop, col, json] of spec) {
+    const v = obj[prop];
+    fields[col] = json ? JSON.stringify(v === undefined ? null : v) : (v === undefined ? null : v);
+  }
+  return fields;
+}
+function fromFields(spec, fields) {
+  const obj = {};
+  for (const [prop, col, json] of spec) {
+    const raw = fields[col];
+    obj[prop] = json ? JSON.parse(raw ?? 'null') : (raw ?? null);
+  }
+  return obj;
+}
+
+export const ticketToFields = (t) => toFields(TICKET_SPEC, t);
+export const fieldsToTicket = (f, tagIds = []) => ({ ...fromFields(TICKET_SPEC, f), tagIds });
+export const activityToFields = (a) => toFields(ACTIVITY_SPEC, a);
+export const fieldsToActivity = (f) => fromFields(ACTIVITY_SPEC, f);
+export const commentToFields = (c) => toFields(COMMENT_SPEC, c);
+export const fieldsToComment = (f) => fromFields(COMMENT_SPEC, f);
+export const noteToFields = (n) => toFields(NOTE_SPEC, n);
+export const fieldsToNote = (f) => fromFields(NOTE_SPEC, f);
+export const deptToFields = (d) => toFields(DEPT_SPEC, d);
+export const fieldsToDept = (f) => fromFields(DEPT_SPEC, f);
+export const userToFields = (u) => toFields(USER_SPEC, u);
+export const fieldsToUser = (f) => fromFields(USER_SPEC, f);
+export const tagToFields = (t) => toFields(TAG_SPEC, t);
+export const fieldsToTag = (f) => fromFields(TAG_SPEC, f);
