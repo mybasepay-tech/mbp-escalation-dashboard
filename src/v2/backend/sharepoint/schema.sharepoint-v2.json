@@ -1,0 +1,166 @@
+{
+  "$comment": "DESIGN-ONLY SharePoint List v2 schema for Escalation System v2. This file is a STATIC blueprint. It does NOT connect to, provision, or query SharePoint, Microsoft Graph, Dataverse, Azure, or any live service. It contains no tenant IDs, site URLs, client IDs, secrets, OAuth scopes, or Power Automate flows. See docs/SHAREPOINT_V2_BACKEND_READINESS.md and docs/BACKEND_ADAPTER_PLAN.md.",
+  "schemaName": "escalation-v2-sharepoint",
+  "schemaVersion": "0.1.0-design",
+  "status": "design-only",
+  "designOnly": true,
+  "flowAutomationStatus": "deferred-for-mvp-phase-1-no-flows",
+  "generatedBy": "Loop 8 — SharePoint backend readiness without flows",
+  "namingConvention": "All v2 lists are prefixed Escalations_v2_ to guarantee separation from the legacy Escalation Tracker list. v2 never reads or writes legacy lists.",
+  "columnTypeLegend": {
+    "Text": "Single line of text",
+    "Note": "Multiple lines of text (plain)",
+    "Choice": "Fixed choice set (enum)",
+    "Number": "Numeric",
+    "Currency": "Money",
+    "DateTime": "Date and time (ISO 8601)",
+    "Boolean": "Yes/No",
+    "Hyperlink": "URL",
+    "Lookup": "Lookup to another v2 list (by that list's key column)",
+    "Person": "Native SharePoint Person-or-Group column (preferred for identities)"
+  },
+  "lists": {
+    "Escalations_v2_Tickets": {
+      "title": "Escalations v2 — Tickets",
+      "description": "Core ticket records. Maps to the v2 Ticket model (src/v2/domain/models.js).",
+      "keyField": "TicketKey",
+      "mapsToModel": "Ticket",
+      "fields": [
+        { "name": "TicketKey", "type": "Text", "required": true, "indexed": true, "mapsTo": "id", "notes": "v2 primary key (e.g. esc_...). Distinct from the SharePoint item ID." },
+        { "name": "Title", "type": "Text", "required": true, "mapsTo": "title" },
+        { "name": "Description", "type": "Note", "required": false, "mapsTo": "description" },
+        { "name": "Status", "type": "Choice", "required": true, "indexed": true, "mapsTo": "status", "choices": ["New", "Not yet assigned", "Assigned", "In Process", "Pending Research", "Pending Member", "Pending Customer", "Complete", "Cancelled", "Reopened"] },
+        { "name": "Priority", "type": "Choice", "required": true, "indexed": true, "mapsTo": "priority", "choices": ["Low", "Medium", "High", "Critical"] },
+        { "name": "IssueCategory", "type": "Text", "required": false, "mapsTo": "issueCategory" },
+        { "name": "IssueType", "type": "Text", "required": false, "mapsTo": "issueType" },
+        { "name": "AssignedDeptKey", "type": "Lookup", "required": false, "indexed": true, "mapsTo": "assignedDeptId", "lookupList": "Escalations_v2_Departments", "lookupField": "DeptKey", "notes": "Department/queue context — the departmentQueue owner." },
+        { "name": "AssigneeKey", "type": "Lookup", "required": false, "indexed": true, "mapsTo": "assigneeId", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey", "notes": "Person responsible for the work (assignedTo). Nullable." },
+        { "name": "TicketOwnerKey", "type": "Lookup", "required": false, "mapsTo": "ticketOwner", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey", "notes": "Closure authority — only this person may move the ticket to Complete. Distinct from AssigneeKey." },
+        { "name": "SubmitterKey", "type": "Lookup", "required": false, "mapsTo": "submitterId", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey" },
+        { "name": "RequestingDept", "type": "Text", "required": false, "mapsTo": "requestingDept" },
+        { "name": "EscalationDate", "type": "DateTime", "required": false, "indexed": true, "mapsTo": "escalationDate" },
+        { "name": "ExpectedResolutionDate", "type": "DateTime", "required": false, "mapsTo": "expectedResolutionDate", "notes": "Used for overdue/at-risk computation." },
+        { "name": "CompletedDate", "type": "DateTime", "required": false, "mapsTo": "completedDate", "notes": "Set when status -> Complete; cleared on Reopened." },
+        { "name": "TagKeys", "type": "Note", "required": false, "mapsTo": "tagIds", "notes": "Design choice pending D-decision: either a delimited list of tag keys OR a separate many-to-many link list. See readiness doc, open question OQ-3." },
+        { "name": "LegacyItemId", "type": "Text", "required": false, "mapsTo": "legacyItemId", "notes": "Legacy SharePoint item ID, preserved on migration. Read-only reference only — no write-back to legacy." },
+        { "name": "LegacyUrl", "type": "Hyperlink", "required": false, "mapsTo": "legacyUrl", "notes": "Legacy item URL, preserved for traceability. Never queried by v2." },
+        { "name": "MigrationNotes", "type": "Note", "required": false, "mapsTo": "migrationNotes" },
+        { "name": "CreatedAt", "type": "DateTime", "required": false, "mapsTo": "createdAt", "notes": "App-level timestamp; distinct from SharePoint's built-in Created." },
+        { "name": "ModifiedAt", "type": "DateTime", "required": false, "mapsTo": "modifiedAt", "notes": "App-level timestamp; distinct from SharePoint's built-in Modified." }
+      ],
+      "computedNotInStorage": [
+        { "name": "daysOpen", "notes": "Always computed at read time (clamped >= 0). Never stored — legacy stored day-counts drifted." }
+      ]
+    },
+    "Escalations_v2_Activity": {
+      "title": "Escalations v2 — Activity",
+      "description": "Append-only audit/activity log. Immutable: corrections are new rows, never edits. Maps to ActivityEvent.",
+      "keyField": "ActivityKey",
+      "mapsToModel": "ActivityEvent",
+      "appendOnly": true,
+      "fields": [
+        { "name": "ActivityKey", "type": "Text", "required": true, "indexed": true, "mapsTo": "id" },
+        { "name": "EscalationKey", "type": "Lookup", "required": true, "indexed": true, "mapsTo": "escalationId", "lookupList": "Escalations_v2_Tickets", "lookupField": "TicketKey" },
+        { "name": "Type", "type": "Choice", "required": true, "indexed": true, "mapsTo": "type", "choices": ["created", "assignment_change", "status_change", "priority_change", "field_change", "comment", "note", "migration_normalization"] },
+        { "name": "ActorKey", "type": "Lookup", "required": false, "mapsTo": "actorId", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey", "notes": "Null for system/migration entries." },
+        { "name": "FromValue", "type": "Note", "required": false, "mapsTo": "from", "notes": "JSON-encoded old value." },
+        { "name": "ToValue", "type": "Note", "required": false, "mapsTo": "to", "notes": "JSON-encoded new value." },
+        { "name": "ActivityNote", "type": "Note", "required": false, "mapsTo": "note" },
+        { "name": "Timestamp", "type": "DateTime", "required": true, "indexed": true, "mapsTo": "timestamp" }
+      ]
+    },
+    "Escalations_v2_Comments": {
+      "title": "Escalations v2 — Comments",
+      "description": "Public member/requester-facing comments. Separate stream from activity and internal notes. Maps to Comment.",
+      "keyField": "CommentKey",
+      "mapsToModel": "Comment",
+      "fields": [
+        { "name": "CommentKey", "type": "Text", "required": true, "indexed": true, "mapsTo": "id" },
+        { "name": "EscalationKey", "type": "Lookup", "required": true, "indexed": true, "mapsTo": "escalationId", "lookupList": "Escalations_v2_Tickets", "lookupField": "TicketKey" },
+        { "name": "AuthorKey", "type": "Lookup", "required": true, "mapsTo": "authorId", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey" },
+        { "name": "Body", "type": "Note", "required": true, "mapsTo": "body" },
+        { "name": "Mentions", "type": "Note", "required": false, "mapsTo": "mentions", "notes": "Delimited list of user keys @-mentioned." },
+        { "name": "Visibility", "type": "Choice", "required": true, "mapsTo": "visibility", "choices": ["public"] },
+        { "name": "CreatedAt", "type": "DateTime", "required": true, "indexed": true, "mapsTo": "createdAt" },
+        { "name": "EditedAt", "type": "DateTime", "required": false, "mapsTo": "editedAt" }
+      ]
+    },
+    "Escalations_v2_InternalNotes": {
+      "title": "Escalations v2 — Internal Notes",
+      "description": "Internal notes (not member-facing). Separate stream; carries visibility metadata for future permission gating. Maps to Note.",
+      "keyField": "NoteKey",
+      "mapsToModel": "Note",
+      "fields": [
+        { "name": "NoteKey", "type": "Text", "required": true, "indexed": true, "mapsTo": "id" },
+        { "name": "EscalationKey", "type": "Lookup", "required": true, "indexed": true, "mapsTo": "escalationId", "lookupList": "Escalations_v2_Tickets", "lookupField": "TicketKey" },
+        { "name": "AuthorKey", "type": "Lookup", "required": true, "mapsTo": "authorId", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey" },
+        { "name": "Body", "type": "Note", "required": true, "mapsTo": "body" },
+        { "name": "Visibility", "type": "Choice", "required": true, "mapsTo": "visibility", "choices": ["internal"], "notes": "Metadata for future permission gating; not enforced in MVP." },
+        { "name": "CreatedAt", "type": "DateTime", "required": true, "indexed": true, "mapsTo": "createdAt" }
+      ]
+    },
+    "Escalations_v2_Tags": {
+      "title": "Escalations v2 — Tags",
+      "description": "Tag catalog. Maps to Tag.",
+      "keyField": "TagKey",
+      "mapsToModel": "Tag",
+      "fields": [
+        { "name": "TagKey", "type": "Text", "required": true, "indexed": true, "mapsTo": "id" },
+        { "name": "Label", "type": "Text", "required": true, "mapsTo": "label" },
+        { "name": "Color", "type": "Text", "required": false, "mapsTo": null, "notes": "Optional display color (not yet in the v2 model)." },
+        { "name": "ScopeDeptKey", "type": "Lookup", "required": false, "mapsTo": null, "lookupList": "Escalations_v2_Departments", "lookupField": "DeptKey", "notes": "Null = global tag." }
+      ]
+    },
+    "Escalations_v2_Departments": {
+      "title": "Escalations v2 — Departments",
+      "description": "Departments / queues, members, and leads. Maps to Department.",
+      "keyField": "DeptKey",
+      "mapsToModel": "Department",
+      "fields": [
+        { "name": "DeptKey", "type": "Text", "required": true, "indexed": true, "mapsTo": "id" },
+        { "name": "Name", "type": "Text", "required": true, "mapsTo": "name" },
+        { "name": "LeadKeys", "type": "Note", "required": false, "mapsTo": "leadIds", "notes": "Delimited list of user keys (primary/backup leads)." },
+        { "name": "MemberKeys", "type": "Note", "required": false, "mapsTo": "memberIds", "notes": "Delimited list of user keys." }
+      ]
+    },
+    "Escalations_v2_Users": {
+      "title": "Escalations v2 — Users (reference directory)",
+      "description": "Reference-user strategy. PREFERRED approach: use native SharePoint Person columns and resolve identities against Entra/SharePoint user info — NOT a hand-maintained user table. This list is a design fallback / mock-parity shim so MockStore's user objects have a 1:1 home and so lookups resolve in environments without directory access. No real directory data is embedded here.",
+      "keyField": "UserKey",
+      "mapsToModel": "User",
+      "referenceStrategy": "prefer-native-person-columns",
+      "fields": [
+        { "name": "UserKey", "type": "Text", "required": true, "indexed": true, "mapsTo": "id" },
+        { "name": "DisplayName", "type": "Text", "required": true, "mapsTo": "displayName" },
+        { "name": "Email", "type": "Text", "required": false, "mapsTo": "email", "notes": "Mock-only in the foundation; in production resolved via Person column, not stored free-text." },
+        { "name": "DepartmentKeys", "type": "Note", "required": false, "mapsTo": "departmentIds", "notes": "Delimited list of department keys this user belongs to." },
+        { "name": "PersonRef", "type": "Person", "required": false, "mapsTo": null, "notes": "Native Person-or-Group column — the production identity anchor once directory access is approved (gated by D6/D7)." }
+      ]
+    }
+  },
+  "views": [
+    { "list": "Escalations_v2_Tickets", "name": "Open by Department", "filter": "Status in OPEN_STATUSES", "groupBy": "AssignedDeptKey", "sortBy": "Priority desc, EscalationDate asc", "notes": "Backs the department queue (includes person-assigned tickets)." },
+    { "list": "Escalations_v2_Tickets", "name": "My Assigned", "filter": "AssigneeKey = [Me]", "sortBy": "Priority desc, EscalationDate asc", "notes": "Backs the My Assigned Tickets panel." },
+    { "list": "Escalations_v2_Tickets", "name": "Overdue / At-Risk", "filter": "ExpectedResolutionDate < [Today] AND Status in OPEN_STATUSES" },
+    { "list": "Escalations_v2_Tickets", "name": "Legacy Migrated", "filter": "LegacyItemId is not null", "notes": "Traceability view for migrated records." },
+    { "list": "Escalations_v2_Activity", "name": "By Ticket (chronological)", "filter": "EscalationKey = [param]", "sortBy": "Timestamp asc" },
+    { "list": "Escalations_v2_Comments", "name": "By Ticket", "filter": "EscalationKey = [param]", "sortBy": "CreatedAt asc" },
+    { "list": "Escalations_v2_InternalNotes", "name": "By Ticket", "filter": "EscalationKey = [param]", "sortBy": "CreatedAt asc" }
+  ],
+  "recommendedIndexes": [
+    { "list": "Escalations_v2_Tickets", "columns": ["TicketKey", "Status", "Priority", "AssignedDeptKey", "AssigneeKey", "EscalationDate"], "reason": "SharePoint list-view threshold (5,000 items): filtered/sorted columns must be indexed to avoid throttling." },
+    { "list": "Escalations_v2_Activity", "columns": ["ActivityKey", "EscalationKey", "Type", "Timestamp"], "reason": "Activity grows fastest; per-ticket and per-type queries must stay indexed." },
+    { "list": "Escalations_v2_Comments", "columns": ["CommentKey", "EscalationKey", "CreatedAt"] },
+    { "list": "Escalations_v2_InternalNotes", "columns": ["NoteKey", "EscalationKey", "CreatedAt"] }
+  ],
+  "permissionModelAssumptions": {
+    "note": "Assumptions only — no permissions are configured by this file. Finalized under D6 (Entra app) before any live work.",
+    "assumptions": [
+      "v2 lists live on a company-owned site/library, NOT a personal site, and separate from the legacy tracker.",
+      "Read access for queue members; write access scoped by department membership (enforced in the app/adapter layer for MVP, by list permissions later).",
+      "Owner-only Complete is an application-layer rule (domain/rules.js), not a SharePoint permission, in early phases.",
+      "Internal notes visibility is metadata today; future hardening may gate it via item-level permissions or a separate secured list.",
+      "No legacy list permissions are altered. v2 uses its own site and (per D6) its own app registration."
+    ]
+  }
+}

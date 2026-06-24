@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative } from 'node:path';
+import { validateSharePointSchema } from './validateSharePointSchema.js';
 
 const V2_ROOT = dirname(dirname(fileURLToPath(import.meta.url))); // .../src/v2
 const SKIP_DIRS = new Set(['tests', 'scripts', 'node_modules', '.git']);
@@ -105,6 +106,15 @@ function scanServerLoopback() {
   record(/127\.0\.0\.1/.test(serve), 'Local UI server binds to loopback (127.0.0.1)');
 }
 
+// ----- 7. Design-only SharePoint v2 schema (local JSON; no network) -----
+function checkSharePointSchema() {
+  const { ok, problems, summary } = validateSharePointSchema();
+  const detail = ok
+    ? `lists=${summary.lists} requiredListsPresent=${summary.requiredListsPresent} ticketMappingsCovered=${summary.ticketMappingsCovered}`
+    : problems.join('; ');
+  record(ok, 'SharePoint v2 schema valid + design-only (no live markers)', detail);
+}
+
 // ----- run -----
 console.log('Escalation v2 — local readiness validation (mock/local only)\n');
 runTests();
@@ -113,6 +123,7 @@ scanNetwork();
 scanLegacyDomain();
 scanLegacyWriteBack();
 scanServerLoopback();
+checkSharePointSchema();
 
 let allOk = true;
 for (const r of results) {

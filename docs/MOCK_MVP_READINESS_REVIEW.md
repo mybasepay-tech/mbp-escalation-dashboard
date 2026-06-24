@@ -1,6 +1,7 @@
 # Mock MVP Readiness Review — Escalation System v2
 
-> Loop 6 (Hardening + Decision Readiness). This review summarizes the state of the
+> Loop 6 (Hardening + Decision Readiness); extended in Loop 8 (§3a, SharePoint backend
+> readiness — design-only). This review summarizes the state of the
 > **mock-first** v2 MVP and what must be decided before any backend / SharePoint / Graph /
 > Dataverse / migration work begins. **Nothing here connects to or modifies any production
 > system.**
@@ -43,8 +44,9 @@ By design and per the project safety rules, the MVP does **not**:
   client).
 
 ## 3. What has been validated
-- **Automated tests:** 42 passing (`node --test`) across rules, store, interactions
-  (comments/notes/tags), views (filters/reporting), UI smoke (view-model), and safety.
+- **Automated tests:** 54 passing (`node --test`) across rules, store, interactions
+  (comments/notes/tags), views (filters/reporting), UI smoke (view-model), safety, and the
+  Loop 8 design-only SharePoint schema check.
 - **Safety scans:** source contains no production-integration strings or network calls;
   browser UI files contain no `fetch`/`XMLHttpRequest`; the local server binds to loopback
   only and rejects path traversal; mock legacy references use a clearly-fake `.invalid`
@@ -54,6 +56,31 @@ By design and per the project safety rules, the MVP does **not**:
   reconcile — all asserted by tests.
 - **Aggregate gate:** `npm run validate` runs the suite plus a tree-wide readiness scan
   (see [`../src/v2/scripts/validate.js`](../src/v2/scripts/validate.js)).
+
+## 3a. Loop 8 — SharePoint backend readiness package (design-only)
+Loop 8 added a **design-only** backend readiness package that prepares the ground for a
+future SharePoint List v2 backend **without building anything live**:
+
+- [`SHAREPOINT_V2_BACKEND_READINESS.md`](./SHAREPOINT_V2_BACKEND_READINESS.md) — why
+  SharePoint List v2 is the provisional target, why Power Automate is deferred for MVP phase
+  1, separation from legacy, required lists, field/column mapping, indexes/views, permission
+  assumptions, future adapter approach, risks/open questions, manual admin steps, and an
+  AI recommendation checkpoint.
+- [`BACKEND_ADAPTER_PLAN.md`](./BACKEND_ADAPTER_PLAN.md) — `MockStore` (now) vs. a future
+  `SharePointStore`, the store interface expectations, read/write methods, error handling,
+  and mock-parity rules.
+- A **static, design-only** schema:
+  [`../src/v2/backend/sharepoint/schema.sharepoint-v2.json`](../src/v2/backend/sharepoint/schema.sharepoint-v2.json),
+  validated locally by
+  [`../src/v2/scripts/validateSharePointSchema.js`](../src/v2/scripts/validateSharePointSchema.js)
+  (wired into `npm run validate`) and by `tests/sharepoint-schema.test.js`.
+- Decision **D11** in [`DECISION_LOG.md`](./DECISION_LOG.md).
+
+**Confirmed: no live backend was added.** No Graph/SharePoint/Dataverse/Azure/Power Automate
+connection code, no credentials/tenant/client IDs/secrets/live URLs, no real lists, and no
+flows. The schema is static JSON that connects to nothing; the validator and tests only read
+local files. The `EscalationStore` abstraction is unchanged and `MockStore` remains the only
+backend. This is **design-only readiness**; live work stays blocked by D3/D6/D7.
 
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.

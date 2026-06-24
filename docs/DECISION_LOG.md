@@ -103,6 +103,29 @@
   category detail, assigned dept) as the generic default; refine with stakeholders.
 - **Blocks:** Phase 4/6 defaults.
 
+### D11 — MVP phase-1 backend readiness path (Loop 8)
+- **Status:** Proposed (needs Rod confirm) — design-only, no live integration built
+- **Context:** v2 needs a concrete *readiness* target so the data model and adapter seam can
+  be prepared, without committing to live work while D3 is still open. Loop 8 prepares the
+  ground without building anything live.
+- **Decision (provisional / design-only):**
+  - **Backend readiness target:** **SharePoint List v2** (lists prefixed `Escalations_v2_`
+    on a company-owned site, fully separate from the legacy tracker). Provisional and
+    reversible — it sits behind the `EscalationStore` seam and does **not** pre-empt D3.
+  - **Power Automate: deferred for MVP phase 1.** Business rules stay in the tested domain
+    layer (`domain/rules.js`); no flows are created. Notifications/automation are revisited
+    later (additive flow, Graph subscription, or app-side) when concretely required.
+  - **No live integrations yet:** no Graph/SharePoint/Dataverse/Azure connection code, no
+    credentials/tenant/client IDs/secrets/live URLs, no real lists, no real flows.
+  - Artifacts: design-only schema
+    [`../src/v2/backend/sharepoint/schema.sharepoint-v2.json`](../src/v2/backend/sharepoint/schema.sharepoint-v2.json),
+    [`SHAREPOINT_V2_BACKEND_READINESS.md`](./SHAREPOINT_V2_BACKEND_READINESS.md), and
+    [`BACKEND_ADAPTER_PLAN.md`](./BACKEND_ADAPTER_PLAN.md).
+- **Relationship to D3:** D11 is the *phase-1 readiness* path; **D3** (final backend:
+  SharePoint vs. managed API/DB vs. Dataverse) remains **Open — BLOCKING** for any live work.
+- **Blocks:** nothing (design-only). Live work still blocked by D3/D6/D7 and the
+  backend-adapter readiness checklist.
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -122,6 +145,7 @@
 | D8 | Dept/queue list | Confirm canonical departments + leads | Yes (seed realism) | Open |
 | D9 | Generic MVP config | Mirror legacy required fields/categories (generic default in place) | No | Proposed — needs Rod confirm |
 | D10 | Status vocab + owner-only Complete (Loop 7) | Align to legacy vocabulary; `Complete` owner-only; add `ticketOwner`/`completedDate` | No (mock-only) | Proposed — needs Rod confirm |
+| D11 | MVP phase-1 backend readiness (Loop 8) | SharePoint List v2 target, Power Automate deferred, no live integrations yet (design-only) | No (design-only) | Proposed — needs Rod confirm |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -140,5 +164,6 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
 ---
 
 ## Resolved
-_(none yet — no decision has been explicitly approved. D2, D9, and D10 are demonstrated in
-the mock MVP but remain Proposed pending Rod confirmation. D4 and D5 are superseded by D10.)_
+_(none yet — no decision has been explicitly approved. D2, D9, D10, and D11 are demonstrated
+/ designed in the mock MVP but remain Proposed pending Rod confirmation. D4 and D5 are
+superseded by D10. D11 is design-only and does not pre-empt the still-open, blocking D3.)_
