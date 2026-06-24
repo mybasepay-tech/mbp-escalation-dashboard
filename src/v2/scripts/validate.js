@@ -199,6 +199,41 @@ function checkPhase2Docs() {
   record(problems.length === 0, 'Phase-2 readiness docs present + design-only (D16 runbook/adapter/contract plans)', problems.join('; '));
 }
 
+// ----- 11. Local-first model + Phase-2 approval package (D17) -----
+function checkLocalFirstDocs() {
+  const REPO_ROOT = dirname(dirname(V2_ROOT));
+  const docs = join(REPO_ROOT, 'docs');
+  const problems = [];
+  const want = (rel, res) => {
+    const p = join(docs, rel);
+    let text;
+    try { text = readFileSync(p, 'utf8'); } catch { problems.push(`${rel} missing`); return; }
+    for (const [why, re] of res) if (!re.test(text)) problems.push(`${rel}: ${why}`);
+    const LIVE = [
+      ['Graph host', /graph\.microsoft\.com/i], ['SharePoint host', /\bsharepoint\.com/i],
+      ['Azure host', /microsoftonline\.com|azurewebsites\.net/i], ['REST path', /_api\/web|\/v1\.0\/sites/i],
+      ['GUID', /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i],
+      ['secret', /(client_secret|clientSecret|api[_-]?key)\s*[:=]/i], ['http URL', /https?:\/\/[a-z0-9.-]+/i],
+    ];
+    for (const [why, re] of LIVE) if (re.test(text)) problems.push(`${rel}: live marker (${why})`);
+  };
+  want('LOCAL_FIRST_EXECUTION_MODEL.md', [
+    ['names local work root', /C:\\dev\\mbp-escalation-dashboard/],
+    ['OneDrive not backend', /OneDrive[\s\S]*?not\b[\s\S]{0,40}backend/i],
+    ['future storage = v2 lists', /Escalations_v2_/],
+    ['no legacy writeback', /no.*writeback|D15/i],
+  ]);
+  want('PHASE2_TEST_SITE_APPROVAL_REQUEST.md', [
+    ['no production cutover', /no production cutover|no.*cutover/i],
+    ['no Power Automate', /No Power Automate|Power Automate.*deferred/i],
+    ['lists D6', /\bD6\b/], ['lists D7', /\bD7\b/],
+  ]);
+  want('ROD_PHASE2_APPROVAL_MESSAGE.md', [
+    ['mentions test site', /test site/i], ['legacy untouched', /legacy[\s\S]{0,40}(untouched|as-is)/i],
+  ]);
+  record(problems.length === 0, 'Local-first model + Phase-2 approval package present (D17, OneDrive not backend)', problems.join('; '));
+}
+
 // ----- run -----
 console.log('Escalation v2 — local readiness validation (mock/local only)\n');
 runTests();
@@ -211,6 +246,7 @@ checkSharePointSchema();
 checkAdapterStub();
 checkTransitionDocs();
 checkPhase2Docs();
+checkLocalFirstDocs();
 
 let allOk = true;
 for (const r of results) {

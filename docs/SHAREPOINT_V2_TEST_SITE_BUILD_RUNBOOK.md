@@ -32,7 +32,9 @@ any Power Automate flow, any production data migration, enabling end users, or c
 - If any step would touch production/legacy, **stop** — that is a hard rule, not a judgment call.
 
 ## 3. Required approvals before execution (ALL required)
-This runbook stays inert until the following are explicitly granted and recorded:
+> Use the one-page [`PHASE2_TEST_SITE_APPROVAL_REQUEST.md`](./PHASE2_TEST_SITE_APPROVAL_REQUEST.md)
+> (and the [`ROD_PHASE2_APPROVAL_MESSAGE.md`](./ROD_PHASE2_APPROVAL_MESSAGE.md) draft) to obtain
+> these. This runbook stays inert until the following are explicitly granted and recorded:
 - [ ] **D6 — dedicated v2 Entra app / permissions.** A new app registration isolated from the
       legacy app, with least-privilege scopes for the test site only. *(Approval-gated; not
       created by this repo.)*

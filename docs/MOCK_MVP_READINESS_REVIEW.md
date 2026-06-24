@@ -157,6 +157,19 @@ Loop 12 made Phase 2 **execution-ready** without doing anything live:
 - Still **design-only**: `SharePointStore` remains a stub; no live integration, no real
   lists/flows, no credentials/URLs, no legacy writeback; `MockStore` active.
 
+### Loop 13 — local-first model & Phase-2 approval package (design-only)
+Loop 13 clarified where things live and packaged the approval ask:
+- **Local-first model** ([`LOCAL_FIRST_EXECUTION_MODEL.md`](./LOCAL_FIRST_EXECUTION_MODEL.md)):
+  code/design artifacts are repo-local under `C:\dev\mbp-escalation-dashboard` (mock-only); real
+  data will live **only** in dedicated SharePoint v2 lists later. **OneDrive-synced folders are
+  not backend storage** (specifically not the "Information Technology - General" path) — **D17**.
+- **One-page approval request** ([`PHASE2_TEST_SITE_APPROVAL_REQUEST.md`](./PHASE2_TEST_SITE_APPROVAL_REQUEST.md))
+  and a **Rod message draft** ([`ROD_PHASE2_APPROVAL_MESSAGE.md`](./ROD_PHASE2_APPROVAL_MESSAGE.md)):
+  request a non-production test site, D6 app/permissions, and D7 read/export — explicitly **no**
+  cutover, **no** legacy change, **no** writeback, **no** Power Automate, **no** real users.
+- Still **design-only**: no live integration, no real lists/flows, no credentials/URLs, no
+  OneDrive backend, no legacy writeback; `SharePointStore` stub; `MockStore` active.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

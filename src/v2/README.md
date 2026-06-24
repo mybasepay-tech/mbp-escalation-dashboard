@@ -155,6 +155,13 @@ The **Phase-2 build** (when D6/D7 + Rod approval land) is fully specified and de
 the [contract test-site execution plan](../../docs/STORE_CONTRACT_TEST_SITE_PLAN.md) (decision
 **D16**). No live work is performed here.
 
+**Local-first (D17):** all code/design artifacts live in this repo under
+`C:\dev\mbp-escalation-dashboard` and are mock-only; real data will live **only** in dedicated
+SharePoint v2 lists later (never the repo, never OneDrive) — see the
+[local-first model](../../docs/LOCAL_FIRST_EXECUTION_MODEL.md). The Phase-2 ask is packaged in
+the [approval request](../../docs/PHASE2_TEST_SITE_APPROVAL_REQUEST.md) and
+[Rod message draft](../../docs/ROD_PHASE2_APPROVAL_MESSAGE.md).
+
 ## SharePoint backend readiness (design-only — no live services)
 `backend/sharepoint/schema.sharepoint-v2.json` is a **static, design-only** blueprint of the
 v2 SharePoint lists, prepared so a future `SharePointStore` adapter can be built behind the
