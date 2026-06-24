@@ -126,6 +126,29 @@
 - **Blocks:** nothing (design-only). Live work still blocked by D3/D6/D7 and the
   backend-adapter readiness checklist.
 
+### D12 — Tags use a dedicated many-to-many link list (Loop 9)
+- **Status:** **Accepted** for v2 backend readiness (design-only; supersedes the Loop 8
+  open question OQ-3).
+- **Context:** Loop 8 left the tag representation open: a comma-delimited tag field on
+  `Escalations_v2_Tickets` vs. a dedicated link list. A delimited field is hard to filter,
+  report on, audit, de-duplicate, and migrate.
+- **Decision:**
+  - **Do NOT** store tags as a comma-delimited field on `Escalations_v2_Tickets`.
+  - Use three lists: **`Escalations_v2_Tickets`**, **`Escalations_v2_Tags`** (the tag
+    **dictionary**), and **`Escalations_v2_TicketTags`** (the many-to-many **link** list that
+    is the **source of truth** for ticket↔tag relationships).
+  - `Escalations_v2_TicketTags` carries `TicketKey`/`TagKey` lookups, a `TagLabelSnapshot`,
+    `Source`, soft-delete (`IsActive`/`RemovedAt`), `CreatedAt`, and `CreatedBy`.
+  - The Ticket model's `tagIds` array is **materialized at read time** from active links —
+    never persisted on the ticket.
+  - Views/indexes support querying **tags by ticket** and **tickets by tag**.
+- **Reason:** cleaner filtering, reporting, auditing, de-duplication, and future migration.
+- **Scope:** design-only. Enforced by the schema, `scripts/validateSharePointSchema.js`, and
+  `tests/sharepoint-schema.test.js`. No live integration. `EscalationStore`/`MockStore`
+  semantics for tags are unchanged (the mock continues to expose `tagIds`).
+- **Blocks:** nothing (design-only). Reflected in the schema (`tagModel:
+  many-to-many-link-list`) and the admin build package.
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -146,6 +169,7 @@
 | D9 | Generic MVP config | Mirror legacy required fields/categories (generic default in place) | No | Proposed — needs Rod confirm |
 | D10 | Status vocab + owner-only Complete (Loop 7) | Align to legacy vocabulary; `Complete` owner-only; add `ticketOwner`/`completedDate` | No (mock-only) | Proposed — needs Rod confirm |
 | D11 | MVP phase-1 backend readiness (Loop 8) | SharePoint List v2 target, Power Automate deferred, no live integrations yet (design-only) | No (design-only) | Proposed — needs Rod confirm |
+| D12 | Tag model (Loop 9) | Dedicated many-to-many `Escalations_v2_TicketTags` link list; no delimited tag field on Tickets | No (design-only) | **Accepted** (design-only) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -164,6 +188,10 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
 ---
 
 ## Resolved
-_(none yet — no decision has been explicitly approved. D2, D9, D10, and D11 are demonstrated
-/ designed in the mock MVP but remain Proposed pending Rod confirmation. D4 and D5 are
-superseded by D10. D11 is design-only and does not pre-empt the still-open, blocking D3.)_
+- **D12 — Tag model (Loop 9): Accepted (design-only).** Tags use a dedicated many-to-many
+  `Escalations_v2_TicketTags` link list; no delimited tag field on Tickets. This is a
+  design/schema decision with no live impact and does not pre-empt the blocking D3.
+
+_D2, D9, D10, and D11 are demonstrated / designed in the mock MVP but remain Proposed pending
+Rod confirmation. D4 and D5 are superseded by D10. D11 is design-only and does not pre-empt
+the still-open, blocking D3._

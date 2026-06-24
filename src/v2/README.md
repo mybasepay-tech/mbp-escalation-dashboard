@@ -147,13 +147,20 @@ v2 SharePoint lists, prepared so a future `SharePointStore` adapter can be built
 - It contains **no** credentials, tenant/client IDs, secrets, OAuth scopes, or live URLs.
 - **Power Automate is deferred for MVP phase 1** — business rules stay in `domain/rules.js`.
 - `MockStore` remains the **only** backend; the `EscalationStore` abstraction is unchanged.
+- **Tags are a dedicated many-to-many link list** (`Escalations_v2_TicketTags`), **not** a
+  delimited field on tickets (decision **D12**); `Escalations_v2_Tags` is the tag dictionary.
 
 `scripts/validateSharePointSchema.js` validates the JSON **structure only** (it reads a local
 file — no network) and is wired into `npm run validate`; `tests/sharepoint-schema.test.js`
-asserts the lists/fields and that no live/production strings leak in. Design rationale,
-field/column mapping, indexes/views, permission assumptions, and the future adapter approach
-live in [`../../docs/SHAREPOINT_V2_BACKEND_READINESS.md`](../../docs/SHAREPOINT_V2_BACKEND_READINESS.md)
-and [`../../docs/BACKEND_ADAPTER_PLAN.md`](../../docs/BACKEND_ADAPTER_PLAN.md) (decision D11).
+asserts the lists/fields, the D12 tag link list, stable internal/display naming, tag-lookup
+views/indexes, and that no live/production strings leak in. Design rationale, field/column
+mapping, indexes/views, permission assumptions, and the future adapter approach live in
+[`../../docs/SHAREPOINT_V2_BACKEND_READINESS.md`](../../docs/SHAREPOINT_V2_BACKEND_READINESS.md)
+and [`../../docs/BACKEND_ADAPTER_PLAN.md`](../../docs/BACKEND_ADAPTER_PLAN.md) (decisions D11,
+D12). A *design-only* admin build recipe and its pre-build safety gate live in
+[`../../docs/SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md`](../../docs/SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md)
+and [`../../harness/SHAREPOINT_V2_DRY_RUN_CHECKLIST.md`](../../harness/SHAREPOINT_V2_DRY_RUN_CHECKLIST.md)
+— **do not run against production**.
 
 ## Key rules implemented (see [`../../docs/STATUS_WORKFLOW.md`](../../docs/STATUS_WORKFLOW.md))
 - Tickets can be assigned to a department/queue, a person, or both.

@@ -64,7 +64,8 @@ Authoritative shapes are in
 | `Escalations_v2_Activity` | `ActivityEvent` | Append-only, immutable audit/activity log. |
 | `Escalations_v2_Comments` | `Comment` | Public, member/requester-facing comments. |
 | `Escalations_v2_InternalNotes` | `Note` | Internal notes (visibility metadata for future gating). |
-| `Escalations_v2_Tags` | `Tag` | Tag catalog. |
+| `Escalations_v2_Tags` | `Tag` | Tag **dictionary** (catalog) only. |
+| `Escalations_v2_TicketTags` | (relation) | Many-to-many **link** list — source of truth for ticket↔tag (decision **D12**). |
 | `Escalations_v2_Departments` | `Department` | Departments/queues, leads, members. |
 | `Escalations_v2_Users` | `User` | Reference-user directory — **see §5 strategy** (prefer native Person columns). |
 
@@ -83,13 +84,29 @@ translate mechanically. Highlights for `Escalations_v2_Tickets`:
 | `assigneeId` | `AssigneeKey` | Lookup → Users (indexed) | Worker. |
 | `ticketOwner` | `TicketOwnerKey` | Lookup → Users | Closure authority (owner-only Complete). |
 | `completedDate` | `CompletedDate` | DateTime | Set on Complete, cleared on Reopened. |
-| `tagIds` | `TagKeys` | Note (or link list) | See OQ-3 in §9. |
+| `tagIds` | *(none — link list)* | — | **D12:** materialized from `Escalations_v2_TicketTags` active links; **not** a column on Tickets. |
 | `legacyItemId` / `legacyUrl` | `LegacyItemId` / `LegacyUrl` | Text / Hyperlink | Read-only traceability. |
 | `createdAt` / `modifiedAt` | `CreatedAt` / `ModifiedAt` | DateTime | App timestamps, distinct from SharePoint Created/Modified. |
 
-> `daysOpen` is intentionally **not** a column — it is always computed at read time and
-> clamped ≥ 0 (legacy stored day-counts drifted). The schema records this under
-> `computedNotInStorage`.
+> `daysOpen` and `tagIds` are intentionally **not** columns — `daysOpen` is computed at read
+> time and clamped ≥ 0 (legacy stored day-counts drifted); `tagIds` is materialized from the
+> `Escalations_v2_TicketTags` link list. Both are recorded under `computedNotInStorage`.
+
+### 5a. Tag model — dedicated many-to-many link list (D12)
+Tags are **not** a delimited field on the ticket. Three lists collaborate:
+- **`Escalations_v2_Tags`** — the tag **dictionary** (`TagKey`, `Label`, optional `Color`,
+  `ScopeDeptKey`, `IsActive`). Authoritative tag definitions only.
+- **`Escalations_v2_TicketTags`** — the **link** list and **source of truth** for which tags
+  are on which ticket. One row per relationship: `TicketTagKey`, `TicketKey`→Tickets,
+  `TagKey`→Tags, `TagLabelSnapshot` (survives later relabeling), `Source`
+  (manual/migration/import/system), `IsActive` + `RemovedAt` (**soft-delete**), `CreatedAt`,
+  `CreatedBy`. The adapter enforces **one active row per (ticket, tag)** for de-duplication.
+- **`Escalations_v2_Tickets`** carries **no** tag column; the model's `tagIds` is built from
+  active links at read time.
+
+**Why (resolves Loop 8 OQ-3):** a link list gives clean filtering, tag-based reporting
+(*Tickets by Tag*), full audit/history (soft-delete keeps removed links), de-duplication, and
+a migration-friendly shape — none of which a comma-delimited field supports well.
 
 **Reference-user strategy (`Escalations_v2_Users`).** The *preferred* production approach is
 **native SharePoint `Person` columns** resolving identities against Entra/SharePoint user
@@ -103,6 +120,9 @@ sorted columns are indexed):
 - `Tickets`: `TicketKey`, `Status`, `Priority`, `AssignedDeptKey`, `AssigneeKey`, `EscalationDate`.
 - `Activity` (grows fastest): `ActivityKey`, `EscalationKey`, `Type`, `Timestamp`.
 - `Comments` / `InternalNotes`: key, `EscalationKey`, `CreatedAt`.
+- `TicketTags`: `TicketTagKey`, `TicketKey`, `TagKey`, `IsActive`, `CreatedAt` — both lookup
+  directions indexed (can grow large: many tags × many tickets).
+- `Tags`: `TagKey`, `Label`.
 
 **Views** (defined in the schema's `views` array):
 - **Open by Department** — backs the department queue (includes person-assigned tickets).
@@ -110,6 +130,9 @@ sorted columns are indexed):
 - **Overdue / At-Risk** — `ExpectedResolutionDate < [Today]` and open.
 - **Legacy Migrated** — `LegacyItemId is not null` (traceability).
 - Per-ticket chronological views for Activity, Comments, and Internal Notes.
+- **Tags by Ticket** (`TicketKey = [param] AND IsActive = true`) and **Tickets by Tag**
+  (`TagKey = [param] AND IsActive = true`) on `TicketTags`, plus a **Link Audit (all)** view
+  retaining soft-deleted links (D12).
 
 ## 7. Permission model assumptions
 Assumptions only — **no permissions are configured by this work**; finalized under D6 before
@@ -146,9 +169,10 @@ any live work:
   store seam.
 - **OQ-2 — 5,000-item list-view threshold.** Activity grows fastest; indexing (§6) and
   paged queries are mandatory. Re-evaluate if volume approaches the threshold quickly.
-- **OQ-3 — Tags representation.** Delimited `TagKeys` text vs. a dedicated many-to-many link
-  list (`Escalations_v2_TicketTags`). Link list is cleaner for querying "tickets with tag X"
-  but adds a list and joins. Decide before build.
+- **OQ-3 — Tags representation. RESOLVED (D12).** Decided in favor of the dedicated
+  many-to-many `Escalations_v2_TicketTags` link list (not a delimited field) for clean
+  filtering/reporting/auditing/de-duplication/migration. See §5a. The cost (an extra list +
+  joins) is accepted. Remaining detail: the adapter enforces one-active-row-per-(ticket,tag).
 - **OQ-4 — Identity binding.** Native `Person` columns vs. the `Escalations_v2_Users` shim;
   depends on directory access (D6/D7).
 - **OQ-5 — Immutability of Activity.** SharePoint doesn't truly prevent edits; immutability
@@ -159,9 +183,13 @@ any live work:
   SharePoint ETags; the adapter must handle conflicts.
 
 ## 10. Manual / admin steps that may eventually be required
-*(None are performed now — listed so the future live phase is predictable.)*
+*(None are performed now — listed so the future live phase is predictable. The full,
+step-by-step recipe lives in
+[`SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md`](./SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md), gated by the
+[dry-run checklist](../harness/SHAREPOINT_V2_DRY_RUN_CHECKLIST.md).)*
 1. Provision a **company-owned** SharePoint site for v2 (separate from legacy).
-2. Create the seven `Escalations_v2_*` lists from the schema; add columns and choice sets.
+2. Create the **eight** `Escalations_v2_*` lists from the schema (incl. the
+   `Escalations_v2_TicketTags` link list); add columns and choice sets.
 3. Apply the **indexes** in §6 and create the **views** in §6.
 4. Register a **new v2 Entra app** (D6) with least-privilege Graph scopes.
 5. Configure list/site **permissions** per §7.
