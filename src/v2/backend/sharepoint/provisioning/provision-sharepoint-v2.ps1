@@ -70,7 +70,13 @@ if (-not $PSCmdlet.ShouldProcess($config.siteReferencePlaceholder, 'Create Escal
 # The operator supplies the real site reference in the git-ignored config at runtime.
 Import-Module PnP.PowerShell
 Write-Host "[connect] Connecting interactively to the configured non-production test site..." -ForegroundColor Yellow
-Connect-PnPOnline -Url $config.siteReferencePlaceholder -Interactive
+# PnP.PowerShell 2.x+ requires an Entra App Registration client id for interactive auth. The
+# client id is a runtime, GIT-IGNORED config value (a public app identifier, not a secret) and
+# is never committed. Fall back to plain -Interactive only if no client id is configured.
+$connectParams = @{ Url = $config.siteReferencePlaceholder; Interactive = $true }
+$clientId = Get-ConfigValue $config 'clientId'
+if (-not [string]::IsNullOrWhiteSpace($clientId)) { $connectParams['ClientId'] = $clientId }
+Connect-PnPOnline @connectParams
 
 # Re-affirm we are not on legacy/production after connecting (defense in depth).
 $web = Get-PnPWeb
