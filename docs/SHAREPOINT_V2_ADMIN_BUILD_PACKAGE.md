@@ -13,6 +13,11 @@
 > [`BACKEND_ADAPTER_PLAN.md`](./BACKEND_ADAPTER_PLAN.md),
 > [`DECISION_LOG.md`](./DECISION_LOG.md) (D11, D12). Pre-flight:
 > [`../harness/SHAREPOINT_V2_DRY_RUN_CHECKLIST.md`](../harness/SHAREPOINT_V2_DRY_RUN_CHECKLIST.md).
+>
+> **Phase-2 execution:** this package is the **column/index/view source of truth**; the
+> ordered, executable build steps live in
+> [`SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md`](./SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md)
+> (runbook-driven and contract-validated — decision **D16**).
 
 ## 1. Purpose and scope
 Give a SharePoint admin a single, reviewable checklist to stand up the v2 lists **exactly**

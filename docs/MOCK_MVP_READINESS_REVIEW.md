@@ -139,6 +139,24 @@ live integration, no flows.
 - Still **design-only**: no live integration, no real lists/flows, no legacy writeback;
   `MockStore` active; `EscalationStore` intact.
 
+### Loop 12 — Phase-2 test-site build runbook & adapter plan (design-only)
+Loop 12 made Phase 2 **execution-ready** without doing anything live:
+- **Test-site build runbook** ([`SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md`](./SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md)):
+  approvals (D6/D7/Rod/test-site), pre-flight, list/column/index/view creation sequences,
+  per-list validation, rollback/cleanup, failure handling, go/no-go — "do not run against
+  production/legacy", Power Automate stays deferred.
+- **SharePointStore implementation plan** ([`SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md`](./SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md)):
+  method→list mapping, read/write/activity/comment/note/tag strategies, composite-uniqueness
+  for active tag links, Complete/Reopened/Cancelled, error handling, ETag concurrency,
+  atomicity/compensation, pagination/threshold, identity mapping, and 5 test-site build phases.
+- **Contract test-site execution plan** ([`STORE_CONTRACT_TEST_SITE_PLAN.md`](./STORE_CONTRACT_TEST_SITE_PLAN.md)):
+  reuses the existing harness via a `makeStore(seed)` factory; isolation, cleanup, flake
+  handling, **placeholder-only** config (no real env vars/URLs/secrets), first-green criteria.
+- **D16 (Accepted):** Phase-2 build is runbook-driven and must pass the store contract on a
+  disposable test site before any production consideration.
+- Still **design-only**: `SharePointStore` remains a stub; no live integration, no real
+  lists/flows, no credentials/URLs, no legacy writeback; `MockStore` active.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

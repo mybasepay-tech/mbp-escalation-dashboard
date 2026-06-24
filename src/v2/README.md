@@ -149,6 +149,12 @@ behavior every `EscalationStore` must satisfy. It runs against `MockStore` today
 the interface and throws a clear design-only error on every operation — no network, no SDK
 imports, no secrets. `MockStore` remains the only real backend.
 
+The **Phase-2 build** (when D6/D7 + Rod approval land) is fully specified and design-only: the
+[test-site build runbook](../../docs/SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md), the
+[`SharePointStore` implementation plan](../../docs/SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md), and
+the [contract test-site execution plan](../../docs/STORE_CONTRACT_TEST_SITE_PLAN.md) (decision
+**D16**). No live work is performed here.
+
 ## SharePoint backend readiness (design-only — no live services)
 `backend/sharepoint/schema.sharepoint-v2.json` is a **static, design-only** blueprint of the
 v2 SharePoint lists, prepared so a future `SharePointStore` adapter can be built behind the
