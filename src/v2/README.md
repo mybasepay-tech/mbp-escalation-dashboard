@@ -162,6 +162,12 @@ SharePoint v2 lists later (never the repo, never OneDrive) — see the
 the [approval request](../../docs/PHASE2_TEST_SITE_APPROVAL_REQUEST.md) and
 [Rod message draft](../../docs/ROD_PHASE2_APPROVAL_MESSAGE.md).
 
+**Provisioning (D18, Phase 2 approved):** the scripted, config-driven, **fail-closed**
+package at [`backend/sharepoint/provisioning/`](./backend/sharepoint/provisioning/) builds /
+validates / cleans up the `Escalations_v2_*` lists on a **non-production** test site. It
+defaults to dry-run, targets only a non-production site (never legacy), creates no Power
+Automate flows, and reads a **git-ignored** runtime config — no secrets/URLs are committed.
+
 ## SharePoint backend readiness (design-only — no live services)
 `backend/sharepoint/schema.sharepoint-v2.json` is a **static, design-only** blueprint of the
 v2 SharePoint lists, prepared so a future `SharePointStore` adapter can be built behind the

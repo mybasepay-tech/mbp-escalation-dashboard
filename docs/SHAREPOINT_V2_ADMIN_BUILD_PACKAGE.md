@@ -17,7 +17,10 @@
 > **Phase-2 execution:** this package is the **column/index/view source of truth**; the
 > ordered, executable build steps live in
 > [`SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md`](./SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md)
-> (runbook-driven and contract-validated — decision **D16**).
+> (runbook-driven and contract-validated — decision **D16**) and are **automated** by the
+> scripted, fail-closed provisioning package
+> [`../src/v2/backend/sharepoint/provisioning/`](../src/v2/backend/sharepoint/provisioning/)
+> (decision **D18**; Phase 2 approved — non-production test site only).
 
 ## 1. Purpose and scope
 Give a SharePoint admin a single, reviewable checklist to stand up the v2 lists **exactly**

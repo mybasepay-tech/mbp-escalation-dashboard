@@ -1,0 +1,41 @@
+{
+  "name": "escalation-v2-sharepoint-provisioning",
+  "version": "0.1.0",
+  "status": "execution-ready-pending-runtime-config",
+  "designOnly": false,
+  "requiresRuntimeConfig": true,
+  "schema": "../schema.sharepoint-v2.json",
+  "schemaVersion": "0.2.0-design",
+  "targetPolicy": {
+    "nonProductionOnly": true,
+    "legacyTargetForbidden": true,
+    "legacyWriteback": false,
+    "powerAutomateFlows": false,
+    "productionCutover": false,
+    "oneDriveBackend": false
+  },
+  "scripts": [
+    { "file": "provision-sharepoint-v2.ps1", "purpose": "Create Escalations_v2_* lists/columns/indexes/views on an approved non-production test site (dry-run by default).", "mutates": true, "defaultMode": "dry-run" },
+    { "file": "validate-sharepoint-v2.ps1", "purpose": "Read-only validation of the test site against the schema.", "mutates": false, "defaultMode": "dry-run" },
+    { "file": "cleanup-sharepoint-v2-testsite.ps1", "purpose": "Delete only Escalations_v2_* lists on the test site (requires allowCleanup=true).", "mutates": true, "defaultMode": "dry-run" },
+    { "file": "provisioning.common.ps1", "purpose": "Shared fail-closed safety helpers (config load, safety gate, schema plan).", "mutates": false }
+  ],
+  "config": {
+    "example": "provision.config.example.json",
+    "runtime": "provision.config.json",
+    "runtimeIsGitIgnored": true,
+    "requiredApprovalFlags": ["phase2Approved=true", "nonProductionOnly=true", "legacyWritebackAllowed=false", "powerAutomateAllowed=false"]
+  },
+  "requiredLists": [
+    "Escalations_v2_Tickets",
+    "Escalations_v2_Activity",
+    "Escalations_v2_Comments",
+    "Escalations_v2_InternalNotes",
+    "Escalations_v2_Tags",
+    "Escalations_v2_TicketTags",
+    "Escalations_v2_Departments",
+    "Escalations_v2_Users"
+  ],
+  "prerequisite": "PnP.PowerShell module + interactive auth at runtime; scripts fail closed with a prerequisite message if absent (no auto-install, no faking).",
+  "notes": "No secrets, tenant IDs, client IDs, or live URLs are stored here. Real runtime config must never be committed. See SHAREPOINT_V2_PROVISIONING_SAFETY_CHECKLIST.md."
+}
