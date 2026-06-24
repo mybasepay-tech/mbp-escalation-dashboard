@@ -107,6 +107,12 @@ src/v2/
   mock/
     seed.js        # fabricated sample data (all required scenarios)
     demo.js        # local inspection script
+  backend/
+    sharepoint/
+      schema.sharepoint-v2.json  # DESIGN-ONLY SharePoint v2 list schema (connects to nothing)
+  scripts/
+    validate.js                  # local readiness gate (npm run validate)
+    validateSharePointSchema.js  # local JSON-structure validator for the schema (no network)
   ui/
     index.html     # mock UI shell entry point
     styles.css     # self-contained styles (no external fonts/CDNs)
@@ -120,6 +126,7 @@ src/v2/
     views.test.js        # department filters + basic reporting counts
     safety.test.js       # no production strings / network calls; fake legacy domain
     ui-smoke.test.js     # view-model rendering + UI-specific safety scan
+    sharepoint-schema.test.js  # design-only schema parses, lists/fields, no live markers
   README.md
 ```
 
@@ -129,6 +136,24 @@ All app logic depends on the `EscalationStore` contract, not on any backend. The
 without changing callers — see [`../../docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md)
 §3.2. **Microsoft Graph is explicitly NOT part of this foundation**; it would only ever be
 one possible future adapter behind this seam.
+
+## SharePoint backend readiness (design-only — no live services)
+`backend/sharepoint/schema.sharepoint-v2.json` is a **static, design-only** blueprint of the
+v2 SharePoint lists, prepared so a future `SharePointStore` adapter can be built behind the
+`EscalationStore` seam. It is preparation, **not** integration:
+
+- It **connects to nothing** — no Microsoft Graph, SharePoint, Dataverse, Azure Functions,
+  network, or Power Automate. **No flows are created.**
+- It contains **no** credentials, tenant/client IDs, secrets, OAuth scopes, or live URLs.
+- **Power Automate is deferred for MVP phase 1** — business rules stay in `domain/rules.js`.
+- `MockStore` remains the **only** backend; the `EscalationStore` abstraction is unchanged.
+
+`scripts/validateSharePointSchema.js` validates the JSON **structure only** (it reads a local
+file — no network) and is wired into `npm run validate`; `tests/sharepoint-schema.test.js`
+asserts the lists/fields and that no live/production strings leak in. Design rationale,
+field/column mapping, indexes/views, permission assumptions, and the future adapter approach
+live in [`../../docs/SHAREPOINT_V2_BACKEND_READINESS.md`](../../docs/SHAREPOINT_V2_BACKEND_READINESS.md)
+and [`../../docs/BACKEND_ADAPTER_PLAN.md`](../../docs/BACKEND_ADAPTER_PLAN.md) (decision D11).
 
 ## Key rules implemented (see [`../../docs/STATUS_WORKFLOW.md`](../../docs/STATUS_WORKFLOW.md))
 - Tickets can be assigned to a department/queue, a person, or both.
