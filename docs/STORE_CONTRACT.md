@@ -78,9 +78,10 @@ credentials, env vars, tenant/client IDs, secrets, or live URLs. Each method doc
 *future* mapping to the design-only SharePoint lists (e.g. `setStatus -> Tickets.Status +
 Activity(status_change)`), so the build target is visible without anything being live.
 
-When a controlled build is approved (gated by D3/D6/D7 and the dry-run checklist), the stub
-becomes a real adapter and is wired into the **same** contract harness against a disposable
-test site:
+The backend target is **SharePoint List v2** (decision D3, accepted Loop 11). When a
+controlled build is approved (now gated by D6/D7 and the dry-run checklist, and sequenced by
+[`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md)), the stub becomes a
+real adapter and is wired into the **same** contract harness against a disposable test site:
 ```js
 // future, not implemented now:
 runStoreContract('SharePointStore(test-site)', async (seed) => provisionAndLoad(seed));

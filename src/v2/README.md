@@ -154,6 +154,10 @@ imports, no secrets. `MockStore` remains the only real backend.
 v2 SharePoint lists, prepared so a future `SharePointStore` adapter can be built behind the
 `EscalationStore` seam. It is preparation, **not** integration:
 
+- **SharePoint List v2 / Microsoft List v2 is the accepted backend target** (decision D3,
+  Loop 11). The legacy tracker **stays operational** and is **never written to** during the
+  transition (D14/D15); cutover is staged — see
+  [`../../docs/PARALLEL_RUN_AND_CUTOVER_PLAN.md`](../../docs/PARALLEL_RUN_AND_CUTOVER_PLAN.md).
 - It **connects to nothing** — no Microsoft Graph, SharePoint, Dataverse, Azure Functions,
   network, or Power Automate. **No flows are created.**
 - It contains **no** credentials, tenant/client IDs, secrets, OAuth scopes, or live URLs.

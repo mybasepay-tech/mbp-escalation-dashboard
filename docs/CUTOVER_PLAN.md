@@ -1,7 +1,12 @@
 # Cutover Plan — Legacy → Escalation System v2
 
+> **Superseded by [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md)
+> (Loop 11)**, which is the authoritative, phased parallel-run + cutover plan for the accepted
+> SharePoint v2 backend (D3/D14). This file is retained for history; its principles still hold.
+>
 > Planning scaffold. **Cutover is NOT authorized by this document.** Legacy remains live
-> and open to users until Rod explicitly approves cutover (hard rules #1, #2).
+> and open to users until Rod explicitly approves cutover (hard rules #1, #2). **No legacy
+> writeback** at any phase (D15).
 
 ## 1. Principles
 - Legacy tracker stays **live and open to users** throughout build and migration.

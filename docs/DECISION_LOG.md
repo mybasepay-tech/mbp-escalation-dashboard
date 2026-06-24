@@ -36,13 +36,27 @@
 - **Blocks:** Phase 2.
 
 ### D3 — Target backend
-- **Status:** Open (needs Rod)
-- **Context:** SharePoint is acceptable as a temporary backend; design must be swappable.
-- **Options:** (a) Managed DB + API (e.g. Postgres/Cosmos); (b) **Dataverse**;
-  (c) stay on SharePoint lists long-term.
-- **Recommendation:** Keep the DAL backend-agnostic now; decide before any live backend
-  work. Dataverse is attractive for Power Platform/Entra alignment.
-- **Blocks:** post-MVP live backend (not MVP, which is mock-first).
+- **Status:** **DECIDED (Loop 11) — SharePoint List v2 / Microsoft List v2.**
+- **Decision (Rod/user, Loop 11):** The backend target is **SharePoint List v2 /
+  Microsoft List v2**. This resolves the previously-open, blocking choice and confirms the
+  provisional direction in D11 as the accepted target.
+- **Context:** SharePoint is already the team's environment and hosts the legacy tracker;
+  the v2 lists are new and isolated (prefixed `Escalations_v2_`). The design stays swappable
+  behind `EscalationStore` (the seam is preserved), so a future re-platform remains possible
+  but is not planned.
+- **Options considered:** (a) Managed DB + API (e.g. Postgres/Cosmos); (b) Dataverse;
+  (c) **SharePoint List v2** ← chosen.
+- **Rationale:** lowest friction to a working backend, familiar to operators, native
+  views/indexes/permissions, and full separation from legacy. Dataverse/API remain
+  reconsiderable later only if SharePoint limits (e.g. list-view threshold, cross-list
+  reporting, row-level security) become blocking — see
+  [`SHAREPOINT_V2_BACKEND_READINESS.md`](./SHAREPOINT_V2_BACKEND_READINESS.md) §11.
+- **Still blocked (separate decisions):** building real lists / live integration remains
+  gated by **D6** (Entra app), **D7** (legacy read access), and the dry-run / backend-adapter
+  checklists. Deciding the target does **not** authorize any live build. Power Automate stays
+  **deferred** (D11); `SharePointStore` stays a **design-only stub** (D13) until live-build
+  approval; Graph/live integration stays **blocked** until explicit approval.
+- See also **D14** (parallel-run transition) and **D15** (no legacy writeback).
 
 ### D4 — "Complete" → v2 status mapping
 - **Status:** Superseded by **D10** (Loop 7)
@@ -168,6 +182,30 @@
 - **Blocks:** nothing now; it *gates* the future adapter build (composes with D3/D6/D7 and the
   backend-adapter / dry-run checklists).
 
+### D14 — Parallel-run transition (Loop 11)
+- **Status:** **Accepted** (Rod/user, Loop 11).
+- **Context:** The legacy SharePoint/List process must keep working while the v2 SharePoint
+  backend is built and validated. A hard, immediate replacement is not acceptable.
+- **Decision:** Adopt a **parallel-run / staged-cutover** strategy. The legacy tracker
+  **remains operational and the source of truth for users** while v2 is built separately,
+  test-built on a v2 site, populated by dry-run migration, validated in parallel, demoed for
+  acceptance, and only then cut over — with rollback available at every step. Legacy may be
+  treated as a **read-only** source/reference/export during migration planning.
+- **Phases & gates:** see [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md)
+  (supersedes the older scaffold in [`CUTOVER_PLAN.md`](./CUTOVER_PLAN.md)).
+- **Blocks:** nothing now (planning only). Cutover itself requires explicit Rod approval.
+
+### D15 — Legacy writeback policy (Loop 11)
+- **Status:** **Accepted** (Rod/user, Loop 11).
+- **Decision:** **No writeback to the legacy tracker** during MVP, build, or migration —
+  no field updates, status fixes, deletes, schema/permission/flow changes. Legacy is
+  **read-only** to v2 work. Any future writeback would require a **separate, explicit**
+  approval and its own decision entry. Drift is corrected **in the v2 copy only**, always
+  with a `migration_normalization` note (see [`MIGRATION_SPEC.md`](./MIGRATION_SPEC.md) §4).
+- **Enforced by:** the no-writeback language across the migration/cutover docs and the
+  validator doc-guard check added in Loop 11.
+- **Blocks:** nothing now; it is a standing prohibition.
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -179,7 +217,7 @@
 |----|-------|-------------------------------|----------------------|--------|
 | D1 | App stack / hosting | Component SPA behind the DAL (mock shell proves the shape) | No | Open |
 | D2 | Auto-status behavior | Keep **auto** forward (New/Not-yet-assigned → Assigned); demonstrated, tests green | No | Proposed — needs Rod confirm |
-| D3 | Target backend | Decide before any adapter: SharePoint (temp) vs. API+DB vs. **Dataverse** | **YES** | **Open — BLOCKING** |
+| D3 | Target backend | **SharePoint List v2 / Microsoft List v2** (chosen Loop 11) | Live build still gated by D6/D7 | **DECIDED — SharePoint v2** |
 | D4 | "Complete" mapping | **Superseded by D10** — single `Complete` state, maps 1:1 | Yes (migration mapping) | Superseded |
 | D5 | Pending-* collapse | **Superseded by D10** — keep 3 distinct Pending-* states | Yes (migration mapping) | Superseded |
 | D6 | Entra app registration | New v2 app (isolate from legacy) | **YES** (any live auth) | **Open — BLOCKING** |
@@ -187,20 +225,22 @@
 | D8 | Dept/queue list | Confirm canonical departments + leads | Yes (seed realism) | Open |
 | D9 | Generic MVP config | Mirror legacy required fields/categories (generic default in place) | No | Proposed — needs Rod confirm |
 | D10 | Status vocab + owner-only Complete (Loop 7) | Align to legacy vocabulary; `Complete` owner-only; add `ticketOwner`/`completedDate` | No (mock-only) | Proposed — needs Rod confirm |
-| D11 | MVP phase-1 backend readiness (Loop 8) | SharePoint List v2 target, Power Automate deferred, no live integrations yet (design-only) | No (design-only) | Proposed — needs Rod confirm |
+| D11 | MVP phase-1 backend readiness (Loop 8) | SharePoint List v2 target, Power Automate deferred, no live integrations yet (design-only) | No (design-only) | **Confirmed via D3 (Loop 11)** — PA still deferred |
 | D12 | Tag model (Loop 9) | Dedicated many-to-many `Escalations_v2_TicketTags` link list; no delimited tag field on Tickets | No (design-only) | **Accepted** (design-only) |
 | D13 | Adapter acceptance gate (Loop 10) | Store contract tests gate any backend adapter; `SharePointStore` is a design-only stub | No (design-only) | **Accepted** (design-only) |
+| D14 | Parallel-run transition (Loop 11) | Legacy stays operational; v2 built separately; staged cutover with rollback | No (planning) | **Accepted** |
+| D15 | Legacy writeback policy (Loop 11) | No writeback to legacy during MVP/build/migration unless separately approved | No (standing rule) | **Accepted** |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
 / Dataverse / migration-dry-run work starts:
 
-1. **D3** backend choice.
+1. ~~**D3** backend choice.~~ **DECIDED (Loop 11): SharePoint List v2.**
 2. **D6** Entra app decision.
 3. **D7** legacy read-access method for the migration dry-run.
 4. Company-owned site/resource confirmation (v2 must not live on a personal site).
-5. Migration dry-run approval (read-only, **no write-back** to legacy).
-6. Rollback / **no-cutover** confirmation (legacy stays live and untouched).
+5. Migration dry-run approval (read-only, **no write-back** to legacy — see **D15**).
+6. Rollback / **no-cutover** confirmation (legacy stays live and untouched — see **D14**).
 
 Full gate: [`../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md`](../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md).
 Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.md).
@@ -208,13 +248,21 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
 ---
 
 ## Resolved
+- **D3 — Target backend (Loop 11): DECIDED — SharePoint List v2 / Microsoft List v2.** The
+  previously-blocking backend choice is closed. Deciding the target does not authorize any
+  live build (still gated by D6/D7 and the checklists).
+- **D14 — Parallel-run transition (Loop 11): Accepted.** Legacy stays operational while v2 is
+  built separately; staged cutover with rollback. See
+  [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md).
+- **D15 — Legacy writeback policy (Loop 11): Accepted.** No writeback to legacy during
+  MVP/build/migration unless separately approved.
 - **D12 — Tag model (Loop 9): Accepted (design-only).** Tags use a dedicated many-to-many
-  `Escalations_v2_TicketTags` link list; no delimited tag field on Tickets. This is a
-  design/schema decision with no live impact and does not pre-empt the blocking D3.
+  `Escalations_v2_TicketTags` link list; no delimited tag field on Tickets.
 - **D13 — Adapter acceptance gate (Loop 10): Accepted (design-only).** The store contract
   tests are the mandatory acceptance gate for any future backend adapter; `SharePointStore`
-  is a design-only stub. Process/design decision with no live impact; does not pre-empt D3.
+  is a design-only stub.
 
-_D2, D9, D10, and D11 are demonstrated / designed in the mock MVP but remain Proposed pending
-Rod confirmation. D4 and D5 are superseded by D10. D11 is design-only and does not pre-empt
-the still-open, blocking D3._
+_D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
+D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional
+target is confirmed; Power Automate stays deferred and live integration stays blocked until
+explicit approval (D6/D7)._
