@@ -36,9 +36,13 @@ Legacy stays live and unmodified in **every** phase below.
 - Exit: design package complete; D3 decided (✅).
 
 ### Phase 2 — SharePoint v2 test-site build *(requires Rod approval; D6 + dry-run checklist)*
-- Build the eight `Escalations_v2_*` lists on a **disposable test site** from the design-only
-  schema (see [`SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md`](./SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md)).
-- Implement `SharePointStore` and run it against the **store contract** (D13) on the test site.
+- Build the eight `Escalations_v2_*` lists on a **disposable test site** by following the
+  step-by-step [`SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md`](./SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md)
+  (column source: [`SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md`](./SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md)).
+- Implement `SharePointStore` per
+  [`SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md`](./SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md) and run it
+  against the **store contract** (D13/D16) on the test site
+  ([`STORE_CONTRACT_TEST_SITE_PLAN.md`](./STORE_CONTRACT_TEST_SITE_PLAN.md)).
 - Live: **legacy only**. v2 test site holds throwaway/sample data.
 - Read-only: legacy (not yet accessed unless export provided).
 - Never modify: legacy lists/permissions/flows.

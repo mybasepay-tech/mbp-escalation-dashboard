@@ -12,7 +12,10 @@
 > Companion docs: [`BACKEND_ADAPTER_PLAN.md`](./BACKEND_ADAPTER_PLAN.md),
 > [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md),
 > [`LEGACY_TO_V2_MAPPING_PLAN.md`](./LEGACY_TO_V2_MAPPING_PLAN.md),
-> [`DATA_MODEL.md`](./DATA_MODEL.md), [`DECISION_LOG.md`](./DECISION_LOG.md) (D3, D11, D14, D15),
+> [`SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md`](./SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md),
+> [`SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md`](./SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md),
+> [`DATA_MODEL.md`](./DATA_MODEL.md),
+> [`DECISION_LOG.md`](./DECISION_LOG.md) (D3, D11, D14, D15, D16),
 > [`MIGRATION_SPEC.md`](./MIGRATION_SPEC.md). Design artifact:
 > [`../src/v2/backend/sharepoint/schema.sharepoint-v2.json`](../src/v2/backend/sharepoint/schema.sharepoint-v2.json).
 

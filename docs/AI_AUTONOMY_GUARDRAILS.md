@@ -38,6 +38,10 @@ Within the approved direction (SharePoint v2 target, mock/local, no live integra
   behavior and the `EscalationStore` contract.
 - **Minor UI wording** in the mock/local v2 shell.
 - **Technical doc updates** — keeping the docs consistent with decisions already made.
+- **Authoring build/runbooks/plans** — writing the test-site build runbook, the
+  `SharePointStore` implementation plan, and the contract test-site plan (design-only; with
+  **placeholder** config names only). *Executing* a runbook against a live/test site is gated
+  (§3).
 
 ## 3. AI MUST request/require approval before (gated)
 Each of these is a **hard stop** until Rod/user explicitly approves:

@@ -206,6 +206,24 @@
   validator doc-guard check added in Loop 11.
 - **Blocks:** nothing now; it is a standing prohibition.
 
+### D16 — Phase-2 test-site build is runbook-driven and contract-validated (Loop 12)
+- **Status:** **Accepted** (process/design decision).
+- **Context:** When D6/D7 + Rod approval exist, the Phase-2 test-site build must be executable
+  mechanically and verifiable objectively — not ad hoc.
+- **Decision:**
+  - The Phase-2 build follows the **runbook**
+    ([`SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md`](./SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md))
+    step-by-step on a **disposable, company-owned, non-production** test site.
+  - The future `SharePointStore` follows the **implementation plan**
+    ([`SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md`](./SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md)).
+  - The adapter must achieve a **first green run of the store contract** (D13) against the test
+    site, per [`STORE_CONTRACT_TEST_SITE_PLAN.md`](./STORE_CONTRACT_TEST_SITE_PLAN.md), **before
+    any production consideration**.
+- **Scope:** design-only / process. No live integration, no real lists/flows, no legacy
+  writeback. `SharePointStore` stays a stub until the approvals land.
+- **Blocks:** nothing now; it *gates* Phase-2 execution and any later production step (composes
+  with D6/D7 and the dry-run / backend-adapter checklists).
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -230,6 +248,7 @@
 | D13 | Adapter acceptance gate (Loop 10) | Store contract tests gate any backend adapter; `SharePointStore` is a design-only stub | No (design-only) | **Accepted** (design-only) |
 | D14 | Parallel-run transition (Loop 11) | Legacy stays operational; v2 built separately; staged cutover with rollback | No (planning) | **Accepted** |
 | D15 | Legacy writeback policy (Loop 11) | No writeback to legacy during MVP/build/migration unless separately approved | No (standing rule) | **Accepted** |
+| D16 | Phase-2 build governance (Loop 12) | Test-site build is runbook-driven; adapter must pass the store contract before any production step | No (gates Phase 2) | **Accepted** |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -261,6 +280,9 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
 - **D13 — Adapter acceptance gate (Loop 10): Accepted (design-only).** The store contract
   tests are the mandatory acceptance gate for any future backend adapter; `SharePointStore`
   is a design-only stub.
+- **D16 — Phase-2 build governance (Loop 12): Accepted (design-only).** The test-site build is
+  runbook-driven and the adapter must pass the store contract (D13) on a disposable test site
+  before any production consideration. No live work is authorized.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional

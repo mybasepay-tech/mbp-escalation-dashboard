@@ -11,6 +11,11 @@
 > [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md),
 > [`STORE_CONTRACT.md`](./STORE_CONTRACT.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md) §3.2, and
 > the contract in [`../src/v2/store/EscalationStore.js`](../src/v2/store/EscalationStore.js).
+> **The concrete build plan** for the future adapter lives in
+> [`SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md`](./SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md), with the
+> test-site build in [`SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md`](./SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md)
+> and contract execution in [`STORE_CONTRACT_TEST_SITE_PLAN.md`](./STORE_CONTRACT_TEST_SITE_PLAN.md)
+> (Loop 12, D16).
 
 ## 1. The seam
 All UI and app logic depend **only** on the abstract `EscalationStore` contract — never on a

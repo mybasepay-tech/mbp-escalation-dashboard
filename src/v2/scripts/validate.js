@@ -166,6 +166,39 @@ function checkTransitionDocs() {
   record(problems.length === 0, 'Transition governance docs present + consistent (D3/D14/D15, no legacy writeback)', problems.join('; '));
 }
 
+// ----- 10. Phase-2 readiness docs (runbook, adapter plan, contract test-site plan) -----
+function checkPhase2Docs() {
+  const REPO_ROOT = dirname(dirname(V2_ROOT));
+  const docs = join(REPO_ROOT, 'docs');
+  const problems = [];
+  const want = (rel, res) => {
+    const p = join(docs, rel);
+    let text;
+    try { text = readFileSync(p, 'utf8'); } catch { problems.push(`${rel} missing`); return; }
+    for (const [why, re] of res) if (!re.test(text)) problems.push(`${rel}: ${why}`);
+    // No live markers may appear in the Phase-2 docs.
+    const LIVE = [
+      ['Graph host', /graph\.microsoft\.com/i], ['SharePoint host', /\bsharepoint\.com/i],
+      ['Azure host', /microsoftonline\.com|azurewebsites\.net/i], ['REST path', /_api\/web|\/v1\.0\/sites/i],
+      ['GUID', /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i],
+      ['secret', /(client_secret|clientSecret|api[_-]?key)\s*[:=]/i], ['http URL', /https?:\/\/[a-z0-9.-]+/i],
+    ];
+    for (const [why, re] of LIVE) if (re.test(text)) problems.push(`${rel}: live marker (${why})`);
+  };
+  want('SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md', [
+    ['requires D6', /\bD6\b/], ['requires D7', /\bD7\b/], ['requires Rod approval', /Rod approval/i],
+    ['warns vs production', /do not run against production|not.*production/i],
+    ['Power Automate deferred', /Power Automate (remains )?deferred|creates? no.*flows|no.*Power Automate/i],
+  ]);
+  want('SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md', [
+    ['store contract gate', /store contract/i], ['no legacy writeback', /no.*writeback|D15/i],
+  ]);
+  want('STORE_CONTRACT_TEST_SITE_PLAN.md', [
+    ['makeStore factory', /makeStore/i], ['first green run', /first green/i],
+  ]);
+  record(problems.length === 0, 'Phase-2 readiness docs present + design-only (D16 runbook/adapter/contract plans)', problems.join('; '));
+}
+
 // ----- run -----
 console.log('Escalation v2 — local readiness validation (mock/local only)\n');
 runTests();
@@ -177,6 +210,7 @@ scanServerLoopback();
 checkSharePointSchema();
 checkAdapterStub();
 checkTransitionDocs();
+checkPhase2Docs();
 
 let allOk = true;
 for (const r of results) {

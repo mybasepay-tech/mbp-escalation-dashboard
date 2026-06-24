@@ -96,6 +96,11 @@ runStoreContract('SharePointStore(test-site)', async (seed) => provisionAndLoad(
   the standard seed can be verified with one line.
 - **Catches regressions early:** auto-status, owner-only Complete, stream separation, and
   append-only activity are all locked down by executable tests, not prose.
+- **Test-site execution (future):** how the harness will be reused against a disposable
+  SharePoint test site — `makeStore` factory shape, isolation, cleanup, flake handling, and
+  what counts as the first green run — is specified in
+  [`STORE_CONTRACT_TEST_SITE_PLAN.md`](./STORE_CONTRACT_TEST_SITE_PLAN.md) (D16). It adds no
+  real config or secrets.
 
 ## 7. No-live-integration guard
 The contract harness and the `SharePointStore` stub are **local/design-only**:
