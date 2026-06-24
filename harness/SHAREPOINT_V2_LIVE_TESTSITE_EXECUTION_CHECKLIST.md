@@ -10,6 +10,16 @@
 > flows** (D11), **no production cutover**, **no enabling users**, **no secrets/URLs/IDs in git**
 > (D17/D21), **no OneDrive backend**.
 
+## Loop 18 prerequisite status (snapshot)
+Verified during execution-prep (no live run performed):
+- ✅ Scripts **fail closed** on example defaults — provisioning dry-run and the live runner both
+  reject `phase2Approved=false` / placeholder site reference.
+- ✅ Runtime-config paths are **git-ignored** (`provision.config.json`, `testsite.config.json`,
+  `transport.local.js`, `.env`).
+- ⛔ **`PnP.PowerShell` not installed** — operator must `Install-Module PnP.PowerShell -Scope CurrentUser`.
+- ⛔ **Approved non-production test-site reference, D6 app/auth, and a transport bootstrap** are
+  not yet present — supply these (git-ignored) before any live step.
+
 ## Before provisioning
 - [ ] Phase 2 approval + D6 (app/permissions) + D7 (read/export) recorded.
 - [ ] A company-owned, **non-production** test site exists (not legacy, not production).

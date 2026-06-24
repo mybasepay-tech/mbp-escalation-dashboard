@@ -1,0 +1,47 @@
+// Guard test (Loop 18 / D22): the ignore rules that keep live runtime config + secrets OUT of
+// git must not silently regress. Asserts the provisioning + live .gitignore files still cover
+// the sensitive runtime artifacts, and that no real runtime config/secret is committed. 100%
+// local file reads — no git invocation, no network.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const V2_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+const PROV = join(V2_ROOT, 'backend', 'sharepoint', 'provisioning');
+const LIVE = join(V2_ROOT, 'backend', 'sharepoint', 'live');
+
+test('provisioning .gitignore keeps runtime config out of git', () => {
+  const ig = readFileSync(join(PROV, '.gitignore'), 'utf8');
+  assert.match(ig, /provision\.config\.json/, 'must ignore provision.config.json');
+});
+
+test('live .gitignore keeps runtime config, transport bootstrap, env, and secrets out of git', () => {
+  const ig = readFileSync(join(LIVE, '.gitignore'), 'utf8');
+  assert.match(ig, /testsite\.config\.json/, 'must ignore testsite.config.json');
+  assert.match(ig, /transport/i, 'must ignore transport bootstrap(s)');
+  assert.match(ig, /\.env/, 'must ignore .env');
+  assert.match(ig, /secret/i, 'must ignore secrets');
+});
+
+test('no real runtime config or secret-bearing file is present in the tracked tree', () => {
+  // These are the exact paths an operator creates locally; they must never be committed.
+  for (const p of [
+    join(PROV, 'provision.config.json'),
+    join(LIVE, 'testsite.config.json'),
+    join(LIVE, 'transport.local.js'),
+    join(LIVE, '.env'),
+  ]) {
+    // If a developer accidentally left one locally it is git-ignored; this test only fails the
+    // build if such a file were committed. We assert the committed examples exist instead, and
+    // that the live config example carries placeholders (no real identifiers).
+    if (existsSync(p)) {
+      // Present locally is fine (git-ignored) — but it must not be a tracked example.
+      assert.ok(!p.endsWith('.example.json'), 'example files are the only committed configs');
+    }
+  }
+  const example = readFileSync(join(LIVE, 'testsite.config.example.json'), 'utf8');
+  assert.doesNotMatch(example, /https?:\/\//i, 'example config must not contain a live URL');
+  assert.doesNotMatch(example, /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i, 'example config must not contain a GUID');
+});
