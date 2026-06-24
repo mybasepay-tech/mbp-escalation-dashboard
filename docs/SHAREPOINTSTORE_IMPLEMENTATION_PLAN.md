@@ -35,6 +35,14 @@ adapter is the **only** component that knows about SharePoint; the UI/domain nev
 A real client (Graph/PnP) would be a drop-in replacement for the injected fake — same method
 surface, same contract.
 
+**Loop 16 (D20) — resilience implemented & proven locally.** §12–§14 below are now built and
+tested against the simulator: bounded **throttle retry/backoff** (injectable, deterministic
+sleep), **ETag conflict** re-read+re-apply+retry, **idempotent activity append** (keyed on
+`ActivityKey`) with a clear **`ActivityAppendError`** compensation on permanent failure, and
+**one-active tag-link** reconciliation (stale-read/duplicate races converge; soft-deleted links
+reactivate). See [`../src/v2/tests/sharepointstore-resilience.test.js`](../src/v2/tests/sharepointstore-resilience.test.js)
+and [`../src/v2/tests/sharepoint-mapping-fidelity.test.js`](../src/v2/tests/sharepoint-mapping-fidelity.test.js).
+
 ## 3. Future implementation scope
 > **Prerequisite (D18):** the test site must first be provisioned and **validated against the
 > schema** using the scripted, fail-closed package

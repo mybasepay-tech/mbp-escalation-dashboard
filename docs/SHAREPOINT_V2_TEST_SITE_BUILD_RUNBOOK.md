@@ -145,6 +145,9 @@ After **all** lists: run the schema-conformance spot-check (list/column/index/vi
       [`SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md`](./SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md) and
       `src/v2/tests/sharepoint-store-simulated-contract.test.js`. For the live run, swap the fake
       for a real client behind the same `makeStore(seed)` factory (test-site only).
+- [ ] **Resilience proven locally (D20):** throttling retry, ETag conflict retry, idempotent
+      activity append/compensation, and tag-link uniqueness pass against the simulator
+      (`src/v2/tests/sharepointstore-resilience.test.js`). Reuse the same adapter logic live.
 - [ ] Wire it into the existing harness via a `makeStore(seed)` factory that loads the standard
       seed into the test site — see [`STORE_CONTRACT_TEST_SITE_PLAN.md`](./STORE_CONTRACT_TEST_SITE_PLAN.md).
 - [ ] Run the **same** store contract that passes against `MockStore` (D13). A **first green

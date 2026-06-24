@@ -51,6 +51,14 @@ export class FakeSharePointClient {
     return out;
   }
 
-  /** Test hook: make the next operation on a list throw the given error once (e.g. throttle). */
+  /** Convenience: first item matching an equality filter, or null. */
+  findBy(listName, filter) { return this.query(listName, { filter, top: 1 }).items[0] ?? null; }
+
+  // ----- failure-injection test hooks -----
+  /** Make the next operation on a list throw the given error once (any op). */
   failNextOn(listName, error) { this._list(listName).failNextWith(error); }
+  /** Inject a failure for `times` operations, optionally restricted to one op kind. */
+  failOn(listName, error, opts) { this._list(listName).failOn(error, opts); }
+  /** Clear all injected failures on a list. */
+  clearFailures(listName) { this._list(listName).clearFailures(); }
 }

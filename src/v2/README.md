@@ -150,8 +150,11 @@ design-only by default** (no injected client → throws), and **operational when
 client**. In this repo the only client is the in-memory **FakeSharePoint simulator**
 ([`backend/sharepoint/fake/`](./backend/sharepoint/fake/)) — no network, no Graph/PnP/Azure SDK,
 no auth, no URLs. The fake-backed adapter passes the **same** store contract as `MockStore`
-(decision **D19**, see `tests/sharepoint-store-simulated-contract.test.js`). `MockStore` remains
-the **active UI backend**.
+(decision **D19**, see `tests/sharepoint-store-simulated-contract.test.js`). It is also
+**hardened for real SharePoint failure modes** (decision **D20**): throttle retry/backoff, ETag
+conflict re-read+retry, idempotent activity append with a clear compensation error, and
+one-active tag-link reconciliation — proven in `tests/sharepointstore-resilience.test.js`.
+`MockStore` remains the **active UI backend**.
 
 The **Phase-2 build** (when D6/D7 + Rod approval land) is fully specified and design-only: the
 [test-site build runbook](../../docs/SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md), the

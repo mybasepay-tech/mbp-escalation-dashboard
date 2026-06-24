@@ -201,6 +201,22 @@ Loop 15 proved the adapter's logic with **zero live dependencies**:
   no credentials/URLs, no network, no legacy writeback. Live test-site execution is the next,
   separately-gated step.
 
+### Loop 16 — SharePointStore resilience hardening (D20, local-only)
+Loop 16 hardened the adapter for real-world SharePoint failure modes — all proven locally:
+- **Throttling (429):** bounded retry/backoff (injectable, deterministic no-op sleep in tests);
+  clear failure after the limit.
+- **ETag conflict (412):** re-read latest, re-apply the domain rule, retry; clear failure when
+  unresolvable.
+- **Ticket + activity atomicity:** activity appends are **idempotent on ActivityKey** and
+  retried on transient failure (no duplicates); a permanent failure raises a clear
+  **`ActivityAppendError`** compensation rather than silently losing the row.
+- **Tag-link uniqueness:** one **active** `Escalations_v2_TicketTags` row per (ticket, tag);
+  stale-read/duplicate races reconcile; soft-deleted links reactivate.
+- **Simulator + mapping fidelity:** the fake gained op-specific/repeatable failure injection;
+  Lookup/Person/DateTime/Boolean round-trip helpers added and tested.
+- Both contracts (`MockStore`, `SharePointStore(FakeSharePoint)`) still pass; `MockStore`
+  remains the active UI backend; no network, no SDKs, no live work.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

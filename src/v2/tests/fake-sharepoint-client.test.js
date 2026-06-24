@@ -77,6 +77,17 @@ test('throttling hook makes the next op throw a simulated ThrottledError (429)',
   assert.equal(c.queryAll('L').length, 1);
 });
 
+test('failure injection can target a specific op and repeat N times', () => {
+  const c = client();
+  c.createItem('L', { Title: 'a' });
+  // Only `create` should fail, twice; reads stay healthy.
+  c.failOn('L', new ThrottledError('slow', 1), { op: 'create', times: 2 });
+  assert.doesNotThrow(() => c.queryAll('L'));            // query unaffected
+  assert.throws(() => c.createItem('L', { Title: 'b' }), ThrottledError);
+  assert.throws(() => c.createItem('L', { Title: 'b' }), ThrottledError);
+  assert.doesNotThrow(() => c.createItem('L', { Title: 'b' })); // third create succeeds
+});
+
 test('TicketTags-style composite active-link pattern is queryable', () => {
   const c = client();
   c.ensureList('Escalations_v2_TicketTags');

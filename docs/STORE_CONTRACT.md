@@ -73,6 +73,9 @@ dependencies:
 runStoreContract('SharePointStore(FakeSharePoint)', (seed) =>
   new SharePointStore({ client: createSeededFakeClient(seed) }));
 ```
+Beyond the contract, Loop 16 (D20) adds **resilience tests** (throttling retry, ETag conflict
+retry, idempotent activity append/compensation, tag-link uniqueness) in
+[`../src/v2/tests/sharepointstore-resilience.test.js`](../src/v2/tests/sharepointstore-resilience.test.js).
 
 ## 5. `SharePointStore` — future implementation (design-only stub)
 `SharePointStore` extends `EscalationStore`, mirrors the full interface, and **throws a clear
