@@ -61,10 +61,17 @@ The contract asserts these behaviors regardless of backend:
   `openOnly` (openOnly excludes terminal tickets).
 
 ## 4. `MockStore` — current implementation
-`MockStore` is the **only** active backend (in-memory, zero-dependency) and the **reference**
+`MockStore` is the **active UI backend** (in-memory, zero-dependency) and the **reference**
 behavior. The contract runs against it on every `npm test`:
 ```js
 runStoreContract('MockStore', (seed) => new MockStore().load(seed));
+```
+As of Loop 15 (D19), the contract **also** runs against `SharePointStore` backed by the local
+**FakeSharePoint simulator** — proving the adapter matches the reference behavior with zero live
+dependencies:
+```js
+runStoreContract('SharePointStore(FakeSharePoint)', (seed) =>
+  new SharePointStore({ client: createSeededFakeClient(seed) }));
 ```
 
 ## 5. `SharePointStore` — future implementation (design-only stub)

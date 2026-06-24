@@ -186,6 +186,21 @@ provisioning package — still safe-by-construction and committing **no** live a
 - Still: **no** real lists created by committing this, **no** Power Automate, **no** legacy
   writeback, **no** production cutover; `SharePointStore` remains a stub; `MockStore` active.
 
+### Loop 15 — FakeSharePoint simulator + SharePointStore simulated contract pass (D19)
+Loop 15 proved the adapter's logic with **zero live dependencies**:
+- **FakeSharePoint simulator** ([`../src/v2/backend/sharepoint/fake/`](../src/v2/backend/sharepoint/fake/)):
+  in-memory client/list with generated ids, ETags, 404/412/429, paging, equality filtering, and
+  active-link soft-delete — **no network, no Graph/PnP/Azure SDK, no auth, no URLs**.
+- **`SharePointStore` is now dual-mode:** fail-closed by default; operational with an injected
+  client. It orchestrates persistence via the shared domain↔column mapping and keeps business
+  rules in `domain/rules.js`.
+- **Same contract, green:** `runStoreContract('SharePointStore(FakeSharePoint)', …)` passes the
+  identical contract as `MockStore` (D13/D16/D19) — CRUD, auto-status, owner-only Complete,
+  Reopened/Cancelled, comments/notes, tag link soft-delete, append-only activity, filtering.
+- Still: `MockStore` remains the **active UI backend**; no live integration, no real lists/flows,
+  no credentials/URLs, no network, no legacy writeback. Live test-site execution is the next,
+  separately-gated step.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

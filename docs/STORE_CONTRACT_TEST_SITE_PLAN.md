@@ -20,9 +20,14 @@ expectations and takes a `makeStore(seed)` factory. Today:
 ```js
 runStoreContract('MockStore', (seed) => new MockStore().load(seed));
 ```
-The **same** call — same assertions, no edits — will validate the adapter:
+The **same** call — same assertions, no edits — validates the adapter. It already runs locally
+against the in-memory simulator (Loop 15 / D19):
 ```js
-// FUTURE, test-site only, not implemented now:
+// IMPLEMENTED NOW (local, no network) — sharepoint-store-simulated-contract.test.js:
+runStoreContract('SharePointStore(FakeSharePoint)', (seed) =>
+  new SharePointStore({ client: createSeededFakeClient(seed) }));
+
+// FUTURE, test-site only — swaps the fake for a real client behind the same factory:
 runStoreContract('SharePointStore(test-site)', async (seed) => provisionAndLoad(seed));
 ```
 The contract is the **single source of behavioral truth**; an adapter is correct only when it

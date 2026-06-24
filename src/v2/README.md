@@ -145,9 +145,13 @@ A reusable **store contract** ([`tests/store-contract/contract.js`](./tests/stor
 documented in [`../../docs/STORE_CONTRACT.md`](../../docs/STORE_CONTRACT.md)) defines the
 behavior every `EscalationStore` must satisfy. It runs against `MockStore` today and is the
 **acceptance gate** for any future adapter (decision **D13**).
-[`store/SharePointStore.js`](./store/SharePointStore.js) is a **design-only stub**: it mirrors
-the interface and throws a clear design-only error on every operation — no network, no SDK
-imports, no secrets. `MockStore` remains the only real backend.
+[`store/SharePointStore.js`](./store/SharePointStore.js) is **dual-mode**: **fail-closed /
+design-only by default** (no injected client → throws), and **operational when given an injected
+client**. In this repo the only client is the in-memory **FakeSharePoint simulator**
+([`backend/sharepoint/fake/`](./backend/sharepoint/fake/)) — no network, no Graph/PnP/Azure SDK,
+no auth, no URLs. The fake-backed adapter passes the **same** store contract as `MockStore`
+(decision **D19**, see `tests/sharepoint-store-simulated-contract.test.js`). `MockStore` remains
+the **active UI backend**.
 
 The **Phase-2 build** (when D6/D7 + Rod approval land) is fully specified and design-only: the
 [test-site build runbook](../../docs/SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md), the

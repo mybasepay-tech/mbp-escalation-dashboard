@@ -20,12 +20,20 @@ Specify exactly how each `EscalationStore` method maps to SharePoint v2 lists, s
 can be implemented mechanically and proven by the same contract `MockStore` passes today. The
 adapter is the **only** component that knows about SharePoint; the UI/domain never change.
 
-## 2. Current stub state
-`SharePointStore extends EscalationStore`, mirrors the full interface, and throws
-`"SharePointStore is design-only and not connected. Use MockStore for local MVP."` on every
-operation. Each method already carries a comment naming its future list mapping. It imports no
-SDKs, makes no network calls, and holds no config. This plan describes what replaces those
-throws **later**, on a test site.
+## 2. Current state (Loop 15 update)
+`SharePointStore extends EscalationStore` now has **two modes**:
+- **Default (no injected client): fail-closed / design-only** — throws
+  `"SharePointStore is design-only and not connected. Use MockStore for local MVP."` on every
+  operation.
+- **With an injected client: operational (local/simulated)** — it orchestrates persistence
+  against the client using the shared domain↔column mapping (`../src/v2/backend/sharepoint/mapping.js`).
+  In this repo the only injected client is the in-memory **FakeSharePoint simulator**
+  ([`../src/v2/backend/sharepoint/fake/`](../src/v2/backend/sharepoint/fake/)) — no network, no
+  SDKs. **D19:** the fake-backed adapter passes the **same store contract** as `MockStore`
+  ([`../src/v2/tests/sharepoint-store-simulated-contract.test.js`](../src/v2/tests/sharepoint-store-simulated-contract.test.js)).
+  Business rules stay in `domain/rules.js`; the adapter only persists results + appends activity.
+A real client (Graph/PnP) would be a drop-in replacement for the injected fake — same method
+surface, same contract.
 
 ## 3. Future implementation scope
 > **Prerequisite (D18):** the test site must first be provisioned and **validated against the
