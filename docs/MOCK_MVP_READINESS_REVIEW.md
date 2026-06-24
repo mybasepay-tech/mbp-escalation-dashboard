@@ -44,10 +44,11 @@ By design and per the project safety rules, the MVP does **not**:
   client).
 
 ## 3. What has been validated
-- **Automated tests:** 62 passing (`node --test`) across rules, store, interactions
-  (comments/notes/tags), views (filters/reporting), UI smoke (view-model), safety, and the
-  design-only SharePoint schema check (Loop 8 + Loop 9 hardening, incl. the D12 tag link
-  list and admin-package/dry-run doc checks).
+- **Automated tests:** 90 passing (`node --test`) across rules, store, interactions
+  (comments/notes/tags), views (filters/reporting), UI smoke (view-model), safety, the
+  design-only SharePoint schema check (Loop 8 + Loop 9, incl. the D12 tag link list and
+  admin-package/dry-run doc checks), and the Loop 10 **store contract harness** (run against
+  `MockStore`) plus the `SharePointStore` design-only stub checks.
 - **Safety scans:** source contains no production-integration strings or network calls;
   browser UI files contain no `fetch`/`XMLHttpRequest`; the local server binds to loopback
   only and rejects path traversal; mock legacy references use a clearly-fake `.invalid`
@@ -102,6 +103,25 @@ Loop 9 hardened the readiness package, still entirely design-only:
 
 Still **design-only**: no live integration, no flows, `MockStore` unchanged, `EscalationStore`
 intact.
+
+### Loop 10 — store contract harness + SharePointStore stub (design-only)
+Loop 10 made the backend-swap promise **executable**, still entirely design-only:
+- **Reusable store contract** ([`../src/v2/tests/store-contract/contract.js`](../src/v2/tests/store-contract/contract.js),
+  documented in [`STORE_CONTRACT.md`](./STORE_CONTRACT.md)): one suite of behavioral
+  expectations (CRUD, assignment/auto-status, owner-only Complete, Reopened/Cancelled,
+  comments/notes/tags, append-only activity, store-level filtering) that runs against
+  **`MockStore`** today via a `makeStore(seed)` factory.
+- **`SharePointStore` design-only stub** ([`../src/v2/store/SharePointStore.js`](../src/v2/store/SharePointStore.js)):
+  mirrors the interface, throws a clear design-only error on every operation, imports no
+  SDKs, makes no network calls, holds no secrets/env vars/URLs.
+- **D13 (Accepted, design-only):** the store contract is the **acceptance gate** for any
+  future backend adapter.
+- **Validator + tests:** `npm run validate` adds a "SharePointStore adapter is design-only"
+  check; tests assert the contract passes on `MockStore` and that the stub is inert and
+  marker-free.
+
+`MockStore` remains the only active backend; the `EscalationStore` abstraction is intact; no
+live integration, no flows.
 
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.

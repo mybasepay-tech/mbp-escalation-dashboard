@@ -29,18 +29,25 @@ UI / viewModel / app  ──►  EscalationStore (abstract contract)
 - It is the **only** backend in the MVP and the **reference behavior** all future adapters
   must match.
 
-## 3. Future backend — `SharePointStore` (planned, not built)
-- A future `class SharePointStore extends EscalationStore` implementing the **identical**
-  contract.
-- Backed by the design-only schema in
+## 3. Future backend — `SharePointStore` (design-only stub exists)
+- `class SharePointStore extends EscalationStore` now exists as a **design-only stub**
+  ([`../src/v2/store/SharePointStore.js`](../src/v2/store/SharePointStore.js)): it mirrors the
+  full interface and **throws a clear design-only error on every operation**. No network, no
+  SDK imports, no credentials/env vars/secrets/live URLs. Each method documents its future
+  list mapping (e.g. `setStatus -> Tickets.Status + Activity(status_change)`).
+- It will be backed by the design-only schema in
   [`../src/v2/backend/sharepoint/schema.sharepoint-v2.json`](../src/v2/backend/sharepoint/schema.sharepoint-v2.json),
   reached via Microsoft Graph list APIs using a dedicated v2 Entra app (D6) — **none of
   which exists yet**.
 - Translation is **table-driven** off the schema's `mapsTo` metadata (model ↔ column).
 - **No Power Automate dependency:** the adapter performs reads/writes directly; flows, if
   ever added, are additive (notifications), never the system of record.
-- Gated by [`../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md`](../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md)
-  and the blocking decisions D3, D6, D7.
+- **Acceptance gate (D13):** the adapter ships only when it passes the **same store contract**
+  ([`STORE_CONTRACT.md`](./STORE_CONTRACT.md)) that `MockStore` passes today — run against a
+  disposable test site. Gated by
+  [`../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md`](../harness/BACKEND_ADAPTER_READINESS_CHECKLIST.md),
+  the [dry-run checklist](../harness/SHAREPOINT_V2_DRY_RUN_CHECKLIST.md), and the blocking
+  decisions D3, D6, D7.
 
 ## 4. Store interface expectations
 Any adapter must implement the entire `EscalationStore` contract with the same semantics as
@@ -104,10 +111,14 @@ Any adapter must implement the entire `EscalationStore` contract with the same s
   stay unaware.
 
 ## 7. Offline / mock parity rules
-- `MockStore` is the **reference implementation**. The same contract tests
-  ([`../src/v2/tests/store.test.js`](../src/v2/tests/store.test.js),
-  [`../src/v2/tests/interactions.test.js`](../src/v2/tests/interactions.test.js)) must pass
-  against any future adapter (run against a disposable test site) before cutover.
+- `MockStore` is the **reference implementation**. The reusable **store contract**
+  ([`../src/v2/tests/store-contract/contract.js`](../src/v2/tests/store-contract/contract.js),
+  documented in [`STORE_CONTRACT.md`](./STORE_CONTRACT.md)) — plus
+  [`../src/v2/tests/store.test.js`](../src/v2/tests/store.test.js) and
+  [`../src/v2/tests/interactions.test.js`](../src/v2/tests/interactions.test.js) — must pass
+  against any future adapter (run against a disposable test site) before cutover. This is the
+  D13 acceptance gate. The contract takes a `makeStore(seed)` factory, so wiring a new backend
+  in is a one-liner.
 - Identical **method signatures, return shapes, sort orders, and null semantics** across
   backends.
 - A future adapter must be **selectable without code changes to callers** (e.g. a factory /

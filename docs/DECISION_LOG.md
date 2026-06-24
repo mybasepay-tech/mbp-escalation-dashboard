@@ -149,6 +149,25 @@
 - **Blocks:** nothing (design-only). Reflected in the schema (`tagModel:
   many-to-many-link-list`) and the admin build package.
 
+### D13 — Store contract tests are the acceptance gate for any backend adapter (Loop 10)
+- **Status:** **Accepted** (design-only; process decision).
+- **Context:** A future `SharePointStore` (or any other backend) must not introduce
+  behavioral drift from the mock MVP. We need an objective, executable definition of "the
+  adapter is correct."
+- **Decision:**
+  - The reusable **store contract** ([`../src/v2/tests/store-contract/contract.js`](../src/v2/tests/store-contract/contract.js))
+    is the single source of behavioral truth for `EscalationStore` implementations.
+  - It runs against **`MockStore`** today and is the **mandatory acceptance gate** for any
+    future adapter: an adapter ships only when it **passes the identical contract** (run
+    against a disposable test site for `SharePointStore`).
+  - **`SharePointStore`** is added as a **design-only stub** that mirrors the interface and
+    throws a clear design-only error on every operation — no network, no SDKs, no secrets.
+  - Contract scope is documented in [`STORE_CONTRACT.md`](./STORE_CONTRACT.md).
+- **Scope:** design-only / process. No live integration. `EscalationStore`/`MockStore`
+  behavior is unchanged.
+- **Blocks:** nothing now; it *gates* the future adapter build (composes with D3/D6/D7 and the
+  backend-adapter / dry-run checklists).
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -170,6 +189,7 @@
 | D10 | Status vocab + owner-only Complete (Loop 7) | Align to legacy vocabulary; `Complete` owner-only; add `ticketOwner`/`completedDate` | No (mock-only) | Proposed — needs Rod confirm |
 | D11 | MVP phase-1 backend readiness (Loop 8) | SharePoint List v2 target, Power Automate deferred, no live integrations yet (design-only) | No (design-only) | Proposed — needs Rod confirm |
 | D12 | Tag model (Loop 9) | Dedicated many-to-many `Escalations_v2_TicketTags` link list; no delimited tag field on Tickets | No (design-only) | **Accepted** (design-only) |
+| D13 | Adapter acceptance gate (Loop 10) | Store contract tests gate any backend adapter; `SharePointStore` is a design-only stub | No (design-only) | **Accepted** (design-only) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -191,6 +211,9 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
 - **D12 — Tag model (Loop 9): Accepted (design-only).** Tags use a dedicated many-to-many
   `Escalations_v2_TicketTags` link list; no delimited tag field on Tickets. This is a
   design/schema decision with no live impact and does not pre-empt the blocking D3.
+- **D13 — Adapter acceptance gate (Loop 10): Accepted (design-only).** The store contract
+  tests are the mandatory acceptance gate for any future backend adapter; `SharePointStore`
+  is a design-only stub. Process/design decision with no live impact; does not pre-empt D3.
 
 _D2, D9, D10, and D11 are demonstrated / designed in the mock MVP but remain Proposed pending
 Rod confirmation. D4 and D5 are superseded by D10. D11 is design-only and does not pre-empt
