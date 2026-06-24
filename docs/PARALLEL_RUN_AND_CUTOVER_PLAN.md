@@ -36,6 +36,8 @@ Legacy stays live and unmodified in **every** phase below.
 - Exit: design package complete; D3 decided (✅).
 
 ### Phase 2 — SharePoint v2 test-site build *(requires Rod approval; D6 + dry-run checklist)*
+- **Obtain approval first** via [`PHASE2_TEST_SITE_APPROVAL_REQUEST.md`](./PHASE2_TEST_SITE_APPROVAL_REQUEST.md)
+  (one-page) / [`ROD_PHASE2_APPROVAL_MESSAGE.md`](./ROD_PHASE2_APPROVAL_MESSAGE.md) (draft).
 - Build the eight `Escalations_v2_*` lists on a **disposable test site** by following the
   step-by-step [`SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md`](./SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md)
   (column source: [`SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md`](./SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md)).

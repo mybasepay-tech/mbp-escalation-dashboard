@@ -42,6 +42,10 @@ Within the approved direction (SharePoint v2 target, mock/local, no live integra
   `SharePointStore` implementation plan, and the contract test-site plan (design-only; with
   **placeholder** config names only). *Executing* a runbook against a live/test site is gated
   (§3).
+- **Drafting approval packages** — preparing the Phase-2 approval request and the Rod message
+  *draft* (design-only docs). Granting the approval, and any action it unlocks, is **Rod's**
+  (§3). Storage-location rule per **D17**: artifacts stay repo-local; real data goes only to
+  approved SharePoint v2 lists — **never** OneDrive-synced folders.
 
 ## 3. AI MUST request/require approval before (gated)
 Each of these is a **hard stop** until Rod/user explicitly approves:

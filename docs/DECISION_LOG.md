@@ -224,6 +224,24 @@
 - **Blocks:** nothing now; it *gates* Phase-2 execution and any later production step (composes
   with D6/D7 and the dry-run / backend-adapter checklists).
 
+### D17 — Local-first storage model (Loop 13)
+- **Status:** **Accepted** (process/design decision).
+- **Context:** It must be unambiguous where v2 artifacts and data live now vs. later, and that
+  OneDrive-synced folders are not a backend.
+- **Decision:**
+  - **Now:** all v2 code and design artifacts are **repo-local and mock/design-only** under
+    `C:\dev\mbp-escalation-dashboard` (v2 app at `…\src\v2`), tracked in git. `MockStore` is the
+    active backend; no real data exists.
+  - **Later (approval-gated):** real data lives **only** in dedicated SharePoint **v2 lists** —
+    first a non-production **test site** (Phase 2), then production v2 lists via the staged
+    cutover. Never in the repo, never in OneDrive.
+  - **OneDrive synced folders are NOT backend storage** — specifically not
+    `C:\Users\RodolfoChacon\OneDrive - myBasePay LLC\Information Technology - General`. They lack
+    list semantics, concurrency, indexes, views, and item-level permissions, and are
+    personal-scope. See [`LOCAL_FIRST_EXECUTION_MODEL.md`](./LOCAL_FIRST_EXECUTION_MODEL.md) §4.
+- **Scope:** design-only. Reinforces D14 (legacy operational) and D15 (no writeback).
+- **Blocks:** nothing; it is a standing storage-location rule.
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -249,6 +267,7 @@
 | D14 | Parallel-run transition (Loop 11) | Legacy stays operational; v2 built separately; staged cutover with rollback | No (planning) | **Accepted** |
 | D15 | Legacy writeback policy (Loop 11) | No writeback to legacy during MVP/build/migration unless separately approved | No (standing rule) | **Accepted** |
 | D16 | Phase-2 build governance (Loop 12) | Test-site build is runbook-driven; adapter must pass the store contract before any production step | No (gates Phase 2) | **Accepted** |
+| D17 | Local-first storage model (Loop 13) | Repo-local mock/design now; real data only in dedicated SharePoint v2 lists later; OneDrive is not backend storage | No (standing rule) | **Accepted** |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -283,6 +302,10 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
 - **D16 — Phase-2 build governance (Loop 12): Accepted (design-only).** The test-site build is
   runbook-driven and the adapter must pass the store contract (D13) on a disposable test site
   before any production consideration. No live work is authorized.
+- **D17 — Local-first storage model (Loop 13): Accepted (design-only).** Repo-local
+  mock/design artifacts now (`C:\dev\mbp-escalation-dashboard`); real data only in dedicated
+  SharePoint v2 lists later (test site → production, gated). OneDrive synced folders are not
+  backend storage.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional
