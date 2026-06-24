@@ -1,0 +1,14 @@
+{
+  "_comment": "EXAMPLE live test-site config — PLACEHOLDERS ONLY. Copy to testsite.config.json (GIT-IGNORED) and fill in your APPROVED non-production test-site values at runtime. NEVER commit real values: no real site URL, tenant ID, client ID, secret, or user identifier belongs in git. Safe defaults are fail-closed (phase2Approved=false, contractRunApproved=false) so the example cannot execute anything as-is.",
+  "environmentLabel": "test",
+  "siteReferencePlaceholder": "<TEST_SITE_REFERENCE>",
+  "transportModulePlaceholder": "<PATH_TO_GIT_IGNORED_TRANSPORT_BOOTSTRAP>",
+  "phase2Approved": false,
+  "nonProductionOnly": true,
+  "legacyWritebackAllowed": false,
+  "powerAutomateAllowed": false,
+  "contractRunApproved": false,
+  "listPrefix": "Escalations_v2_",
+  "runNamespace": "ct_live_example",
+  "operatorNotes": "Set phase2Approved=true and contractRunApproved=true, replace siteReferencePlaceholder with the approved non-production test-site reference, and point transportModulePlaceholder at a git-ignored bootstrap that builds an authenticated transport (real SDK + interactive auth). Do not target legacy or production. No Power Automate flows. No writeback to legacy."
+}

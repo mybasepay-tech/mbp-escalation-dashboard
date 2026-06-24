@@ -179,6 +179,47 @@ function checkResilienceHardening() {
   record(problems.length === 0, 'SharePointStore resilience hardened + tested (throttle/ETag/activity/tag-uniqueness)', problems.join('; '));
 }
 
+// ----- 8d. Live SharePoint client gate: present, fail-closed, no committed live markers (D21) -----
+function checkLiveClientGate() {
+  const dir = join(V2_ROOT, 'backend', 'sharepoint', 'live');
+  const problems = [];
+  const texts = {};
+  for (const f of ['SharePointLiveClient.js', 'SharePointLiveErrors.js', 'run-testsite-contract.js',
+    'testsite.config.example.json', 'README.md', '.gitignore']) {
+    try { texts[f] = readFileSync(join(dir, f), 'utf8'); } catch { problems.push(`${f} missing`); }
+  }
+  // Real runtime config + transport bootstraps must never be committed.
+  try { statSync(join(dir, 'testsite.config.json')); problems.push('testsite.config.json must NOT be committed'); } catch { /* good */ }
+  const ig = texts['.gitignore'] || '';
+  if (!/testsite\.config\.json/.test(ig)) problems.push('.gitignore must ignore testsite.config.json');
+  if (!/transport/i.test(ig)) problems.push('.gitignore must ignore transport bootstraps');
+
+  // Wrapper fails closed without a transport; runner enforces approvals.
+  const wrapper = texts['SharePointLiveClient.js'] || '';
+  if (!/LiveNotConfiguredError/.test(wrapper)) problems.push('wrapper missing fail-closed LiveNotConfiguredError');
+  if (!/this\.designOnly\s*=\s*!this\._transport/.test(wrapper)) problems.push('wrapper not fail-closed by default');
+  const runner = texts['run-testsite-contract.js'] || '';
+  for (const flag of ['phase2Approved', 'contractRunApproved', 'legacyWritebackAllowed', 'powerAutomateAllowed']) {
+    if (!runner.includes(flag)) problems.push(`runner missing ${flag} guard`);
+  }
+
+  // Example config fail-closed defaults.
+  if (texts['testsite.config.example.json']) {
+    let cfg; try { cfg = JSON.parse(texts['testsite.config.example.json']); } catch { problems.push('example config not valid JSON'); }
+    if (cfg) {
+      if (cfg.phase2Approved !== false) problems.push('example phase2Approved must be false');
+      if (cfg.contractRunApproved !== false) problems.push('example contractRunApproved must be false');
+      if (cfg.nonProductionOnly !== true) problems.push('example nonProductionOnly must be true');
+      if (cfg.legacyWritebackAllowed !== false) problems.push('example legacyWritebackAllowed must be false');
+      if (cfg.powerAutomateAllowed !== false) problems.push('example powerAutomateAllowed must be false');
+    }
+  }
+
+  // No live markers committed anywhere in the live dir.
+  for (const [f, text] of Object.entries(texts)) problems.push(...scanNoLive(text, `live/${f}`));
+  record(problems.length === 0, 'Live SharePoint client gate present + fail-closed (D21, no committed live markers)', problems.join('; '));
+}
+
 // ----- 9. Transition governance docs (decision, parallel-run, guardrails, no-writeback) -----
 function checkTransitionDocs() {
   const REPO_ROOT = dirname(dirname(V2_ROOT)); // .../mbp-escalation-dashboard
@@ -343,6 +384,7 @@ checkSharePointSchema();
 checkAdapterStub();
 checkFakeSimulator();
 checkResilienceHardening();
+checkLiveClientGate();
 checkTransitionDocs();
 checkPhase2Docs();
 checkLocalFirstDocs();

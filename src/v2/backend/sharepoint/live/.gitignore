@@ -1,0 +1,13 @@
+# NEVER commit live runtime config, transport bootstraps, auth caches, or reports.
+# Only *.example.json and the committed wrapper/runner/docs are tracked.
+testsite.config.json
+*.local.json
+.env
+*.secret.*
+*-report.json
+*-report.txt
+# Operator-provided runtime transport bootstrap (uses the real SDK + auth) — never committed.
+transport.*.js
+*.transport.js
+.auth/
+*.tokencache*

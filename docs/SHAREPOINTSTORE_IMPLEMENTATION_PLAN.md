@@ -33,7 +33,11 @@ adapter is the **only** component that knows about SharePoint; the UI/domain nev
   ([`../src/v2/tests/sharepoint-store-simulated-contract.test.js`](../src/v2/tests/sharepoint-store-simulated-contract.test.js)).
   Business rules stay in `domain/rules.js`; the adapter only persists results + appends activity.
 A real client (Graph/PnP) would be a drop-in replacement for the injected fake — same method
-surface, same contract.
+surface, same contract. **Loop 17 (D21):** that real client now exists as
+[`SharePointLiveClient`](../src/v2/backend/sharepoint/live/SharePointLiveClient.js) — a
+fail-closed, dependency-injected wrapper with the identical surface; the operator supplies the
+authenticated transport at runtime (git-ignored), and `run-testsite-contract.js` is the gated
+entry point. No SDK, secrets, or identifiers are committed.
 
 **Loop 16 (D20) — resilience implemented & proven locally.** §12–§14 below are now built and
 tested against the simulator: bounded **throttle retry/backoff** (injectable, deterministic

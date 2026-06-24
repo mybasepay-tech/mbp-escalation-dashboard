@@ -217,6 +217,24 @@ Loop 16 hardened the adapter for real-world SharePoint failure modes — all pro
 - Both contracts (`MockStore`, `SharePointStore(FakeSharePoint)`) still pass; `MockStore`
   remains the active UI backend; no network, no SDKs, no live work.
 
+### Loop 17 — real SharePoint client wrapper + execution gate (D21, gate committed; no live run)
+Loop 17 built the bridge to live without committing anything live:
+- **`SharePointLiveClient`** ([`../src/v2/backend/sharepoint/live/`](../src/v2/backend/sharepoint/live/)):
+  a real client wrapper with the **same surface** as `FakeSharePointClient`, so it drops into
+  `SharePointStore`. Dependency-injected transport; **no SDK imports, no network, no hardcoded
+  tenant/site/app/user identifiers**. Fail-closed (`LiveNotConfiguredError`) until a runtime
+  transport is injected.
+- **Gated runner** (`run-testsite-contract.js`): refuses to act unless a **git-ignored** config
+  sets `phase2Approved`/`contractRunApproved`/`nonProductionOnly` and `legacyWritebackAllowed=
+  false`/`powerAutomateAllowed=false`, the label is non-production, and the target is not
+  legacy/production; loads the runtime transport, runs a read-only smoke, and points to the full
+  contract run. Missing config/auth/transport → clear stop, never faked.
+- **Secrets stay out of git:** `testsite.config.json`, transport bootstraps, `.env`, secrets are
+  git-ignored; only `*.example.json` + wrapper/runner/docs are committed. Live execution
+  checklist: [`../harness/SHAREPOINT_V2_LIVE_TESTSITE_EXECUTION_CHECKLIST.md`](../harness/SHAREPOINT_V2_LIVE_TESTSITE_EXECUTION_CHECKLIST.md).
+- No live run was performed (no runtime config/auth present); `MockStore` remains the active UI
+  backend; both contracts still pass.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

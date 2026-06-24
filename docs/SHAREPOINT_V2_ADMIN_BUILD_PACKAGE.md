@@ -20,7 +20,9 @@
 > (runbook-driven and contract-validated — decision **D16**) and are **automated** by the
 > scripted, fail-closed provisioning package
 > [`../src/v2/backend/sharepoint/provisioning/`](../src/v2/backend/sharepoint/provisioning/)
-> (decision **D18**; Phase 2 approved — non-production test site only).
+> (decision **D18**; Phase 2 approved — non-production test site only). After provisioning, the
+> live store-contract run uses the fail-closed real-client gate
+> [`../src/v2/backend/sharepoint/live/`](../src/v2/backend/sharepoint/live/) (decision **D21**).
 
 ## 1. Purpose and scope
 Give a SharePoint admin a single, reviewable checklist to stand up the v2 lists **exactly**

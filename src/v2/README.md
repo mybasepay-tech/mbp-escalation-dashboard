@@ -156,6 +156,13 @@ conflict re-read+retry, idempotent activity append with a clear compensation err
 one-active tag-link reconciliation — proven in `tests/sharepointstore-resilience.test.js`.
 `MockStore` remains the **active UI backend**.
 
+For live execution, [`backend/sharepoint/live/`](./backend/sharepoint/live/) holds the real
+**`SharePointLiveClient`** (same surface as the fake; dependency-injected transport; **no SDK,
+secrets, or identifiers committed**; fail-closed without a transport) and a **gated runner**
+(`run-testsite-contract.js`) for the approved non-production test site (decision **D21**). The
+real runtime config and transport bootstrap are **git-ignored**; live execution is operator-run
+only.
+
 The **Phase-2 build** (when D6/D7 + Rod approval land) is fully specified and design-only: the
 [test-site build runbook](../../docs/SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md), the
 [`SharePointStore` implementation plan](../../docs/SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md), and

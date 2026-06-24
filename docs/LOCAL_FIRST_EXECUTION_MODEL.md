@@ -60,8 +60,11 @@ is **not** used as backend storage for v2, and must not be. Reasons:
   [`SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md`](./SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md) and
   the scripted, fail-closed provisioning package
   ([`../src/v2/backend/sharepoint/provisioning/`](../src/v2/backend/sharepoint/provisioning/),
-  D18). The operator's runtime config (`provision.config.json`) is **git-ignored** — real site
-  references/secrets are **never committed**.
+  D18) and reached via the fail-closed real-client gate
+  ([`../src/v2/backend/sharepoint/live/`](../src/v2/backend/sharepoint/live/), D21). The
+  operator's runtime configs (`provision.config.json`, `testsite.config.json`) and the runtime
+  transport bootstrap are **git-ignored** — real site references/secrets/identifiers are
+  **never committed**.
 - **Later (gated):** production v2 lists on a company-owned site, reached only through the
   staged [`PARALLEL_RUN_AND_CUTOVER_PLAN.md`](./PARALLEL_RUN_AND_CUTOVER_PLAN.md).
 - Real data lives **only** in those SharePoint v2 lists — never in the repo, never in OneDrive.

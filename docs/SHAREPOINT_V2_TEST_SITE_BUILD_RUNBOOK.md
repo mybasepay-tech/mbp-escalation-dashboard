@@ -148,6 +148,11 @@ After **all** lists: run the schema-conformance spot-check (list/column/index/vi
 - [ ] **Resilience proven locally (D20):** throttling retry, ETag conflict retry, idempotent
       activity append/compensation, and tag-link uniqueness pass against the simulator
       (`src/v2/tests/sharepointstore-resilience.test.js`). Reuse the same adapter logic live.
+- [ ] **Live client gate ready (D21):** the real `SharePointLiveClient`
+      ([`../src/v2/backend/sharepoint/live/`](../src/v2/backend/sharepoint/live/)) is the drop-in
+      live client (same surface as the fake), and `run-testsite-contract.js` is the fail-closed,
+      operator-run entry point. Follow the
+      [live execution checklist](../harness/SHAREPOINT_V2_LIVE_TESTSITE_EXECUTION_CHECKLIST.md).
 - [ ] Wire it into the existing harness via a `makeStore(seed)` factory that loads the standard
       seed into the test site — see [`STORE_CONTRACT_TEST_SITE_PLAN.md`](./STORE_CONTRACT_TEST_SITE_PLAN.md).
 - [ ] Run the **same** store contract that passes against `MockStore` (D13). A **first green

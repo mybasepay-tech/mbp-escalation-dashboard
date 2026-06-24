@@ -310,6 +310,30 @@
   true acceptance gate (real SharePoint quirks surface only there).
 - **Blocks:** nothing; it *gates* readiness for live test-site execution.
 
+### D21 — Live test-site execution uses a fail-closed real-client gate (Loop 17)
+- **Status:** **Accepted** (gate is committed; live execution itself remains operator-run).
+- **Context:** Going live needs a real SharePoint client *without* leaking tenant/site/app/user
+  identifiers into git or letting committed code connect on its own.
+- **Decision:**
+  - A real **`SharePointLiveClient`** wrapper ([`../src/v2/backend/sharepoint/live/`](../src/v2/backend/sharepoint/live/))
+    exposes the **same method surface** as `FakeSharePointClient`, so it drops into
+    `SharePointStore`. It imports **no SDK**, hardcodes **no** tenant/client/site/user
+    identifiers, makes **no** committed network call, and is **dependency-injected**: the real
+    SDK + interactive auth live in an operator-supplied, **git-ignored** transport bootstrap.
+    Without a transport it throws `LiveNotConfiguredError` (fail-closed).
+  - A **gated runner** (`run-testsite-contract.js`) refuses to act unless a git-ignored config
+    sets `phase2Approved`, `nonProductionOnly`, `legacyWritebackAllowed=false`,
+    `powerAutomateAllowed=false`, and `contractRunApproved=true`, the label is non-production,
+    the prefix is `Escalations_v2_`, and the target is not legacy/production. It loads the
+    runtime transport, runs a read-only connectivity smoke, and points to the full store-contract
+    run as the acceptance gate. Missing config/auth/transport → clear stop, **never** a fake run.
+  - Runtime config (`testsite.config.json`), transport bootstraps, `.env`, and secrets are
+    **git-ignored**; only `*.example.json` and the wrapper/runner/docs are committed.
+- **Scope:** the gate + wrapper are committed and fully local-safe; no live identifiers/secrets,
+  no real lists, no flows, no legacy writeback. Live execution happens only when an operator
+  supplies the git-ignored config + auth against the approved non-production test site.
+- **Blocks:** nothing in-repo; it *governs* the live test-site execution.
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -339,6 +363,7 @@
 | D18 | Provisioning is scripted + fail-closed (Loop 14) | Config-driven, non-production-first PowerShell provisioning; no secrets in git; validate vs. schema before adapter | No (governs Phase 2) | **Accepted** (Phase 2 approved) |
 | D19 | Simulator-first adapter validation (Loop 15) | SharePointStore passes the store contract against a local FakeSharePoint simulator before live execution | No (sequences adapter work) | **Accepted** (local/simulated) |
 | D20 | Adapter resilience hardening (Loop 16) | Prove throttling retry, ETag conflict retry, activity idempotency/compensation, tag-link uniqueness locally before live | No (gates live readiness) | **Accepted** (local/simulated) |
+| D21 | Live real-client execution gate (Loop 17) | Fail-closed `SharePointLiveClient` (injected transport, no SDK/secrets in git) + gated runner; store-contract acceptance | No (governs live execution) | **Accepted** (gate committed) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -390,6 +415,11 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   resilience to throttling (bounded retry), ETag conflicts (re-read + retry), activity append
   idempotency/compensation, and one-active tag-link uniqueness — all against the simulator, with
   no live work. The live first-green run remains the true acceptance gate.
+- **D21 — Live real-client execution gate (Loop 17): Accepted.** A fail-closed
+  `SharePointLiveClient` (same surface as the fake; injected runtime transport; no SDK, secrets,
+  or identifiers in git) plus a gated runner enforce approvals and refuse legacy/production. Live
+  execution runs only with operator-supplied git-ignored config + interactive auth against the
+  approved non-production test site; the store-contract first-green run is the acceptance gate.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional

@@ -30,6 +30,13 @@ runStoreContract('SharePointStore(FakeSharePoint)', (seed) =>
 // FUTURE, test-site only — swaps the fake for a real client behind the same factory:
 runStoreContract('SharePointStore(test-site)', async (seed) => provisionAndLoad(seed));
 ```
+The real client now exists (Loop 17 / D21):
+[`SharePointLiveClient`](../src/v2/backend/sharepoint/live/SharePointLiveClient.js) with the same
+surface as the fake. The live `makeStore` is `(seed) => new SharePointStore({ client: liveClient })`
+where `liveClient = new SharePointLiveClient({ transport, siteRef })` is built from an
+operator-supplied, git-ignored runtime transport. The gated
+[`run-testsite-contract.js`](../src/v2/backend/sharepoint/live/run-testsite-contract.js) enforces
+approvals and connectivity before the full contract run.
 The contract is the **single source of behavioral truth**; an adapter is correct only when it
 passes it unchanged.
 
