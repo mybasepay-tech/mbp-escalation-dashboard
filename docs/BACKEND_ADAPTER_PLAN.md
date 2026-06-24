@@ -47,6 +47,9 @@ UI / viewModel / app  ──►  EscalationStore (abstract contract)
   ([`../src/v2/backend/sharepoint/fake/`](../src/v2/backend/sharepoint/fake/)). A real Graph/PnP
   client would be a drop-in replacement for the injected fake. Mapping is table-driven via
   [`../src/v2/backend/sharepoint/mapping.js`](../src/v2/backend/sharepoint/mapping.js).
+- **Loop 16 (D20):** it is **hardened for real failure modes** — throttle retry/backoff, ETag
+  conflict re-read+retry, idempotent activity append with a clear compensation error, and
+  one-active tag-link reconciliation — all proven against the simulator with no live deps.
 - It will be backed by the design-only schema in
   [`../src/v2/backend/sharepoint/schema.sharepoint-v2.json`](../src/v2/backend/sharepoint/schema.sharepoint-v2.json),
   reached via Microsoft Graph list APIs using a dedicated v2 Entra app (D6) — **none of

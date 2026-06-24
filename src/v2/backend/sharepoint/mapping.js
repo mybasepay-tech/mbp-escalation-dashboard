@@ -71,6 +71,44 @@ function fromFields(spec, fields) {
   return obj;
 }
 
+// ----- field-shape round-trip helpers (fidelity for the future real client) -----
+// Real SharePoint/Graph returns Lookup as { LookupId, LookupValue } and Person as a user
+// object, stores DateTime as ISO 8601, and Boolean as true/false. The fake stores plain keys
+// for simplicity; these helpers encode/decode the *shaped* forms so the eventual real-client
+// adapter layer can translate losslessly. encode/decode are inverses (null-safe).
+
+/** Lookup column: app key <-> { LookupValue }. */
+export const lookupField = {
+  encode: (key) => (key == null ? null : { LookupValue: String(key) }),
+  decode: (val) => {
+    if (val == null) return null;
+    if (typeof val === 'object') return val.LookupValue ?? val.LookupId ?? null;
+    return String(val);
+  },
+};
+
+/** Person-or-Group column: app key <-> { Key, Title }. */
+export const personField = {
+  encode: (key) => (key == null ? null : { Key: String(key), Title: String(key) }),
+  decode: (val) => {
+    if (val == null) return null;
+    if (typeof val === 'object') return val.Key ?? val.LookupValue ?? null;
+    return String(val);
+  },
+};
+
+/** DateTime column: ISO string <-> normalized ISO string. */
+export const dateTimeField = {
+  encode: (iso) => (iso == null ? null : new Date(iso).toISOString()),
+  decode: (val) => (val == null ? null : String(val)),
+};
+
+/** Boolean column: coerce to a strict true/false (handles 'true'/1 from some surfaces). */
+export const booleanField = {
+  encode: (b) => b === true,
+  decode: (val) => val === true || val === 'true' || val === 1,
+};
+
 export const ticketToFields = (t) => toFields(TICKET_SPEC, t);
 export const fieldsToTicket = (f, tagIds = []) => ({ ...fromFields(TICKET_SPEC, f), tagIds });
 export const activityToFields = (a) => toFields(ACTIVITY_SPEC, a);

@@ -286,6 +286,30 @@
   integration, no real lists, no legacy writeback, no Power Automate.
 - **Blocks:** nothing; it *sequences* adapter validation ahead of live execution.
 
+### D20 — SharePointStore must prove local resilience before live test-site execution (Loop 16)
+- **Status:** **Accepted** (design/local; no live work).
+- **Context:** A simulated happy-path contract pass (D19) doesn't exercise the failure modes a
+  real tenant throws on day one. Those must be proven locally first.
+- **Decision:** Before any live test-site run, `SharePointStore` must demonstrate, against the
+  FakeSharePoint simulator, resilience to:
+  - **Throttling (429):** bounded retry with injectable backoff (deterministic no-op sleep in
+    tests); clear failure after the retry limit.
+  - **ETag conflict (412):** re-read latest + re-apply the domain rule + retry; clear failure
+    when unresolvable.
+  - **Ticket + activity atomicity:** activity appends are **idempotent on ActivityKey** and
+    retried on transient failure (no duplicate rows); a permanent append failure raises a clear
+    **compensation error** (`ActivityAppendError`) rather than silently losing the row.
+  - **Tag-link uniqueness:** exactly **one active** `Escalations_v2_TicketTags` row per
+    (ticket, tag); stale-read/duplicate races are reconciled; soft-deleted links are reactivated,
+    not duplicated.
+  Proven by [`../src/v2/tests/sharepointstore-resilience.test.js`](../src/v2/tests/sharepointstore-resilience.test.js)
+  and [`../src/v2/tests/sharepoint-mapping-fidelity.test.js`](../src/v2/tests/sharepoint-mapping-fidelity.test.js);
+  the simulator gained operation-specific + repeatable failure injection.
+- **Scope:** fully local/simulated. `MockStore` stays the active UI backend; no network, no
+  SDKs, no real lists/flows, no legacy writeback. The live first-green contract run remains the
+  true acceptance gate (real SharePoint quirks surface only there).
+- **Blocks:** nothing; it *gates* readiness for live test-site execution.
+
 ---
 
 ## Post-mock-MVP status (Loop 6)
@@ -314,6 +338,7 @@
 | D17 | Local-first storage model (Loop 13) | Repo-local mock/design now; real data only in dedicated SharePoint v2 lists later; OneDrive is not backend storage | No (standing rule) | **Accepted** |
 | D18 | Provisioning is scripted + fail-closed (Loop 14) | Config-driven, non-production-first PowerShell provisioning; no secrets in git; validate vs. schema before adapter | No (governs Phase 2) | **Accepted** (Phase 2 approved) |
 | D19 | Simulator-first adapter validation (Loop 15) | SharePointStore passes the store contract against a local FakeSharePoint simulator before live execution | No (sequences adapter work) | **Accepted** (local/simulated) |
+| D20 | Adapter resilience hardening (Loop 16) | Prove throttling retry, ETag conflict retry, activity idempotency/compensation, tag-link uniqueness locally before live | No (gates live readiness) | **Accepted** (local/simulated) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -361,6 +386,10 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   implemented against an injected client and passes the same store contract as `MockStore` via a
   local, in-memory FakeSharePoint simulator (no network/SDK/auth). Default (no client) stays
   fail-closed. This precedes — and de-risks — live test-site execution.
+- **D20 — Adapter resilience hardening (Loop 16): Accepted.** `SharePointStore` proves local
+  resilience to throttling (bounded retry), ETag conflicts (re-read + retry), activity append
+  idempotency/compensation, and one-active tag-link uniqueness — all against the simulator, with
+  no live work. The live first-green run remains the true acceptance gate.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional

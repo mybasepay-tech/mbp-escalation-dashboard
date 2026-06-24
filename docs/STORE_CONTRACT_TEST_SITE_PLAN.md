@@ -80,6 +80,10 @@ async function makeSharePointTestStore(seed) {
   cleanup. No legacy cleanup is ever needed (legacy untouched).
 
 ## 7. Handling flaky network / permission errors
+> **Loop 16 (D20):** the adapter already implements bounded throttle retry/backoff, ETag
+> conflict re-read+retry, idempotent activity append with compensation, and tag-link
+> reconciliation — proven locally against the simulator's failure-injection hooks. The live run
+> reuses the same logic; only the injected client changes.
 - Wrap test-site calls with **bounded retry + backoff** for transient/throttling errors
   (HTTP 429/503); surface a clear message after the retry budget is exhausted.
 - Treat **permission**/validation errors as **terminal** — do not retry; fail fast (a perms

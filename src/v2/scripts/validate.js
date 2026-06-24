@@ -161,6 +161,24 @@ function checkFakeSimulator() {
   record(problems.length === 0, 'FakeSharePoint simulator present + local-only (no network/SDK/markers)', problems.join('; '));
 }
 
+// ----- 8c. Adapter resilience hardening present + proven (Loop 16 / D20) -----
+function checkResilienceHardening() {
+  const problems = [];
+  const adapter = readFileSync(join(V2_ROOT, 'store', 'SharePointStore.js'), 'utf8');
+  if (!/#withRetry/.test(adapter)) problems.push('adapter missing throttle retry/backoff (#withRetry)');
+  if (!/code === 'conflict'/.test(adapter)) problems.push('adapter missing ETag conflict handling');
+  if (!/ActivityAppendError/.test(adapter)) problems.push('adapter missing activity compensation error');
+  if (!/#reconcileSingleActive/.test(adapter)) problems.push('adapter missing tag-link uniqueness reconciliation');
+
+  const list = (() => { try { return readFileSync(join(V2_ROOT, 'backend', 'sharepoint', 'fake', 'FakeSharePointList.js'), 'utf8'); } catch { return ''; } })();
+  if (!/failOn\s*\(/.test(list)) problems.push('FakeSharePoint list missing failure-injection (failOn)');
+
+  for (const f of ['sharepointstore-resilience.test.js', 'sharepoint-mapping-fidelity.test.js']) {
+    try { statSync(join(V2_ROOT, 'tests', f)); } catch { problems.push(`${f} missing`); }
+  }
+  record(problems.length === 0, 'SharePointStore resilience hardened + tested (throttle/ETag/activity/tag-uniqueness)', problems.join('; '));
+}
+
 // ----- 9. Transition governance docs (decision, parallel-run, guardrails, no-writeback) -----
 function checkTransitionDocs() {
   const REPO_ROOT = dirname(dirname(V2_ROOT)); // .../mbp-escalation-dashboard
@@ -324,6 +342,7 @@ scanServerLoopback();
 checkSharePointSchema();
 checkAdapterStub();
 checkFakeSimulator();
+checkResilienceHardening();
 checkTransitionDocs();
 checkPhase2Docs();
 checkLocalFirstDocs();
