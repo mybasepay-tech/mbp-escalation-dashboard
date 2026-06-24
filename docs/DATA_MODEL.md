@@ -95,6 +95,14 @@ Activity is **immutable** — corrections are new entries, never edits. See
 | `color` | string | Optional. |
 | `scopeDeptId` | ref | Nullable = global tag. |
 
+> **Tag↔ticket relationship (SharePoint v2 readiness, D12).** `EscalationTags` is the tag
+> **dictionary** only. The ticket↔tag relationship is a dedicated **many-to-many link list**
+> (`Escalations_v2_TicketTags`), **not** a delimited field on the ticket. The domain
+> `Ticket.tagIds` array is materialized from active links at read time. See
+> [`SHAREPOINT_V2_BACKEND_READINESS.md`](./SHAREPOINT_V2_BACKEND_READINESS.md) §5a and
+> [`DECISION_LOG.md`](./DECISION_LOG.md) D12. (Mock `MockStore` keeps `tagIds` on the ticket
+> for in-memory simplicity; the link list is a backend-storage concern.)
+
 ## 6. `EscalationTeams` (departments / queues)
 | Field | Type | Notes |
 |-------|------|-------|

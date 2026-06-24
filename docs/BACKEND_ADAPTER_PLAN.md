@@ -73,6 +73,8 @@ Any adapter must implement the entire `EscalationStore` contract with the same s
 - Business rules (auto-status, owner-only Complete, transition guard) stay in the **domain
   layer**; the adapter persists results, it does not re-implement rules.
 - `daysOpen` is **computed**, never stored.
+- **Tags are a many-to-many link list (D12)**: `Ticket.tagIds` is materialized from active
+  `Escalations_v2_TicketTags` rows, never a delimited ticket field; removals are soft-deletes.
 
 ## 5. Read / write methods needed (mapped to the backend)
 | Contract method | SharePoint adapter action (future) |
@@ -82,7 +84,9 @@ Any adapter must implement the entire `EscalationStore` contract with the same s
 | `listActivity` / `listComments` / `listNotes` | Filter child lists by `EscalationKey`, sort ascending. |
 | `createTicket` + lifecycle writes | Create/patch the `Tickets` item **and** append the corresponding `Activity` row(s). |
 | `addComment` / `addNote` | Create a `Comments` / `InternalNotes` item **and** append an `Activity` row. |
-| reference lists | Read `Departments` / `Users` / `Tags`. |
+| `addTag` / `removeTag` | **D12 — operate on the `Escalations_v2_TicketTags` link list, not a ticket column.** `addTag`: upsert an **active** link for (ticket, tag), de-duplicating against any existing active row (reactivate a soft-deleted one rather than inserting a duplicate). `removeTag`: **soft-delete** the active link (`IsActive=false`, set `RemovedAt`) — never hard-delete. Both append a `field_change` `Activity` row. |
+| reading a ticket's tags | Materialize `Ticket.tagIds` from **active** `TicketTags` rows (`TicketKey = id AND IsActive = true`) → `TagKey`s. Never read a delimited field. |
+| reference lists | Read `Departments` / `Users` / `Tags` (tag **dictionary**). |
 
 ## 6. Error-handling expectations
 - **Never throw raw transport errors at callers.** Wrap backend/network failures in a stable

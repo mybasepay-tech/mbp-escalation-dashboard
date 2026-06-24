@@ -44,9 +44,10 @@ By design and per the project safety rules, the MVP does **not**:
   client).
 
 ## 3. What has been validated
-- **Automated tests:** 54 passing (`node --test`) across rules, store, interactions
+- **Automated tests:** 62 passing (`node --test`) across rules, store, interactions
   (comments/notes/tags), views (filters/reporting), UI smoke (view-model), safety, and the
-  Loop 8 design-only SharePoint schema check.
+  design-only SharePoint schema check (Loop 8 + Loop 9 hardening, incl. the D12 tag link
+  list and admin-package/dry-run doc checks).
 - **Safety scans:** source contains no production-integration strings or network calls;
   browser UI files contain no `fetch`/`XMLHttpRequest`; the local server binds to loopback
   only and rejects path traversal; mock legacy references use a clearly-fake `.invalid`
@@ -81,6 +82,26 @@ connection code, no credentials/tenant/client IDs/secrets/live URLs, no real lis
 flows. The schema is static JSON that connects to nothing; the validator and tests only read
 local files. The `EscalationStore` abstraction is unchanged and `MockStore` remains the only
 backend. This is **design-only readiness**; live work stays blocked by D3/D6/D7.
+
+### Loop 9 — schema hardening + admin build package (design-only)
+Loop 9 hardened the readiness package, still entirely design-only:
+- **D12 (Accepted, design-only):** tags use a dedicated many-to-many link list
+  (`Escalations_v2_TicketTags`) — **no** delimited tag field on Tickets. `Escalations_v2_Tags`
+  remains the dictionary. Schema now defines 8 lists, with tag-by-ticket / ticket-by-tag views
+  and indexes, soft-delete, and label snapshots.
+- **Admin build package:** [`SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md`](./SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md)
+  — a *design-only*, "do not run against production yet" build recipe (lists, columns,
+  indexes, views, permissions, naming/ownership conventions, rollback, post-build validation,
+  legacy non-interference).
+- **Dry-run gate:** [`../harness/SHAREPOINT_V2_DRY_RUN_CHECKLIST.md`](../harness/SHAREPOINT_V2_DRY_RUN_CHECKLIST.md)
+  — pre-build safety checks (not-legacy target, no write-back, no flows, no Graph/live API,
+  schema match, rollback).
+- **Validator + tests hardened:** `validateSharePointSchema.js` and `sharepoint-schema.test.js`
+  now assert the link list, the no-delimited-tags rule, stable internalName/displayName, tag
+  lookup views/indexes, and the presence + safety language of the new docs.
+
+Still **design-only**: no live integration, no flows, `MockStore` unchanged, `EscalationStore`
+intact.
 
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
