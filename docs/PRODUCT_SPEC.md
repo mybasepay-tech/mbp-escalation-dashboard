@@ -38,11 +38,24 @@ swap.
 - Tags, priority/urgency, issue category.
 - Dry-run migration from legacy (read-only) with traceability.
 - Reporting/exports comparable to today's CSV outputs.
+- **Attachments — metadata-first (Loop 21/D24):** tickets support attachment *metadata*
+  records (file name, placeholder storage ref, type/size, uploader, provenance,
+  soft-delete). Real file upload/storage is deferred.
+- **Requester-only closure with a final closing comment (Loop 21/D23):** only the person
+  who submitted the ticket may officially Complete it, and doing so requires a non-empty
+  closing comment (stored and audited). Assignee/owner/lead do not gain closure authority.
+- **Optional amount involved (Loop 21/D26):** an optional money field (`amountInvolved`,
+  USD default) on every ticket.
+- **No-movement reminder readiness (Loop 21/D25):** priority-based thresholds (Critical 2,
+  High 3, Medium/normal 7, Low 14 days since last movement) flag reminder *candidates* as
+  local indicators/filters. Sending actual notifications is deferred (no flows).
 
 ### Out of scope (MVP, designed-for-later)
 - Department-specific panel configuration (columns, quick actions, filters, required
   fields, categories, SLA rules, terminology, widgets, routing rules).
-- Automated SLA enforcement / notifications.
+- Automated SLA enforcement / notifications (reminder *candidates* are computed locally —
+  D25 — but nothing is sent).
+- Real attachment file upload/storage (metadata only for now — D24).
 - Replacing or decommissioning the legacy tracker (cutover is a separate, approved step).
 
 ## 4. Users & primary jobs

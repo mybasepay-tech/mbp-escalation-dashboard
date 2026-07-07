@@ -17,7 +17,7 @@ const TICKETS = 'Escalations_v2_Tickets';
 const TAGS = 'Escalations_v2_Tags';
 const TICKET_TAGS = 'Escalations_v2_TicketTags';
 
-// Lists the design must define (mission Loop 8 + Loop 9 link list).
+// Lists the design must define (mission Loop 8 + Loop 9 link list + Loop 21 attachments).
 export const REQUIRED_LISTS = [
   TICKETS,
   'Escalations_v2_Activity',
@@ -27,6 +27,7 @@ export const REQUIRED_LISTS = [
   TICKET_TAGS,
   'Escalations_v2_Departments',
   'Escalations_v2_Users',
+  'Escalations_v2_Attachments',
 ];
 
 // Ticket model fields that must be representable as a DIRECT column on the Tickets list via a
@@ -37,6 +38,7 @@ export const REQUIRED_TICKET_MAPPINGS = [
   'id', 'title', 'description', 'status', 'priority', 'issueCategory', 'issueType',
   'assignedDeptId', 'assigneeId', 'ticketOwner', 'submitterId', 'requestingDept',
   'escalationDate', 'expectedResolutionDate', 'completedDate',
+  'finalClosureNote', 'lastActivityAt', 'amountInvolved', 'amountCurrency',
   'legacyItemId', 'legacyUrl', 'migrationNotes', 'createdAt', 'modifiedAt',
 ];
 

@@ -22,7 +22,7 @@ updates, follow-ups, and free text in one rich-text field).
   [`DATA_MODEL.md`](./DATA_MODEL.md) §3).
 - `type` values (authoritative taxonomy in [`DATA_MODEL.md`](./DATA_MODEL.md) §3):
   `created`, `assignment_change`, `status_change`, `priority_change`, `field_change`,
-  `comment`, `note`, `migration_normalization`.
+  `comment`, `note`, `attachment` (attachment metadata added/soft-deleted — Loop 21/D24), `migration_normalization`.
 - Assignment + auto-status: an assignment that triggers an auto-status change (see
   [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §3) emits **both** `assignment_change` and
   `status_change`.
@@ -57,3 +57,4 @@ updates, follow-ups, and free text in one rich-text field).
 - Activity is never silently lost or rewritten.
 - Every status/assignment change is traceable to an actor and time.
 - Comments and activity are queryable independently for reporting.
+

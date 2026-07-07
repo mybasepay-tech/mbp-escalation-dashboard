@@ -348,8 +348,15 @@ function checkProvisioningPackage() {
     const fp = join(dir, f);
     try { texts[f] = readFileSync(fp, 'utf8'); } catch { problems.push(`${f} missing`); }
   }
-  // Real runtime config must never be committed.
-  try { statSync(join(dir, 'provision.config.json')); problems.push('provision.config.json must NOT be committed'); } catch { /* good */ }
+  // Real runtime config must never be committed. It MAY exist locally on an operator
+  // machine (it is required to run the provisioning scripts) — what keeps it out of git is
+  // the .gitignore rule, so a local file is only a problem if that rule is missing.
+  try {
+    statSync(join(dir, 'provision.config.json'));
+    if (!/provision\.config\.json/.test(texts['.gitignore'] || '')) {
+      problems.push('provision.config.json present locally but NOT git-ignored — it would be committed');
+    }
+  } catch { /* not present locally — nothing to check */ }
 
   const common = texts['provisioning.common.ps1'] || '';
   for (const [why, re] of [

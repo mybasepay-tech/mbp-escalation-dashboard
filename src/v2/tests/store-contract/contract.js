@@ -99,13 +99,15 @@ export function runStoreContract(label, makeStore) {
     assert.ok(mine.every((x) => x.assigneeId === 'user_sarah'));
   });
 
-  // ----- ticket owner / status -----
-  t('ticket owner is distinct from the assignee (closure authority)', async () => {
+  // ----- ticket owner / requester / status -----
+  t('owner, assignee, and requester are distinct roles (requester is the closure authority)', async () => {
     const store = await fresh();
     const t1 = await store.getTicket('esc_person');
     assert.equal(t1.ticketOwner, 'user_teri');
     assert.equal(t1.assigneeId, 'user_sarah');
+    assert.equal(t1.submitterId, 'user_maggie');
     assert.notEqual(t1.ticketOwner, t1.assigneeId);
+    assert.notEqual(t1.submitterId, t1.ticketOwner);
   });
 
   t('setStatus performs a legal transition and records a status_change event', async () => {
@@ -126,30 +128,53 @@ export function runStoreContract(label, makeStore) {
     );
   });
 
-  // ----- owner-only Complete -----
-  t('the ticket owner can move a ticket to Complete', async () => {
+  // ----- requester-only Complete + required final closing comment (Loop 21) -----
+  // esc_person: submitter=user_maggie (requester), assignee=user_sarah, owner=user_teri.
+  t('the requester can move a ticket to Complete with a final closing comment', async () => {
     const store = await fresh();
-    await store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_teri', now: NOW });
+    await store.setStatus('esc_person', STATUS.COMPLETE, {
+      actorId: 'user_maggie', now: NOW, closureNote: 'Claim reprocessed; member confirmed.',
+    });
     const t1 = await store.getTicket('esc_person');
     assert.equal(t1.status, STATUS.COMPLETE);
+    assert.equal(t1.finalClosureNote, 'Claim reprocessed; member confirmed.');
   });
 
-  t('a non-owner (even the assignee) cannot move a ticket to Complete', async () => {
+  t('the requester cannot Complete without a final closing comment', async () => {
     const store = await fresh();
     await assert.rejects(
-      () => store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_sarah', now: NOW }),
-      /Only the ticket owner can move a ticket to Complete/,
+      () => store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_maggie', now: NOW }),
+      /requires a final closing comment/,
+    );
+    await assert.rejects(
+      () => store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_maggie', now: NOW, closureNote: '   ' }),
+      /requires a final closing comment/,
     );
     assert.equal((await store.getTicket('esc_person')).status, STATUS.ASSIGNED, 'status unchanged after rejection');
   });
 
-  t('Complete sets completedDate and creates a status_change activity event', async () => {
+  t('a non-requester cannot Complete — not the assignee, not the ticket owner', async () => {
     const store = await fresh();
-    await store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_teri', now: NOW });
+    for (const actorId of ['user_sarah', 'user_teri']) {
+      await assert.rejects(
+        () => store.setStatus('esc_person', STATUS.COMPLETE, { actorId, now: NOW, closureNote: 'attempt' }),
+        /Only the requester who submitted the ticket/,
+      );
+    }
+    assert.equal((await store.getTicket('esc_person')).status, STATUS.ASSIGNED, 'status unchanged after rejection');
+  });
+
+  t('Complete sets completedDate and creates a status_change event carrying the closing comment', async () => {
+    const store = await fresh();
+    await store.setStatus('esc_person', STATUS.COMPLETE, {
+      actorId: 'user_maggie', now: NOW, closureNote: 'Root cause fixed.',
+    });
     const t1 = await store.getTicket('esc_person');
     assert.equal(t1.completedDate, NOW);
     const ev = await store.listActivity('esc_person');
-    assert.ok(ev.some((e) => e.type === ACTIVITY_TYPE.STATUS_CHANGE && e.to === STATUS.COMPLETE));
+    const closing = ev.find((e) => e.type === ACTIVITY_TYPE.STATUS_CHANGE && e.to === STATUS.COMPLETE);
+    assert.ok(closing, 'status_change event to Complete recorded');
+    assert.match(closing.note, /Root cause fixed\./, 'closing comment preserved in the activity event');
   });
 
   t('Reopened clears completedDate', async () => {
@@ -253,6 +278,69 @@ export function runStoreContract(label, makeStore) {
     const open = await store.listTickets({ openOnly: true });
     assert.ok(open.every((x) => OPEN_STATUSES.has(x.status)), 'openOnly excludes terminal tickets');
     assert.ok(!open.some((x) => x.status === STATUS.COMPLETE));
+  });
+
+  // ----- optional amount involved (Loop 21) -----
+  t('amount involved is optional and settable/clearable via setAmount (with activity)', async () => {
+    const store = await fresh();
+    const before = await store.getTicket('esc_new');
+    assert.equal(before.amountInvolved, null, 'amount defaults to null (optional)');
+    await store.setAmount('esc_new', 987.65, { actorId: 'user_teri', now: NOW });
+    const after = await store.getTicket('esc_new');
+    assert.equal(after.amountInvolved, 987.65);
+    assert.equal(after.amountCurrency, 'USD');
+    const ev = await store.listActivity('esc_new');
+    assert.ok(ev.some((e) => e.type === ACTIVITY_TYPE.FIELD_CHANGE && e.to?.amountInvolved === 987.65));
+    await store.setAmount('esc_new', null, { actorId: 'user_teri', now: LATER });
+    assert.equal((await store.getTicket('esc_new')).amountInvolved, null, 'amount can be cleared');
+  });
+
+  // ----- attachments: metadata-first (Loop 21) -----
+  t('attachment metadata can be added and listed (no file bytes involved)', async () => {
+    const store = await fresh();
+    const added = await store.addAttachment('esc_person', {
+      fileName: 'evidence.png', mimeType: 'image/png', sizeBytes: 2048,
+      uploadedBy: 'user_sarah', uploadedAt: NOW, source: 'manual',
+    });
+    assert.ok(added.id, 'attachment gets an id');
+    const list = await store.listAttachments('esc_person');
+    assert.equal(list.length, 1);
+    assert.equal(list[0].fileName, 'evidence.png');
+    assert.equal(list[0].isDeleted, false);
+    const ev = await store.listActivity('esc_person');
+    assert.ok(ev.some((e) => e.type === ACTIVITY_TYPE.ATTACHMENT), 'attachment activity recorded');
+  });
+
+  t('removeAttachment soft-deletes: hidden from the active list, metadata preserved', async () => {
+    const store = await fresh();
+    const added = await store.addAttachment('esc_person', {
+      fileName: 'to-remove.txt', uploadedBy: 'user_sarah', uploadedAt: NOW,
+    });
+    await store.removeAttachment('esc_person', added.id, { actorId: 'user_sarah', now: LATER });
+    assert.equal((await store.listAttachments('esc_person')).length, 0, 'soft-deleted attachment is not listed');
+    // Removing again is a no-op that returns null.
+    assert.equal(await store.removeAttachment('esc_person', added.id, { now: LATER }), null);
+  });
+
+  t('seeded attachment metadata is exposed (esc_in_process)', async () => {
+    const store = await fresh();
+    const list = await store.listAttachments('esc_in_process');
+    assert.ok(list.some((a) => a.fileName === 'billing-statement-march.pdf'));
+  });
+
+  // ----- lastActivityAt movement stamp (Loop 21) -----
+  t('lastActivityAt updates on status change, comment, note, and attachment', async () => {
+    const store = await fresh();
+    await store.setStatus('esc_person', STATUS.IN_PROCESS, { actorId: 'user_sarah', now: NOW });
+    assert.equal((await store.getTicket('esc_person')).lastActivityAt, NOW, 'status change bumps lastActivityAt');
+    await store.addComment('esc_person', { authorId: 'user_sarah', body: 'update', createdAt: LATER });
+    assert.equal((await store.getTicket('esc_person')).lastActivityAt, LATER, 'comment bumps lastActivityAt');
+    const evenLater = '2026-06-24T00:00:00.000Z';
+    await store.addNote('esc_person', { authorId: 'user_sarah', body: 'internal', createdAt: evenLater });
+    assert.equal((await store.getTicket('esc_person')).lastActivityAt, evenLater, 'note bumps lastActivityAt');
+    const latest = '2026-06-25T00:00:00.000Z';
+    await store.addAttachment('esc_person', { fileName: 'f.txt', uploadedBy: 'user_sarah', uploadedAt: latest });
+    assert.equal((await store.getTicket('esc_person')).lastActivityAt, latest, 'attachment bumps lastActivityAt');
   });
 
   // ----- reference data -----

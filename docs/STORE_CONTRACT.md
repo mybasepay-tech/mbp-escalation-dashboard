@@ -24,14 +24,16 @@ a future backend swap safe — an adapter is "done" only when it passes the same
 | Group | Methods |
 |-------|---------|
 | Tickets | `getTicket(id)` → ticket\|null · `listTickets(filter)` · `createTicket(input)` |
-| Assignment/lifecycle | `assignDepartment(id, deptId, opts)` · `assignPerson(id, userId, opts)` · `clearAssignee(id, opts)` · `setStatus(id, status, opts)` · `setPriority(id, priority, opts)` |
+| Assignment/lifecycle | `assignDepartment(id, deptId, opts)` · `assignPerson(id, userId, opts)` · `clearAssignee(id, opts)` · `setStatus(id, status, opts)` · `setPriority(id, priority, opts)` · `setAmount(id, amount, opts)` |
 | Tags | `addTag(id, tagId, opts)` · `removeTag(id, tagId, opts)` |
 | Streams | `listActivity(id)` · `listComments(id)` · `listNotes(id)` · `addComment(id, input)` · `addNote(id, input)` |
+| Attachments (metadata) | `listAttachments(id)` · `addAttachment(id, input)` · `removeAttachment(id, attachmentId, opts)` — metadata only, no file bytes (D24) |
 | Views | `departmentQueue(deptId, opts)` · `myAssignedTickets(userId, opts)` |
 | Reference | `listDepartments()` · `listUsers()` · `listTags()` |
 
 All methods are async. `opts` carries `{ actorId, now }` for deterministic, attributable
-mutations.
+mutations; `setStatus` additionally accepts `closureNote` (required when targeting
+**Complete** — D23).
 
 ## 3. Business rules that must hold consistently
 The contract asserts these behaviors regardless of backend:
@@ -41,12 +43,21 @@ The contract asserts these behaviors regardless of backend:
   reverts to **Not yet assigned**.
 - **Department queue** includes person-assigned tickets, not just unassigned ones.
 - **My Assigned** returns only the given person's tickets.
-- **Ticket owner ≠ assignee:** the owner is the closure authority.
+- **Owner ≠ assignee ≠ requester:** three distinct roles; the **requester** (`submitterId`)
+  is the closure authority (D23).
 - **Legal transitions only:** illegal status transitions are rejected.
-- **Owner-only Complete:** only `ticketOwner` may move a ticket to **Complete**; the assignee
-  (or anyone else) is rejected.
-- **Complete** sets `completedDate` and records a `status_change` event; **Reopened** clears
-  `completedDate`.
+- **Requester-only Complete (D23):** only the requester who submitted the ticket may move it
+  to **Complete**; the assignee, the ticket owner, or anyone else is rejected — and the
+  requester is rejected too without a non-empty `closureNote` (final closing comment).
+- **Complete** sets `completedDate`, stores `finalClosureNote`, and records a `status_change`
+  event carrying the closing comment; **Reopened** clears `completedDate`/`finalClosureNote`
+  (closure history stays in activity).
+- **Attachments are metadata-first (D24):** `addAttachment`/`listAttachments` manage metadata
+  rows only; `removeAttachment` soft-deletes; each change emits an `attachment` activity event.
+- **Amount involved is optional (D26):** `setAmount` sets/clears a non-negative amount
+  (currency defaults to USD) and emits a `field_change` event.
+- **`lastActivityAt` movement stamp (D25):** every real movement — status/assignment/priority/
+  tag change, comment, note, attachment — updates the ticket's `lastActivityAt`.
 - **Cancelled** is terminal — no further transition is allowed.
 - **Comments vs. notes vs. activity** are three separate streams (public comment, internal
   note, typed activity); adding a comment/note emits its own activity event and never leaks

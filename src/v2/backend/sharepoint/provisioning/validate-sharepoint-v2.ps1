@@ -1,7 +1,7 @@
 <#
 .SYNOPSIS
   Validate (read-only) that an APPROVED, NON-PRODUCTION SharePoint test site has the required
-  Escalations_v2_* lists, columns, and views.
+  Escalations_v2_* lists, columns, column types, indexes, and views.
 
 .DESCRIPTION
   Config-driven and FAIL-CLOSED. Reads the schema + a runtime GIT-IGNORED config, runs the same
@@ -9,9 +9,17 @@
   MODIFIES NOTHING and never targets legacy. Default is a dry-run that reports what it would
   check; -Execute performs the read-only live validation.
 
-  If the PnP.PowerShell module or interactive auth is unavailable, it fails with a clear
-  prerequisite message rather than faking a result. It creates no Power Automate flows and
-  performs no writeback to legacy (read-only validation only).
+  Validation categories:
+    * HARD (cause a non-zero/failed result): missing lists, missing required columns.
+    * SOFT (reported honestly, do not fail the run): column type drift, missing indexes,
+      missing views. Some views carry runtime-dynamic filters that are applied by the adapter,
+      not baked into the stored view — those are noted, never faked.
+  Also confirms ONLY the 8 expected Escalations_v2_* lists exist (no stray v2 lists), as a
+  guard that provisioning did not create unexpected targets.
+
+  It is strictly read-only: it creates NO Power Automate flows and performs NO writeback to
+  legacy. If the PnP.PowerShell module or interactive auth is unavailable, it fails with a clear
+  prerequisite message rather than faking a result.
 
 .PARAMETER ConfigPath
   Path to the runtime config (default: ./provision.config.json, git-ignored).
@@ -34,10 +42,14 @@ $config = Import-ProvisionConfig -Path $ConfigPath
 Assert-SafeConfig -Config $config
 
 $expectedLists = @($schema.lists.PSObject.Properties.Name)
+$indexPlan = Get-IndexPlan -Schema $schema
+$viewPlan = @(Get-ViewPlan -Schema $schema)
+
 Write-Report -Title 'Validation plan' -Lines (@(
   "schemaVersion : $($schema.schemaVersion)",
   "environment   : $($config.environmentLabel) (non-production)",
-  "lists to check: $($expectedLists.Count)"
+  "lists to check: $($expectedLists.Count)",
+  "views to check: $($viewPlan.Count)"
 ) + ($expectedLists | ForEach-Object { " - $_" }))
 
 if (-not $Execute) {
@@ -48,9 +60,6 @@ if (-not $Execute) {
 Assert-ModuleOrExplain
 Import-Module PnP.PowerShell
 Write-Host "[connect] Connecting interactively (read-only validation) to the configured non-production test site..." -ForegroundColor Yellow
-# PnP.PowerShell 2.x+ requires an Entra App Registration client id for interactive auth. The
-# client id is a runtime, GIT-IGNORED config value (a public app identifier, not a secret) and
-# is never committed. Fall back to plain -Interactive only if no client id is configured.
 $connectParams = @{ Url = $config.siteReferencePlaceholder; Interactive = $true }
 $clientId = Get-ConfigValue $config 'clientId'
 if (-not [string]::IsNullOrWhiteSpace($clientId)) { $connectParams['ClientId'] = $clientId }
@@ -63,25 +72,95 @@ foreach ($tok in @('legacy','tracker','prod','production')) {
     throw "FAIL-CLOSED: connected web looks like legacy/production ('$($web.Title)'). Aborting validation."
   }
 }
+Write-Host "[connect] Connected to '$($web.Title)' ($($web.ServerRelativeUrl))." -ForegroundColor Green
 
-$results = @()
+$hardFailures = @()   # missing lists / missing fields
+$softNotes    = @()   # type drift / missing indexes / missing views
+$listLines    = @()
+
 foreach ($listName in $expectedLists) {
   $list = Get-PnPList -Identity $listName -ErrorAction SilentlyContinue
   if ($null -eq $list) {
-    $results += "MISSING list: $listName"
+    $hardFailures += "MISSING list: $listName"
+    $listLines += "MISSING  $listName"
     continue
   }
-  $defFields = @($schema.lists.$listName.fields | ForEach-Object { $_.name })
-  $liveFields = @((Get-PnPField -List $listName | ForEach-Object { $_.InternalName }))
-  $missing = @($defFields | Where-Object { $liveFields -notcontains $_ })
-  if ($missing.Count -eq 0) { $results += "OK    $listName ($($defFields.Count) columns)" }
-  else { $results += "FIELDS MISSING in ${listName}: $([string]::Join(', ', $missing))" }
+
+  $liveFields = @(Get-PnPField -List $listName -ErrorAction SilentlyContinue)
+  $liveByName = @{}
+  foreach ($lf in $liveFields) { $liveByName[$lf.InternalName] = $lf }
+
+  $schemaFields = @($schema.lists.$listName.fields)
+  $missing = @()
+  $typeDrift = @()
+  foreach ($sf in $schemaFields) {
+    if (-not $liveByName.ContainsKey($sf.name)) {
+      $missing += $sf.name
+      continue
+    }
+    $live = $liveByName[$sf.name]
+    # @(): PowerShell unwraps a single-element return; .Count on a scalar throws under StrictMode.
+    $expectedTypes = @(Get-ExpectedLiveTypes $sf.type)
+    if ($expectedTypes.Count -gt 0 -and ($expectedTypes -notcontains $live.TypeAsString)) {
+      $typeDrift += "$($sf.name) (schema $($sf.type) -> live $($live.TypeAsString))"
+    }
+  }
+
+  # Index checks (soft).
+  $idxMissing = @()
+  if ($indexPlan.ContainsKey($listName)) {
+    foreach ($col in $indexPlan[$listName]) {
+      if ($liveByName.ContainsKey($col) -and -not $liveByName[$col].Indexed) { $idxMissing += $col }
+    }
+  }
+
+  if ($missing.Count -gt 0) { $hardFailures += "FIELDS MISSING in ${listName}: $([string]::Join(', ', $missing))" }
+  if ($typeDrift.Count -gt 0) { $softNotes += "TYPE DRIFT in ${listName}: $([string]::Join(', ', $typeDrift))" }
+  if ($idxMissing.Count -gt 0) { $softNotes += "INDEX MISSING in ${listName}: $([string]::Join(', ', $idxMissing))" }
+
+  $okFields = $schemaFields.Count - $missing.Count
+  $listLines += ("{0,-32} fields {1}/{2} ok{3}{4}" -f $listName, $okFields, $schemaFields.Count,
+    $(if ($typeDrift.Count) { ", $($typeDrift.Count) type-drift" } else { '' }),
+    $(if ($idxMissing.Count) { ", $($idxMissing.Count) index-missing" } else { '' }))
 }
 
-Write-Report -Title 'Validation report' -Lines $results
+# View checks (soft).
+$viewLines = @()
+foreach ($v in $viewPlan) {
+  $existing = Get-PnPView -List $v.List -Identity $v.Name -ErrorAction SilentlyContinue
+  if ($null -eq $existing) {
+    $softNotes += "VIEW MISSING: $($v.List) :: $($v.Name)"
+    $viewLines += ("MISSING  {0} :: {1}" -f $v.List, $v.Name)
+  } else {
+    $viewLines += ("OK       {0} :: {1}  | filter: {2}" -f $v.List, $v.Name, $v.FilterStatus)
+  }
+}
+
+# Guard: only the expected 8 Escalations_v2_* lists exist (no stray v2 targets).
+$allV2 = @(Get-PnPList | Where-Object { $_.Title -like "$($config.listPrefix)*" } | ForEach-Object { $_.Title } | Sort-Object)
+$unexpectedV2 = @($allV2 | Where-Object { $expectedLists -notcontains $_ })
+if ($unexpectedV2.Count -gt 0) { $hardFailures += "UNEXPECTED v2 lists present (not in schema): $([string]::Join(', ', $unexpectedV2))" }
+
+Write-Report -Title 'List / column / index report' -Lines $listLines
+Write-Report -Title 'View report' -Lines $viewLines
+Write-Report -Title 'v2 target guard' -Lines @(
+  "Escalations_v2_* lists present: $($allV2.Count) (expected $($expectedLists.Count))",
+  "unexpected v2 lists           : $($unexpectedV2.Count)"
+)
+
+if ($softNotes.Count -gt 0) {
+  Write-Report -Title "SOFT notes ($($softNotes.Count)) — reported honestly, do not fail the run" -Lines $softNotes
+}
+
 Disconnect-PnPOnline
 
-if ($results | Where-Object { $_ -like 'MISSING*' -or $_ -like 'FIELDS MISSING*' }) {
-  throw "Validation found discrepancies vs. schema. Nothing was modified."
+if ($hardFailures.Count -gt 0) {
+  Write-Report -Title "HARD failures ($($hardFailures.Count))" -Lines $hardFailures
+  throw "Validation found $($hardFailures.Count) hard discrepancy(ies) vs. schema (missing lists/fields or stray v2 lists). Nothing was modified."
 }
-Write-Host "[done] Test site matches the schema. Nothing was modified; legacy untouched." -ForegroundColor Green
+
+if ($softNotes.Count -gt 0) {
+  Write-Host "[done] Lists + required columns present. $($softNotes.Count) soft note(s) above (type drift / index / view) — reported honestly; legacy untouched; nothing modified." -ForegroundColor Yellow
+} else {
+  Write-Host "[done] Test site fully matches the schema (lists, columns, types, indexes, views). Nothing was modified; legacy untouched." -ForegroundColor Green
+}

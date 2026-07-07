@@ -9,13 +9,14 @@ import { newId } from '../../../domain/models.js';
 import {
   LISTS, ALL_LISTS, LINK_COLS,
   ticketToFields, activityToFields, commentToFields, noteToFields,
-  deptToFields, userToFields, tagToFields,
+  deptToFields, userToFields, tagToFields, attachmentToFields,
 } from '../mapping.js';
 
-/** Build a FakeSharePointClient with the eight v2 lists provisioned and the seed loaded. */
+/** Build a FakeSharePointClient with the nine v2 lists provisioned and the seed loaded. */
 export function createSeededFakeClient(seed = {}) {
   const {
     departments = [], users = [], tags = [], tickets = [], activity = [], comments = [], notes = [],
+    attachments = [],
   } = seed;
 
   const client = new FakeSharePointClient();
@@ -47,6 +48,7 @@ export function createSeededFakeClient(seed = {}) {
   for (const a of activity) client.createItem(LISTS.ACTIVITY, activityToFields(a));
   for (const c of comments) client.createItem(LISTS.COMMENTS, commentToFields(c));
   for (const n of notes) client.createItem(LISTS.NOTES, noteToFields(n));
+  for (const a of attachments) client.createItem(LISTS.ATTACHMENTS, attachmentToFields(a));
 
   return client;
 }

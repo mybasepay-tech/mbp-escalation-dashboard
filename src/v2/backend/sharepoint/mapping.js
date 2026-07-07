@@ -13,6 +13,7 @@ export const LISTS = Object.freeze({
   TICKET_TAGS: 'Escalations_v2_TicketTags',
   DEPARTMENTS: 'Escalations_v2_Departments',
   USERS: 'Escalations_v2_Users',
+  ATTACHMENTS: 'Escalations_v2_Attachments',
 });
 
 export const ALL_LISTS = Object.freeze(Object.values(LISTS));
@@ -24,8 +25,17 @@ const TICKET_SPEC = [
   ['issueType', 'IssueType'], ['assignedDeptId', 'AssignedDeptKey'], ['assigneeId', 'AssigneeKey'],
   ['ticketOwner', 'TicketOwnerKey'], ['submitterId', 'SubmitterKey'], ['requestingDept', 'RequestingDept'],
   ['escalationDate', 'EscalationDate'], ['expectedResolutionDate', 'ExpectedResolutionDate'],
-  ['completedDate', 'CompletedDate'], ['legacyItemId', 'LegacyItemId'], ['legacyUrl', 'LegacyUrl'],
+  ['completedDate', 'CompletedDate'], ['finalClosureNote', 'FinalClosureNote'],
+  ['lastActivityAt', 'LastActivityAt'], ['amountInvolved', 'AmountInvolved'],
+  ['amountCurrency', 'AmountCurrency'],
+  ['legacyItemId', 'LegacyItemId'], ['legacyUrl', 'LegacyUrl'],
   ['migrationNotes', 'MigrationNotes'], ['createdAt', 'CreatedAt'], ['modifiedAt', 'ModifiedAt'],
+];
+const ATTACHMENT_SPEC = [
+  ['id', 'AttachmentKey'], ['escalationId', 'EscalationKey'], ['fileName', 'FileName'],
+  ['fileUrl', 'FileUrl'], ['mimeType', 'MimeType'], ['sizeBytes', 'SizeBytes'],
+  ['uploadedBy', 'UploadedByKey'], ['uploadedAt', 'UploadedAt'], ['source', 'Source'],
+  ['isDeleted', 'IsDeleted'],
 ];
 const ACTIVITY_SPEC = [
   ['id', 'ActivityKey'], ['escalationId', 'EscalationKey'], ['type', 'Type'], ['actorId', 'ActorKey'],
@@ -123,3 +133,10 @@ export const userToFields = (u) => toFields(USER_SPEC, u);
 export const fieldsToUser = (f) => fromFields(USER_SPEC, f);
 export const tagToFields = (t) => toFields(TAG_SPEC, t);
 export const fieldsToTag = (f) => fromFields(TAG_SPEC, f);
+export const attachmentToFields = (a) => toFields(ATTACHMENT_SPEC, a);
+// isDeleted is a Boolean column: coerce so a null/undefined read is a strict false.
+export const fieldsToAttachment = (f) => {
+  const a = fromFields(ATTACHMENT_SPEC, f);
+  a.isDeleted = a.isDeleted === true;
+  return a;
+};

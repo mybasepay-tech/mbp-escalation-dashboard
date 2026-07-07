@@ -7,7 +7,7 @@
 
 import { STATUS, PRIORITY, ALLOWED_TRANSITIONS, ACTIVITY_TYPE, PENDING_STATUSES } from '../domain/constants.js';
 import { daysOpen } from '../domain/models.js';
-import { canComplete } from '../domain/rules.js';
+import { canComplete, reminderCandidate } from '../domain/rules.js';
 
 /** Build id->object lookups from the store's reference data. */
 export async function loadContext(store) {
@@ -40,7 +40,9 @@ export function deptName(ctx, id) {
 
 /** One row for a ticket list / queue. */
 export function ticketRow(ticket, ctx, now = new Date()) {
+  const reminder = reminderCandidate(ticket, now);
   return {
+    reminder, // { isCandidate, daysSinceMovement, thresholdDays } — local no-movement indicator only
     id: ticket.id,
     title: ticket.title,
     status: ticket.status,
@@ -87,13 +89,33 @@ export function detailView(ticket, ctx, now = new Date()) {
     ownerName: userName(ctx, ticket.ticketOwner),
     deptId: ticket.assignedDeptId,
     deptName: deptName(ctx, ticket.assignedDeptId),
+    submitterId: ticket.submitterId,
     submitterName: userName(ctx, ticket.submitterId),
     escalationDate: ticket.escalationDate,
     expectedResolutionDate: ticket.expectedResolutionDate,
     completedDate: ticket.completedDate,
+    finalClosureNote: ticket.finalClosureNote ?? null,
+    lastActivityAt: ticket.lastActivityAt ?? null,
+    amountInvolved: ticket.amountInvolved ?? null,
+    amountCurrency: ticket.amountCurrency ?? 'USD',
+    reminder: reminderCandidate(ticket, now),
     daysOpen: daysOpen(ticket, now),
     tags: ticket.tagIds.map((id) => ({ id, label: tagLabel(ctx, id) })),
     legacy,
+  };
+}
+
+/** Format attachment metadata for display (metadata-first — no real file behind fileUrl). */
+export function attachmentView(attachment, ctx) {
+  return {
+    id: attachment.id,
+    fileName: attachment.fileName,
+    fileUrl: attachment.fileUrl ?? null,
+    mimeType: attachment.mimeType ?? null,
+    sizeBytes: attachment.sizeBytes ?? null,
+    uploadedBy: userName(ctx, attachment.uploadedBy),
+    uploadedAt: attachment.uploadedAt,
+    source: attachment.source,
   };
 }
 
@@ -155,6 +177,9 @@ export function activityLine(event, ctx) {
     case ACTIVITY_TYPE.NOTE:
       summary = 'Internal note added';
       break;
+    case ACTIVITY_TYPE.ATTACHMENT:
+      summary = event.note || 'Attachment changed';
+      break;
     case ACTIVITY_TYPE.MIGRATION_NORMALIZATION:
       summary = `Migration normalization${event.note ? `: ${event.note}` : ''}`;
       break;
@@ -170,9 +195,9 @@ export function activityLines(events, ctx) {
 
 /**
  * Status options for the status control: current status + its allowed transition targets.
- * Complete is owner-only, so it is offered ONLY when the current user is the ticket owner
- * (mirrors the rules.canComplete guard the store enforces). Pass `{ currentUserId }` so the
- * control never shows an option the action would reject.
+ * Complete is requester-only (Loop 21), so it is offered ONLY when the current user is the
+ * ticket's submitter (mirrors the rules.canComplete guard the store enforces). Pass
+ * `{ currentUserId }` so the control never shows an option the action would reject.
  */
 export function statusOptions(ticket, { currentUserId = null } = {}) {
   const targets = ALLOWED_TRANSITIONS[ticket.status] ?? [];
@@ -182,7 +207,7 @@ export function statusOptions(ticket, { currentUserId = null } = {}) {
   return [...new Set([ticket.status, ...visible])];
 }
 
-/** True if the given (mock) user may move this ticket to Complete. Thin re-export for the UI. */
+/** True if the given (mock) user may move this ticket to Complete (requester-only). */
 export function actorCanComplete(ticket, currentUserId) {
   return canComplete(ticket, currentUserId);
 }
@@ -217,21 +242,23 @@ export const DEPARTMENT_FILTERS = [
   { key: 'completed', label: 'Completed', predicate: (t) => t.status === STATUS.COMPLETE },
   { key: 'migrated', label: 'Migrated / legacy', predicate: (t) => hasLegacy(t) },
   { key: 'high_priority', label: 'High priority', predicate: (t) => HIGH_PRIORITIES.has(t.priority) },
+  // No-movement reminder candidates (local calculation only — nothing is sent).
+  { key: 'reminder_candidates', label: 'Needs attention (no movement)', predicate: (t, { now } = {}) => reminderCandidate(t, now ?? new Date()).isCandidate },
 ];
 
 const FILTERS_BY_KEY = new Map(DEPARTMENT_FILTERS.map((f) => [f.key, f]));
 
 /** Apply a department filter by key. Unknown keys fall back to "all". */
-export function applyDepartmentFilter(tickets, key, { currentUserId } = {}) {
+export function applyDepartmentFilter(tickets, key, { currentUserId, now } = {}) {
   const filter = FILTERS_BY_KEY.get(key) ?? FILTERS_BY_KEY.get('all');
-  return tickets.filter((t) => filter.predicate(t, { currentUserId }));
+  return tickets.filter((t) => filter.predicate(t, { currentUserId, now }));
 }
 
 /**
  * Basic reporting over a set of tickets (mock data only). Pass the full ticket list and
  * the current user id. `ctx` is used to resolve department names.
  */
-export function buildReport(tickets, ctx, { currentUserId } = {}) {
+export function buildReport(tickets, ctx, { currentUserId, now } = {}) {
   const byStatus = {};
   const byDepartment = {};
   const byPriority = {};
@@ -239,8 +266,10 @@ export function buildReport(tickets, ctx, { currentUserId } = {}) {
   let assignedToCurrentUser = 0;
   let completedCount = 0;
   let legacyCount = 0;
+  let reminderCandidateCount = 0;
 
   for (const t of tickets) {
+    if (reminderCandidate(t, now ?? new Date()).isCandidate) reminderCandidateCount += 1;
     byStatus[t.status] = (byStatus[t.status] ?? 0) + 1;
     const dName = t.assignedDeptId ? deptName(ctx, t.assignedDeptId) : 'Unassigned department';
     byDepartment[dName] = (byDepartment[dName] ?? 0) + 1;
@@ -260,5 +289,6 @@ export function buildReport(tickets, ctx, { currentUserId } = {}) {
     assignedToCurrentUser,
     completedCount,
     legacyCount,
+    reminderCandidateCount,
   };
 }

@@ -53,18 +53,28 @@ test('status change via the store records a status_change activity event', async
   assert.ok(activity.some((e) => e.type === ACTIVITY_TYPE.STATUS_CHANGE && e.to === STATUS.IN_PROCESS));
 });
 
-test('only the ticket owner can complete via the store; the worker is rejected', async () => {
+test('only the requester can complete via the store; the worker and owner are rejected', async () => {
   const store = seededStore();
-  // esc_person: assignee=user_sarah, owner=user_teri.
+  // esc_person: assignee=user_sarah, owner=user_teri, requester/submitter=user_maggie.
+  for (const actorId of ['user_sarah', 'user_teri']) {
+    await assert.rejects(
+      () => store.setStatus('esc_person', STATUS.COMPLETE, { actorId, now: '2026-06-22T00:00:00.000Z', closureNote: 'attempt' }),
+      /Only the requester who submitted the ticket/,
+    );
+  }
+  // The requester without a closing comment is rejected too.
   await assert.rejects(
-    () => store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_sarah', now: '2026-06-22T00:00:00.000Z' }),
-    /Only the ticket owner can move a ticket to Complete/,
+    () => store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_maggie', now: '2026-06-22T00:00:00.000Z' }),
+    /requires a final closing comment/,
   );
-  // Owner succeeds and a status_change event is recorded.
-  await store.setStatus('esc_person', STATUS.COMPLETE, { actorId: 'user_teri', now: '2026-06-22T00:00:00.000Z' });
+  // The requester with a closing comment succeeds and a status_change event is recorded.
+  await store.setStatus('esc_person', STATUS.COMPLETE, {
+    actorId: 'user_maggie', now: '2026-06-22T00:00:00.000Z', closureNote: 'Resolved; confirmed with member.',
+  });
   const t = await store.getTicket('esc_person');
   assert.equal(t.status, STATUS.COMPLETE);
   assert.equal(t.completedDate, '2026-06-22T00:00:00.000Z');
+  assert.equal(t.finalClosureNote, 'Resolved; confirmed with member.');
   const activity = await store.listActivity('esc_person');
   assert.ok(activity.some((e) => e.type === ACTIVITY_TYPE.STATUS_CHANGE && e.to === STATUS.COMPLETE));
 });

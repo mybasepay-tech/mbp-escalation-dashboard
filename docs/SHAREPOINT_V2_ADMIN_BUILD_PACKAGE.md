@@ -41,7 +41,7 @@ data migration (covered separately and gated).
 - Written approval to build (D3 backend confirmed; D6 app-registration decision made).
 - A **company-owned** SharePoint site (not a personal/OneDrive site) dedicated to v2.
 - Site Owner / list-management rights on **that v2 site only**.
-- The schema JSON at the version recorded in §11 (currently `0.2.0-design`).
+- The schema JSON at the version recorded in §11 (currently `0.3.0-design`).
 - The dry-run checklist completed and signed off.
 
 ## 4. Required SharePoint site assumptions
@@ -65,6 +65,9 @@ Create all of the following (internal names are stable and must match the schema
 8. `Escalations_v2_Users` — or the **user reference strategy** (preferred: native
    SharePoint **Person** columns resolving against Entra; the list is a fallback/mock-parity
    shim). Choose one and apply consistently; see the readiness doc §5.
+9. `Escalations_v2_Attachments` — attachment **metadata** records (Loop 21).
+   **Metadata-first:** no file bytes are stored, no document library is created or touched;
+   `FileUrl` is a placeholder reference until real file upload is approved in a later loop.
 
 ## 6. Column checklist (per list)
 Create each column with the **internal name = the schema `name`** (PascalCase, no spaces, so
@@ -75,13 +78,18 @@ authoritative source; the highlights below must all be present.
 `Status`(Choice ×10, indexed), `Priority`(Choice ×4, indexed), `IssueCategory`(Text),
 `IssueType`(Text), `AssignedDeptKey`(Lookup→Departments, indexed),
 `AssigneeKey`(Lookup→Users, indexed), `TicketOwnerKey`(Lookup→Users),
-`SubmitterKey`(Lookup→Users), `RequestingDept`(Text), `EscalationDate`(DateTime, indexed),
-`ExpectedResolutionDate`(DateTime), `CompletedDate`(DateTime), `LegacyItemId`(Text),
+`SubmitterKey`(Lookup→Users, indexed — the requester, the ONLY closure authority),
+`RequestingDept`(Text), `EscalationDate`(DateTime, indexed),
+`ExpectedResolutionDate`(DateTime), `CompletedDate`(DateTime),
+`FinalClosureNote`(Note — required closing comment stored on Complete),
+`LastActivityAt`(DateTime, indexed — last movement; drives no-movement reminder candidacy),
+`AmountInvolved`(Currency, optional), `AmountCurrency`(Text, default USD),
+`LegacyItemId`(Text),
 `LegacyUrl`(Hyperlink), `MigrationNotes`(Note), `CreatedAt`(DateTime), `ModifiedAt`(DateTime).
 **No tag column** — tags are materialized from `Escalations_v2_TicketTags`.
 
 **Escalations_v2_Activity** — `ActivityKey`(Text, indexed),
-`EscalationKey`(Lookup→Tickets, indexed), `Type`(Choice ×8, indexed),
+`EscalationKey`(Lookup→Tickets, indexed), `Type`(Choice ×9, indexed — includes `attachment`),
 `ActorKey`(Lookup→Users), `FromValue`(Note), `ToValue`(Note), `ActivityNote`(Note),
 `Timestamp`(DateTime, indexed). Treat as **append-only / immutable** by convention.
 
@@ -111,15 +119,22 @@ composite uniqueness).
 **Escalations_v2_Users** (or Person strategy) — `UserKey`(Text, indexed),
 `DisplayName`(Text), `Email`(Text), `DepartmentKeys`(Note), `PersonRef`(Person).
 
+**Escalations_v2_Attachments** (metadata) — `AttachmentKey`(Text, indexed),
+`EscalationKey`(Lookup→Tickets, indexed), `FileName`(Text, required),
+`FileUrl`(Hyperlink — placeholder only; no real file behind it in the MVP), `MimeType`(Text),
+`SizeBytes`(Number), `UploadedByKey`(Lookup→Users), `UploadedAt`(DateTime, indexed),
+`Source`(Choice: manual/migration/import/system), `IsDeleted`(Boolean — soft delete).
+
 ## 7. Index checklist
 Create indexes **before** loading data (SharePoint throttles filtered/sorted views past the
 5,000-item threshold). From the schema's `recommendedIndexes`:
-- **Tickets:** `TicketKey`, `Status`, `Priority`, `AssignedDeptKey`, `AssigneeKey`, `EscalationDate`.
+- **Tickets:** `TicketKey`, `Status`, `Priority`, `AssignedDeptKey`, `AssigneeKey`, `SubmitterKey`, `EscalationDate`, `LastActivityAt`.
 - **Activity:** `ActivityKey`, `EscalationKey`, `Type`, `Timestamp`.
 - **Comments:** `CommentKey`, `EscalationKey`, `CreatedAt`.
 - **InternalNotes:** `NoteKey`, `EscalationKey`, `CreatedAt`.
 - **TicketTags:** `TicketTagKey`, `TicketKey`, `TagKey`, `IsActive`, `CreatedAt`.
 - **Tags:** `TagKey`, `Label`.
+- **Attachments:** `AttachmentKey`, `EscalationKey`, `UploadedAt`.
 
 ## 8. View checklist
 From the schema's `views`:

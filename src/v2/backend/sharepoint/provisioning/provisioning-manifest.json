@@ -5,7 +5,7 @@
   "designOnly": false,
   "requiresRuntimeConfig": true,
   "schema": "../schema.sharepoint-v2.json",
-  "schemaVersion": "0.2.0-design",
+  "schemaVersion": "0.3.0-design",
   "targetPolicy": {
     "nonProductionOnly": true,
     "legacyTargetForbidden": true,
@@ -34,7 +34,8 @@
     "Escalations_v2_Tags",
     "Escalations_v2_TicketTags",
     "Escalations_v2_Departments",
-    "Escalations_v2_Users"
+    "Escalations_v2_Users",
+    "Escalations_v2_Attachments"
   ],
   "prerequisite": "PnP.PowerShell module + interactive auth at runtime; scripts fail closed with a prerequisite message if absent (no auto-install, no faking).",
   "notes": "No secrets, tenant IDs, client IDs, or live URLs are stored here. Real runtime config must never be committed. See SHAREPOINT_V2_PROVISIONING_SAFETY_CHECKLIST.md."

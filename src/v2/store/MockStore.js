@@ -6,12 +6,12 @@
 
 import { EscalationStore } from './EscalationStore.js';
 import {
-  createTicket, createComment, createNote, createActivityEvent,
+  createTicket, createComment, createNote, createActivityEvent, createAttachment,
 } from '../domain/models.js';
 import { ACTIVITY_TYPE, OPEN_STATUSES } from '../domain/constants.js';
 import {
   assignToDepartment, assignToPerson, clearAssignee, changeStatus, changePriority,
-  addTag, removeTag,
+  addTag, removeTag, setAmountInvolved,
 } from '../domain/rules.js';
 
 export class MockStore extends EscalationStore {
@@ -25,17 +25,20 @@ export class MockStore extends EscalationStore {
     this.comments = [];
     /** @type {import('../domain/models.js').Note[]} */
     this.notes = [];
+    /** @type {import('../domain/models.js').Attachment[]} */
+    this.attachments = [];
     this.departments = new Map();
     this.users = new Map();
     this.tags = new Map();
   }
 
   /** Load a fully-built dataset (see mock/seed.js). Replaces current contents. */
-  load({ tickets = [], activity = [], departments = [], users = [], tags = [], comments = [], notes = [] } = {}) {
+  load({ tickets = [], activity = [], departments = [], users = [], tags = [], comments = [], notes = [], attachments = [] } = {}) {
     this.tickets = new Map(tickets.map((t) => [t.id, t]));
     this.activity = [...activity];
     this.comments = [...comments];
     this.notes = [...notes];
+    this.attachments = [...attachments];
     this.departments = new Map(departments.map((d) => [d.id, d]));
     this.users = new Map(users.map((u) => [u.id, u]));
     this.tags = new Map(tags.map((t) => [t.id, t]));
@@ -119,6 +122,12 @@ export class MockStore extends EscalationStore {
     return t;
   }
 
+  async setAmount(id, amount, opts = {}) {
+    const t = this.#require(id);
+    this.#record(setAmountInvolved(t, amount, opts));
+    return t;
+  }
+
   // ----- Activity, comments, notes -----
   async listActivity(id) {
     return this.activity
@@ -140,10 +149,17 @@ export class MockStore extends EscalationStore {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   }
 
+  // Comments/notes/attachments are ticket movement: bump lastActivityAt (+ modifiedAt).
+  #touch(ticket, now) {
+    ticket.modifiedAt = now;
+    ticket.lastActivityAt = now;
+  }
+
   async addComment(id, input) {
-    this.#require(id);
+    const t = this.#require(id);
     const comment = createComment({ ...input, escalationId: id });
     this.comments.push(comment);
+    this.#touch(t, comment.createdAt);
     this.#record([createActivityEvent({
       escalationId: id, type: ACTIVITY_TYPE.COMMENT, actorId: comment.authorId,
       note: 'Comment posted', timestamp: comment.createdAt,
@@ -152,14 +168,50 @@ export class MockStore extends EscalationStore {
   }
 
   async addNote(id, input) {
-    this.#require(id);
+    const t = this.#require(id);
     const note = createNote({ ...input, escalationId: id });
     this.notes.push(note);
+    this.#touch(t, note.createdAt);
     this.#record([createActivityEvent({
       escalationId: id, type: ACTIVITY_TYPE.NOTE, actorId: note.authorId,
       note: 'Internal note added', timestamp: note.createdAt,
     })]);
     return note;
+  }
+
+  // ----- Attachments (metadata-first; no file bytes, no document library in MVP) -----
+  async listAttachments(id) {
+    return this.attachments
+      .filter((a) => a.escalationId === id && !a.isDeleted)
+      .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt));
+  }
+
+  async addAttachment(id, input) {
+    const t = this.#require(id);
+    const attachment = createAttachment({ ...input, escalationId: id });
+    this.attachments.push(attachment);
+    this.#touch(t, attachment.uploadedAt);
+    this.#record([createActivityEvent({
+      escalationId: id, type: ACTIVITY_TYPE.ATTACHMENT, actorId: attachment.uploadedBy,
+      to: { attachmentId: attachment.id, fileName: attachment.fileName },
+      note: `Attachment added: ${attachment.fileName}`, timestamp: attachment.uploadedAt,
+    })]);
+    return attachment;
+  }
+
+  async removeAttachment(id, attachmentId, opts = {}) {
+    const t = this.#require(id);
+    const attachment = this.attachments.find((a) => a.escalationId === id && a.id === attachmentId && !a.isDeleted);
+    if (!attachment) return null; // no-op when absent or already deleted
+    attachment.isDeleted = true;
+    const now = opts.now ?? new Date().toISOString();
+    this.#touch(t, now);
+    this.#record([createActivityEvent({
+      escalationId: id, type: ACTIVITY_TYPE.ATTACHMENT, actorId: opts.actorId ?? null,
+      from: { attachmentId: attachment.id, fileName: attachment.fileName },
+      note: `Attachment removed: ${attachment.fileName}`, timestamp: now,
+    })]);
+    return attachment;
   }
 
   // ----- Views -----

@@ -16,8 +16,12 @@
   review, resolved-awaiting-closure.
 - By priority/urgency.
 - By issue category / type.
-- Financial impact totals / remaining (where present).
-- Stale tickets ("no update since X days").
+- Financial impact totals / remaining (where present); **amount involved** totals
+  (`amountInvolved`, optional per ticket — Loop 21/D26).
+- Stale tickets ("no update since X days") — realized as **no-movement reminder
+  candidates** (Loop 21/D25): open tickets whose `lastActivityAt` is older than the
+  priority threshold (Critical 2 / High 3 / Medium 7 / Low 14 days). The mock report shows
+  a reminder-candidate count; candidates are local indicators only — nothing is sent.
 
 ## 3. Filters / slicing
 - Department, assignee, status, priority, issue category, tags, date windows.

@@ -65,26 +65,37 @@ test('statusOptions includes the current status plus allowed transition targets'
   assert.ok(opts.includes(STATUS.PENDING_RESEARCH)); // allowed target
 });
 
-test('statusOptions offers Complete only to the ticket owner', async () => {
+test('statusOptions offers Complete only to the requester/submitter', async () => {
   const store = seededStore();
-  const t = await store.getTicket('esc_person'); // owner = user_teri, assignee = user_sarah
-  // The worker (or anyone but the owner) must not see Complete as an option.
+  const t = await store.getTicket('esc_person'); // requester = user_maggie, owner = user_teri, assignee = user_sarah
+  // The worker and the owner must not see Complete as an option.
   assert.ok(!statusOptions(t, { currentUserId: 'user_sarah' }).includes(STATUS.COMPLETE));
+  assert.ok(!statusOptions(t, { currentUserId: 'user_teri' }).includes(STATUS.COMPLETE));
   assert.ok(!statusOptions(t, {}).includes(STATUS.COMPLETE));
-  // The owner does.
-  assert.ok(statusOptions(t, { currentUserId: 'user_teri' }).includes(STATUS.COMPLETE));
+  // The requester does.
+  assert.ok(statusOptions(t, { currentUserId: 'user_maggie' }).includes(STATUS.COMPLETE));
 });
 
-test('detailView exposes ticket owner and completed date', async () => {
+test('detailView exposes owner, requester, completed date, closure note, amount, and reminder info', async () => {
   const store = seededStore();
   const ctx = await loadContext(store);
   const completed = detailView(await store.getTicket('esc_complete'), ctx);
   assert.equal(completed.ownerName, 'Teri', 'owner name resolved for display');
   assert.equal(completed.ownerId, 'user_teri');
+  assert.equal(completed.submitterId, 'user_maggie', 'requester surfaced for the closure-authority hint');
   assert.equal(completed.completedDate, '2026-06-10T12:00:00.000Z', 'completed date surfaced');
-  // A still-open ticket has no completed date.
+  assert.match(completed.finalClosureNote, /confirmed resolved/i, 'final closing comment surfaced');
+  assert.equal(completed.reminder.isCandidate, false, 'completed tickets are never reminder candidates');
+  // A still-open ticket has no completed date / closure note; amount is optional.
   const open = detailView(await store.getTicket('esc_person'), ctx);
   assert.equal(open.completedDate, null);
+  assert.equal(open.finalClosureNote, null);
+  assert.equal(open.amountInvolved, null, 'amount involved is optional');
+  // The seeded billing ticket carries an amount.
+  const billed = detailView(await store.getTicket('esc_in_process'), ctx);
+  assert.equal(billed.amountInvolved, 1250.75);
+  assert.equal(billed.amountCurrency, 'USD');
+  assert.ok(billed.reminder, 'reminder info present on the detail view');
 });
 
 test('controller flow: assigning a person from New auto-advances to Assigned with activity', async () => {
