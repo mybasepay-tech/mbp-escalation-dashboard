@@ -272,6 +272,26 @@ Execution-prep only — verified readiness without touching anything live:
 - Still: `MockStore` remains the **active UI backend**; no legacy writeback, no Power
   Automate, no production users, no cutover.
 
+### Loop 22 — live store-contract execution on the test site (D28)
+- **The store contract ran against REAL SharePoint:** 28 of 30 contract tests executed live
+  on the non-production test site and **all passed** — create/read/assign/status/priority,
+  requester-only Complete with required closing comment, Reopen, comments/notes/tags,
+  optional amount, metadata-only attachments, append-only activity ordering. The runner was
+  externally interrupted before the final two tests (lastActivityAt assertions,
+  reference-data listing); both pass in the committed local async-transport contract and are
+  re-run live when interactive auth is next available.
+- **Committed hardening:** `SharePointLiveClient` + `SharePointStore` are async-client-safe
+  (a sync-only assumption would have silently dropped activity rows against a real backend);
+  a full-contract async-transport suite (+30 tests) guards this locally; the gated
+  `run-live-contract.js` seeds per test, tracks and deletes ONLY run-created records, never
+  deletes lists or pre-existing rows, and verifies post-run counts.
+- **Known leftover (documented, fixture-keyed):** one contract-fixture seed set (~42 rows
+  across the 9 lists, keys `esc_*`/`user_*`/`dept_*`/`tag_*`/`tt_*`/`act_*`/`cmt_seed_1`/
+  `note_seed_1`/`att_seed_1`) remains from the interrupted session; removable by re-running
+  the runner with the operator-approved `staleFixtureSweep` flag.
+- Still: `MockStore` remains the **active UI backend**; runtime config/transport/token stay
+  git-ignored; no legacy writeback, no flows, no notifications, no real files, no cutover.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

@@ -188,10 +188,15 @@ function checkLiveClientGate() {
     'testsite.config.example.json', 'README.md', '.gitignore']) {
     try { texts[f] = readFileSync(join(dir, f), 'utf8'); } catch { problems.push(`${f} missing`); }
   }
-  // Real runtime config + transport bootstraps must never be committed.
-  try { statSync(join(dir, 'testsite.config.json')); problems.push('testsite.config.json must NOT be committed'); } catch { /* good */ }
+  // Real runtime config + transport bootstraps must never be committed. They MAY exist
+  // locally on an operator machine (they are required to run the live contract) — the
+  // .gitignore rules below are what keep them out of git, so a local file is only a problem
+  // if the covering ignore rule is missing.
   const ig = texts['.gitignore'] || '';
-  if (!/testsite\.config\.json/.test(ig)) problems.push('.gitignore must ignore testsite.config.json');
+  if (!/testsite\.config\.json/.test(ig)) {
+    problems.push('.gitignore must ignore testsite.config.json');
+    try { statSync(join(dir, 'testsite.config.json')); problems.push('testsite.config.json present locally but NOT git-ignored — it would be committed'); } catch { /* absent */ }
+  }
   if (!/transport/i.test(ig)) problems.push('.gitignore must ignore transport bootstraps');
 
   // Wrapper fails closed without a transport; runner enforces approvals.

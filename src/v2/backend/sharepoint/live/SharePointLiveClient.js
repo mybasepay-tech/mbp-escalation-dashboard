@@ -74,34 +74,37 @@ export class SharePointLiveClient {
   #encodeFields(fields = {}) { return fields; }
 
   // ----- item operations (delegate to the injected transport) -----
-  createItem(listName, fields) {
-    return this.#decodeRecord(this.#transport().createItem(listName, this.#encodeFields(fields)));
+  // All methods are ASYNC (Loop 22): a real transport performs network I/O and returns
+  // Promises. `await` also accepts plain values, so synchronous transports (used in local
+  // gate tests) keep working unchanged. SharePointStore already awaits every client call.
+  async createItem(listName, fields) {
+    return this.#decodeRecord(await this.#transport().createItem(listName, this.#encodeFields(fields)));
   }
 
-  getItem(listName, id) {
-    return this.#decodeRecord(this.#transport().getItem(listName, id));
+  async getItem(listName, id) {
+    return this.#decodeRecord(await this.#transport().getItem(listName, id));
   }
 
-  updateItem(listName, id, fields, opts) {
-    return this.#decodeRecord(this.#transport().updateItem(listName, id, this.#encodeFields(fields), opts));
+  async updateItem(listName, id, fields, opts) {
+    return this.#decodeRecord(await this.#transport().updateItem(listName, id, this.#encodeFields(fields), opts));
   }
 
-  deleteItem(listName, id) {
+  async deleteItem(listName, id) {
     return this.#transport().deleteItem(listName, id);
   }
 
-  query(listName, opts) {
-    const res = this.#transport().query(listName, opts);
+  async query(listName, opts) {
+    const res = await this.#transport().query(listName, opts);
     return { items: (res.items ?? []).map((r) => this.#decodeRecord(r)), nextSkipToken: res.nextSkipToken ?? null };
   }
 
   /** Page through every matching item (same convenience the adapter relies on). */
-  queryAll(listName, filter = {}, pageSize = 100) {
+  async queryAll(listName, filter = {}, pageSize = 100) {
     const out = [];
     let skipToken = 0;
     // eslint-disable-next-line no-constant-condition
     while (true) {
-      const { items, nextSkipToken } = this.query(listName, { filter, top: pageSize, skipToken });
+      const { items, nextSkipToken } = await this.query(listName, { filter, top: pageSize, skipToken });
       out.push(...items);
       if (nextSkipToken == null) break;
       skipToken = nextSkipToken;
@@ -110,10 +113,10 @@ export class SharePointLiveClient {
   }
 
   /** First item matching an equality filter, or null. */
-  findBy(listName, filter) { return this.query(listName, { filter, top: 1 }).items[0] ?? null; }
+  async findBy(listName, filter) { return (await this.query(listName, { filter, top: 1 })).items[0] ?? null; }
 
   /** List discovery (optional; used by provisioning/validation). */
-  listNames() {
+  async listNames() {
     const t = this.#transport();
     return typeof t.listNames === 'function' ? t.listNames() : [];
   }
