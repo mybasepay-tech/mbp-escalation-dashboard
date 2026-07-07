@@ -17,6 +17,7 @@
 | `SharePointLiveClient.js` | Wrapper exposing `createItem/getItem/updateItem/deleteItem/query/queryAll/findBy/listNames`; delegates to an injected `transport`; decodes Lookup/Person shapes via the shared mapping. Fail-closed without a transport. |
 | `SharePointLiveErrors.js` | `NotFoundError`(404) / `ConflictError`(412) / `ThrottledError`(429) / `LiveNotConfiguredError`, with the same `code` values the adapter's retry logic expects. |
 | `run-testsite-contract.js` | Gated runner: loads git-ignored config, enforces approval+safety flags, refuses legacy/production, loads the runtime transport, smoke-tests connectivity, and points to the full contract run. |
+| `run-live-contract.js` | **Loop 22.** Gated runner for the FULL store contract against the live test site: same fail-closed gate, then seeds each contract test through the live client, tracks every item it creates, deletes exactly those (run-created only — never lists, never pre-existing rows), and verifies post-run item counts match pre-run. Non-zero exit on any test failure. |
 | `testsite.config.example.json` | Placeholder config (safe, fail-closed defaults). Copy to `testsite.config.json` (git-ignored). |
 | `.gitignore` | Ensures `testsite.config.json`, transport bootstraps, `.env`, secrets, and reports are never committed. |
 
@@ -46,14 +47,20 @@ Copy-Item testsite.config.example.json testsite.config.json
 #    ../provisioning/provision-sharepoint-v2.ps1            # dry-run
 #    ../provisioning/provision-sharepoint-v2.ps1 -Execute
 
-# 3) Gated connectivity + contract pointer:
+# 3) Gated connectivity smoke (read-only):
 node run-testsite-contract.js ./testsite.config.json
 
-# 4) Full acceptance: run the store contract against the live client (see
-#    docs/STORE_CONTRACT_TEST_SITE_PLAN.md). First all-green run = acceptance gate.
+# 4) Full acceptance: the store contract against the live client (Loop 22 runner).
+#    Seeds/cleans per test; deletes ONLY the items it created; exits non-zero on failure.
+node run-live-contract.js ./testsite.config.json
 ```
 If config/auth/transport are missing, the runner **stops with a clear message** — it does not
 connect or fake a result.
+
+**Wrapper is async (Loop 22):** every `SharePointLiveClient` method awaits the transport, since
+a real transport does network I/O. Synchronous transports still work (`await` passes plain
+values through), and the full store contract runs against the async path locally in
+`tests/sharepoint-live-async-transport-contract.test.js` — no network required.
 
 ## Safety
 Enforced by `assertSafe()` in the runner and by `tests/sharepoint-live-client-gate.test.js` +

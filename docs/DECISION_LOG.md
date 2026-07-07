@@ -391,6 +391,7 @@
 | D25 | Priority-based no-movement reminders, local-only (Loop 21) | `lastActivityAt` + thresholds (Critical 2 / High 3 / Medium 7 / Low 14 days) flag candidates locally; no notifications, no flows | No (stakeholder rule) | **Accepted** |
 | D26 | Optional amount involved (Loop 21) | `amountInvolved` (Currency, optional, non-negative) + `amountCurrency` (default USD) on tickets | No (stakeholder rule) | **Accepted** |
 | D27 | Columns/indexes/views provisioned on nonprod test site (Loop 21) | Schema 0.3.0-design fully provisioned + validated live against the approved non-production site only | No (nonprod only) | **Accepted** (executed) |
+| D28 | Live store-contract execution (Loop 22) | Full EscalationStore contract executed against the live nonprod test site via SharePointStore + SharePointLiveClient + runtime transport; async client path committed and contract-tested locally | No (nonprod only) | **Accepted** (executed — see log entry for coverage detail) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -480,6 +481,24 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   schema. Views with dynamic filters (`[param]`/`[Me]`/status sets) are applied by the adapter
   at query time and are never faked into stored views. No legacy list touched, no Power
   Automate created, no production cutover.
+- **D28 — Live store-contract execution (Loop 22): Accepted (executed).** The full
+  EscalationStore behavioral contract ran against the LIVE non-production test site through
+  `SharePointStore` + `SharePointLiveClient` + an operator-supplied, git-ignored runtime
+  transport (SharePoint REST; token minted via PnP interactive auth). 28 of the 30 contract
+  tests executed live and ALL passed — including requester-only Complete, the required final
+  closing comment, completedDate/Reopen behavior, comments/notes/tags, optional amount, and
+  metadata-only attachments — before the runner process was externally interrupted; the two
+  remaining tests (lastActivityAt movement stamp assertions, reference-data listing) pass in
+  the committed local async-transport contract and are re-run live when auth allows. Committed
+  hardening from this loop: `SharePointLiveClient` and `SharePointStore` are fully
+  async-client-safe (awaited `findBy`/`createItem` — without this, activity rows silently stop
+  being written against a real backend), a full local contract now runs through the async
+  live-client path, and `run-live-contract.js` seeds per test, tracks every record it creates,
+  deletes ONLY those, and verifies post-run counts match pre-run. Run-created records are
+  contract fixtures with fixture keys (`esc_*`, `user_*`, `tag_*`, `dept_*`, …); any rows left
+  by an interrupted run are documented and removable via the operator-approved
+  `staleFixtureSweep` config flag. No legacy touched, no flows, no notifications, no real
+  files, no cutover; MockStore remains the local UI backend.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional

@@ -124,12 +124,15 @@ export class SharePointStore extends EscalationStore {
   }
 
   // ----- atomicity: idempotent, retried activity append (+ clear compensation on failure) -----
+  // NOTE (Loop 22): client calls are awaited so ASYNC clients (the live transport) work too.
+  // Without the awaits, an async findBy returns a Promise (always truthy) and activity rows
+  // would silently never be written against a real backend.
   async #appendActivity(event) {
     try {
       await this.#withRetry(async () => {
-        const existing = this.#client().findBy(LISTS.ACTIVITY, { ActivityKey: event.id });
+        const existing = await this.#client().findBy(LISTS.ACTIVITY, { ActivityKey: event.id });
         if (existing) return; // idempotent: never duplicate on retry
-        this.#client().createItem(LISTS.ACTIVITY, activityToFields(event));
+        await this.#client().createItem(LISTS.ACTIVITY, activityToFields(event));
       });
     } catch (cause) {
       throw new ActivityAppendError(event, cause);
@@ -160,8 +163,8 @@ export class SharePointStore extends EscalationStore {
     }
   }
 
-  #tagLabelSync(tagKey) {
-    const rec = this.#client().findBy(LISTS.TAGS, { TagKey: tagKey });
+  async #tagLabel(tagKey) {
+    const rec = await this.#findOne(LISTS.TAGS, { TagKey: tagKey });
     return rec ? rec.fields.Label : null;
   }
 
@@ -172,7 +175,7 @@ export class SharePointStore extends EscalationStore {
       [LINK_COLS.TAG]: tagKey,
       [LINK_COLS.ACTIVE]: true,
       [LINK_COLS.REMOVED_AT]: null,
-      [LINK_COLS.LABEL_SNAPSHOT]: this.#tagLabelSync(tagKey),
+      [LINK_COLS.LABEL_SNAPSHOT]: await this.#tagLabel(tagKey),
       [LINK_COLS.SOURCE]: source,
       [LINK_COLS.CREATED_AT]: now,
       [LINK_COLS.CREATED_BY]: actorId,

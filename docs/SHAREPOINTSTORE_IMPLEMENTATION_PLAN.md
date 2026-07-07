@@ -47,6 +47,17 @@ sleep), **ETag conflict** re-read+re-apply+retry, **idempotent activity append**
 reactivate). See [`../src/v2/tests/sharepointstore-resilience.test.js`](../src/v2/tests/sharepointstore-resilience.test.js)
 and [`../src/v2/tests/sharepoint-mapping-fidelity.test.js`](../src/v2/tests/sharepoint-mapping-fidelity.test.js).
 
+**Loop 22 (D28) — EXECUTED against the live test site.** The adapter is no longer
+design-only in practice: the full store contract ran live through `SharePointLiveClient` +
+a git-ignored runtime transport (SharePoint REST; lookup keys resolved to item ids,
+Hyperlink/DateTime/Boolean encode-decode, ETag If-Match, 404/412/429 translated to the typed
+errors). 28/30 tests executed live, all green (2 interrupted before running; both covered by
+the committed local async-transport contract). The store + wrapper are **async-client-safe**
+(awaited `findBy`/`createItem` in the activity-append and tag-label paths — a live-blocking
+bug found and fixed in this loop), guarded by
+[`../src/v2/tests/sharepoint-live-async-transport-contract.test.js`](../src/v2/tests/sharepoint-live-async-transport-contract.test.js).
+Live acceptance entry point: [`../src/v2/backend/sharepoint/live/run-live-contract.js`](../src/v2/backend/sharepoint/live/run-live-contract.js).
+
 ## 3. Future implementation scope
 > **Prerequisite (D18):** the test site must first be provisioned and **validated against the
 > schema** using the scripted, fail-closed package

@@ -64,7 +64,7 @@ export function assertSafe(cfg) {
 }
 
 /** Resolve + dynamically import the operator's git-ignored transport bootstrap (no SDK in git). */
-async function loadTransport(cfg) {
+export async function loadTransport(cfg) {
   const modRef = cfg.transportModule ?? cfg.transportModulePlaceholder;
   if (!modRef || String(modRef).includes('<')) {
     throw new Error(
