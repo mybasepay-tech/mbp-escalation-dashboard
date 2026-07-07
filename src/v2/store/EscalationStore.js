@@ -24,6 +24,8 @@ export class EscalationStore {
   async setPriority(_id, _priority, _opts) { throw new Error('not implemented'); }
   async addTag(_id, _tagId, _opts) { throw new Error('not implemented'); }
   async removeTag(_id, _tagId, _opts) { throw new Error('not implemented'); }
+  /** Set/clear the optional amount of money involved (records activity). */
+  async setAmount(_id, _amount, _opts) { throw new Error('not implemented'); }
 
   // ----- Activity, comments, notes (three separate streams) -----
   /** @returns {Promise<import('../domain/models.js').ActivityEvent[]>} */
@@ -34,6 +36,14 @@ export class EscalationStore {
   async listNotes(_id) { throw new Error('not implemented'); }
   async addComment(_id, _input) { throw new Error('not implemented'); }
   async addNote(_id, _input) { throw new Error('not implemented'); }
+
+  // ----- Attachments (metadata-first — no file bytes, no document library in MVP) -----
+  /** Active (non-deleted) attachment metadata for a ticket. @returns {Promise<import('../domain/models.js').Attachment[]>} */
+  async listAttachments(_id) { throw new Error('not implemented'); }
+  /** Add attachment METADATA (fileName + optional fileUrl placeholder etc.); records activity. */
+  async addAttachment(_id, _input) { throw new Error('not implemented'); }
+  /** Soft-delete an attachment (metadata preserved); records activity. */
+  async removeAttachment(_id, _attachmentId, _opts) { throw new Error('not implemented'); }
 
   // ----- Views -----
   /** Department queue: ALL tickets for a department, including person-assigned ones. */

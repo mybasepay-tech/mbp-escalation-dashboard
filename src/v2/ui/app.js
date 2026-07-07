@@ -5,10 +5,11 @@
 // There are NO network calls (no fetch/XHR), no Graph, no SharePoint, no credentials.
 
 import { seededStore } from '../mock/seed.js';
+import { STATUS } from '../domain/constants.js';
 import {
   loadContext, ticketRows, detailView, activityLines,
   statusOptions, assignmentOptions, PRIORITY_OPTIONS,
-  commentView, noteView, availableTags, tagLabel, userName,
+  commentView, noteView, attachmentView, availableTags, tagLabel, userName,
   actorCanComplete, DEPARTMENT_FILTERS, applyDepartmentFilter, buildReport,
 } from './viewModel.js';
 
@@ -75,6 +76,10 @@ function ticketListItem(r) {
     el('span', { class: 'badge status', text: r.status }),
     el('span', { class: 'badge prio', text: r.priority }),
     r.hasLegacy ? el('span', { class: 'badge legacy', text: 'legacy' }) : null,
+    // No-movement reminder candidate (local indicator only — nothing is sent).
+    r.reminder?.isCandidate
+      ? el('span', { class: 'badge unassigned', text: `no movement ${r.reminder.daysSinceMovement}d` })
+      : null,
   ]);
   const meta = el('div', { class: 'meta' }, [
     el('span', { text: `Dept: ${r.deptName}` }),
@@ -155,6 +160,7 @@ async function renderReport() {
     kv(`Assigned to ${ctx.usersById.get(currentUserId)?.displayName ?? 'me'}`, rep.assignedToCurrentUser),
     kv('Completed', rep.completedCount),
     kv('Legacy / migrated', rep.legacyCount),
+    kv('Reminder candidates (no movement)', rep.reminderCandidateCount),
   ]));
   report.appendChild(breakdownCard('By status', rep.byStatus));
   report.appendChild(breakdownCard('By department', rep.byDepartment));
@@ -192,20 +198,44 @@ async function renderDetail() {
 
   // Field grid
   const dl = el('dl');
+  const amountText = dv.amountInvolved == null
+    ? '— (optional)'
+    : `${dv.amountInvolved.toFixed(2)} ${dv.amountCurrency}`;
   const pairs = [
     ['Department / queue', dv.deptName],
     ['Assigned person', dv.assigneeName],
     ['Ticket owner', dv.ownerName],
     ['Requesting dept', dv.requestingDept || '—'],
-    ['Submitter', dv.submitterName],
+    ['Requester / submitter', dv.submitterName],
     ['Issue category', dv.issueCategory || '—'],
+    ['Amount involved', amountText],
     ['Escalated', fmtDate(dv.escalationDate)],
     ['Expected resolution', fmtDate(dv.expectedResolutionDate)],
     ['Completed', fmtDate(dv.completedDate)],
+    ['Last movement', fmtDate(dv.lastActivityAt)],
     ['Days open', String(dv.daysOpen)],
   ];
   for (const [k, v] of pairs) { dl.appendChild(el('dt', { text: k })); dl.appendChild(el('dd', { text: v })); }
   detail.appendChild(dl);
+
+  // No-movement reminder indicator (local calculation only — nothing is sent).
+  if (dv.reminder?.isCandidate) {
+    detail.appendChild(el('div', { class: 'legacy-box' }, [
+      el('h3', { text: 'Reminder candidate' }),
+      el('div', {
+        class: 'note',
+        text: `No movement for ${dv.reminder.daysSinceMovement} days (threshold for ${dv.priority} priority: ${dv.reminder.thresholdDays} days). Local indicator only — no notification is sent.`,
+      }),
+    ]));
+  }
+
+  // Final closure note (present only on completed tickets).
+  if (dv.finalClosureNote) {
+    detail.appendChild(el('div', { class: 'legacy-box' }, [
+      el('h3', { text: 'Final closing comment' }),
+      el('div', { class: 'note', text: dv.finalClosureNote }),
+    ]));
+  }
 
   // Legacy metadata — shown only when present
   if (dv.legacy) {
@@ -220,6 +250,7 @@ async function renderDetail() {
 
   detail.appendChild(await buildControls(ticket));
   detail.appendChild(await buildTags(ticket));
+  detail.appendChild(await buildAttachments(ticket));
   detail.appendChild(await buildComments(ticket));
   detail.appendChild(await buildNotes(ticket));
   detail.appendChild(await buildActivity(ticket));
@@ -255,6 +286,37 @@ async function buildTags(ticket) {
     btn.addEventListener('click', () => act(() => store.addTag(ticket.id, sel.value, { actorId: currentUserId })));
     wrap.appendChild(el('div', { class: 'add-row' }, [sel, btn]));
   }
+  return wrap;
+}
+
+// Attachment METADATA only (Loop 21): no real file is uploaded and no document library is
+// touched — the "Add attachment" control records a metadata row with a placeholder ref.
+async function buildAttachments(ticket) {
+  const items = (await store.listAttachments(ticket.id)).map((a) => attachmentView(a, ctx));
+  const wrap = el('div', { class: 'section' }, [el('h3', { text: 'Attachments (metadata only)' })]);
+  if (!items.length) wrap.appendChild(el('p', { class: 'empty', text: 'No attachments. File upload is deferred — only metadata is tracked in the MVP.' }));
+  for (const a of items) {
+    const size = a.sizeBytes != null ? `${Math.round(a.sizeBytes / 1024)} KB` : 'size n/a';
+    const x = el('button', { class: 'x', text: '×', attrs: { title: 'Remove attachment (soft delete)', 'aria-label': 'Remove attachment' } });
+    x.addEventListener('click', () => act(() => store.removeAttachment(ticket.id, a.id, { actorId: currentUserId })));
+    wrap.appendChild(el('div', { class: 'entry' }, [
+      el('div', { class: 'head' }, [
+        el('span', { class: 'who', text: a.fileName }),
+        el('span', { class: 'vis', text: `${a.mimeType ?? 'file'} · ${size}` }),
+        el('span', { class: 'when', text: `${a.uploadedBy} · ${fmtDate(a.uploadedAt)}` }),
+        x,
+      ]),
+    ]));
+  }
+  const nameInput = el('input', { attrs: { type: 'text', placeholder: 'File name (metadata only — no upload)…' } });
+  const btn = el('button', { class: 'btn', text: 'Add attachment metadata' });
+  btn.addEventListener('click', () => {
+    const fileName = nameInput.value.trim();
+    if (fileName) {
+      act(() => store.addAttachment(ticket.id, { fileName, uploadedBy: currentUserId, source: 'manual' }));
+    }
+  });
+  wrap.appendChild(el('div', { class: 'add-row' }, [nameInput, btn]));
   return wrap;
 }
 
@@ -313,24 +375,40 @@ async function buildControls(ticket) {
     el('div', { class: 'actions' }, [personSel, personBtn, clearBtn]),
   ]));
 
-  // Status. Complete is owner-only, so the option is shown only when the current mock user
-  // owns the ticket (the store rule enforces this too — the UI just avoids dead options).
+  // Status. Complete is REQUESTER-only (Loop 21): the option is shown only when the current
+  // mock user submitted the ticket (the store rule enforces this too — the UI just avoids
+  // dead options), and completing requires a final closing comment.
   const statusSel = el('select');
   fillSelect(statusSel, statusOptions(ticket, { currentUserId }).map((s) => ({ id: s, label: s })), ticket.status);
+  const closureTa = el('textarea', { attrs: { placeholder: 'Final closing comment (required to Complete)…' } });
+  const validationMsg = el('span', { class: 'hint', text: '' });
   const statusBtn = el('button', { class: 'btn', text: 'Set status' });
   statusBtn.addEventListener('click', () => act(async () => {
-    try { await store.setStatus(ticket.id, statusSel.value, { actorId: currentUserId }); }
-    catch (err) { window.alert(err.message); }
+    validationMsg.textContent = '';
+    try {
+      await store.setStatus(ticket.id, statusSel.value, {
+        actorId: currentUserId, closureNote: closureTa.value,
+      });
+    } catch (err) {
+      validationMsg.textContent = err.message;
+      window.alert(err.message);
+    }
   }));
-  const ownerName = userName(ctx, ticket.ticketOwner);
+  const submitterName = userName(ctx, ticket.submitterId);
   const completeHint = actorCanComplete(ticket, currentUserId)
-    ? 'You own this ticket — you can move it to Complete.'
-    : `Only the ticket owner (${ownerName}) can move this ticket to Complete.`;
-  wrap.appendChild(el('div', { class: 'control' }, [
+    ? 'You submitted this ticket — you can Complete it (a final closing comment is required).'
+    : `Only the requester (${submitterName}) can move this ticket to Complete.`;
+  const statusChildren = [
     el('span', { text: 'Status' }),
     el('div', { class: 'actions' }, [statusSel, statusBtn]),
     el('span', { class: 'hint', text: completeHint }),
-  ]));
+  ];
+  // The closure-comment input only makes sense for the requester (Complete is in their list).
+  if (actorCanComplete(ticket, currentUserId) && statusOptions(ticket, { currentUserId }).includes(STATUS.COMPLETE)) {
+    statusChildren.push(el('div', { class: 'add-row' }, [closureTa]));
+  }
+  statusChildren.push(validationMsg);
+  wrap.appendChild(el('div', { class: 'control' }, statusChildren));
 
   // Priority
   const prioSel = el('select');
@@ -338,6 +416,23 @@ async function buildControls(ticket) {
   const prioBtn = el('button', { class: 'btn', text: 'Set priority' });
   prioBtn.addEventListener('click', () => act(() => store.setPriority(ticket.id, prioSel.value, { actorId: currentUserId })));
   wrap.appendChild(controlBlock('Priority', prioSel, prioBtn));
+
+  // Amount involved (optional money field — clear by leaving the input empty).
+  const amountInput = el('input', {
+    attrs: { type: 'number', min: '0', step: '0.01', placeholder: 'Amount (optional)' },
+  });
+  if (ticket.amountInvolved != null) amountInput.value = String(ticket.amountInvolved);
+  const amountBtn = el('button', { class: 'btn', text: 'Set amount' });
+  amountBtn.addEventListener('click', () => act(async () => {
+    const raw = amountInput.value.trim();
+    const amount = raw === '' ? null : Number(raw);
+    try { await store.setAmount(ticket.id, amount, { actorId: currentUserId }); }
+    catch (err) { window.alert(err.message); }
+  }));
+  wrap.appendChild(el('div', { class: 'control' }, [
+    el('span', { text: 'Amount involved (USD, optional)' }),
+    el('div', { class: 'actions' }, [amountInput, amountBtn]),
+  ]));
 
   return wrap;
 }

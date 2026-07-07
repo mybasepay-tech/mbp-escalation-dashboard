@@ -130,8 +130,15 @@ function Get-ProvisioningPlan {
   $order = @(
     'Escalations_v2_Departments','Escalations_v2_Users','Escalations_v2_Tags',
     'Escalations_v2_Tickets','Escalations_v2_TicketTags','Escalations_v2_Activity',
-    'Escalations_v2_Comments','Escalations_v2_InternalNotes'
+    'Escalations_v2_Comments','Escalations_v2_InternalNotes','Escalations_v2_Attachments'
   )
+  # Fail closed on drift in EITHER direction: a schema list missing from this order would be
+  # silently skipped; an order entry missing from the schema would be a stale plan.
+  $schemaLists = @($Schema.lists.PSObject.Properties.Name)
+  $notInOrder = @($schemaLists | Where-Object { $order -notcontains $_ })
+  if ($notInOrder.Count -gt 0) {
+    throw "FAIL-CLOSED: schema defines list(s) not present in the provisioning order: $([string]::Join(', ', $notInOrder)). Add them to Get-ProvisioningPlan explicitly."
+  }
   $plan = @()
   foreach ($name in $order) {
     $def = $Schema.lists.$name
@@ -151,4 +158,141 @@ function Write-Report {
   Write-Host "==== $Title ====" -ForegroundColor Cyan
   foreach ($l in $Lines) { Write-Host "  $l" }
   Write-Host "==== end $Title ====" -ForegroundColor Cyan
+}
+
+# ---------------------------------------------------------------------------
+# Loop 21: column / index / view provisioning helpers (pure; no live calls).
+# These build plans and map types from the schema. The PnP-invoking creation
+# functions live in provision-sharepoint-v2.ps1; validate reuses the maps here.
+# ---------------------------------------------------------------------------
+
+# Safe optional-property read (Set-StrictMode-safe).
+function Get-Prop {
+  param($Obj, [string]$Name)
+  if ($null -eq $Obj) { return $null }
+  $p = $Obj.PSObject.Properties[$Name]
+  if ($null -eq $p) { return $null }
+  return $p.Value
+}
+
+# Map a schema column type to the PnP/SharePoint field type token used at creation.
+function ConvertTo-PnPFieldType {
+  param([string]$SchemaType)
+  switch ($SchemaType) {
+    'Text'      { return 'Text' }
+    'Note'      { return 'Note' }
+    'Choice'    { return 'Choice' }
+    'DateTime'  { return 'DateTime' }
+    'Boolean'   { return 'Boolean' }
+    'Number'    { return 'Number' }
+    'Currency'  { return 'Currency' }
+    'Hyperlink' { return 'URL' }     # SharePoint internal type for Hyperlink is "URL"
+    'Person'    { return 'User' }    # SharePoint internal type for Person is "User"
+    'Lookup'    { return 'Lookup' }
+    default     { return $null }
+  }
+}
+
+# Acceptable live TypeAsString values for a schema type ("close enough" for validation).
+function Get-ExpectedLiveTypes {
+  param([string]$SchemaType)
+  switch ($SchemaType) {
+    'Text'      { return @('Text') }
+    'Note'      { return @('Note') }
+    'Choice'    { return @('Choice','MultiChoice') }
+    'DateTime'  { return @('DateTime') }
+    'Boolean'   { return @('Boolean') }
+    'Number'    { return @('Number') }
+    'Currency'  { return @('Currency','Number') }
+    'Hyperlink' { return @('URL') }
+    'Person'    { return @('User','UserMulti') }
+    'Lookup'    { return @('Lookup','LookupMulti') }
+    default     { return @() }
+  }
+}
+
+# Returns $true if a schema column type is a Lookup (provisioned in the 2nd pass).
+function Test-IsLookupType { param([string]$SchemaType) return ($SchemaType -eq 'Lookup') }
+
+# Build the per-list index plan: union of fields marked indexed=true and the
+# recommendedIndexes columns. Returns a hashtable: listName -> string[] columns.
+function Get-IndexPlan {
+  param([Parameter(Mandatory)]$Schema)
+  $map = @{}
+  foreach ($listName in $Schema.lists.PSObject.Properties.Name) {
+    $set = [System.Collections.Generic.List[string]]::new()
+    foreach ($f in $Schema.lists.$listName.fields) {
+      if ((Get-Prop $f 'indexed') -eq $true -and -not $set.Contains($f.name)) { $set.Add($f.name) }
+    }
+    $map[$listName] = $set
+  }
+  $recommended = Get-Prop $Schema 'recommendedIndexes'
+  if ($null -ne $recommended) {
+    foreach ($idx in $recommended) {
+      $ln = $idx.list
+      if (-not $map.ContainsKey($ln)) { $map[$ln] = [System.Collections.Generic.List[string]]::new() }
+      foreach ($c in $idx.columns) { if (-not $map[$ln].Contains($c)) { $map[$ln].Add($c) } }
+    }
+  }
+  $out = @{}
+  foreach ($k in $map.Keys) { $out[$k] = @($map[$k]) }
+  return $out
+}
+
+# Build the view plan from schema.views. For each view, decide whether its filter
+# is STATIC (safely bakeable into CAML) or DYNAMIC (depends on [param]/[Me]/an
+# app-level status set) — dynamic filters are NEVER faked into the stored view;
+# they are applied at query time by the adapter. OrderBy is always bakeable.
+# Returns an array of descriptors.
+function Get-ViewPlan {
+  param([Parameter(Mandatory)]$Schema)
+  $views = Get-Prop $Schema 'views'
+  $plan = @()
+  if ($null -eq $views) { return $plan }
+  foreach ($v in $views) {
+    $filter  = [string](Get-Prop $v 'filter')
+    $sortBy  = [string](Get-Prop $v 'sortBy')
+    $groupBy = [string](Get-Prop $v 'groupBy')
+
+    $orderByCaml = ''
+    if (-not [string]::IsNullOrWhiteSpace($sortBy)) {
+      $refs = ''
+      foreach ($part in ($sortBy -split ',')) {
+        $p = $part.Trim()
+        if ($p -eq '') { continue }
+        $bits = $p -split '\s+'
+        $fname = $bits[0]
+        $asc = 'TRUE'
+        if ($bits.Count -gt 1 -and $bits[1].ToLower() -eq 'desc') { $asc = 'FALSE' }
+        $refs += "<FieldRef Name='$fname' Ascending='$asc' />"
+      }
+      if ($refs -ne '') { $orderByCaml = "<OrderBy>$refs</OrderBy>" }
+    }
+
+    $whereCaml = ''
+    $filterStatus = ''
+    $lower = $filter.ToLower()
+    if ([string]::IsNullOrWhiteSpace($filter) -or $lower -eq '(none)') {
+      $filterStatus = 'no-filter'
+    } elseif ($lower -match '\[param\]|\[me\]|open_statuses') {
+      # Dynamic predicate — applied by the adapter/app at query time. Do not fake.
+      $filterStatus = "runtime-dynamic (adapter-applied): $filter"
+    } elseif ($lower -match 'legacyitemid is not null') {
+      $whereCaml = "<Where><IsNotNull><FieldRef Name='LegacyItemId' /></IsNotNull></Where>"
+      $filterStatus = 'static-baked: IsNotNull(LegacyItemId)'
+    } else {
+      # Unknown shape — be honest, do not guess CAML.
+      $filterStatus = "runtime-dynamic (adapter-applied): $filter"
+    }
+
+    $query = $whereCaml + $orderByCaml
+    $plan += [pscustomobject]@{
+      List          = $v.list
+      Name          = $v.name
+      Query         = $query
+      FilterStatus  = $filterStatus
+      GroupByNote   = if ([string]::IsNullOrWhiteSpace($groupBy)) { '' } else { "groupBy '$groupBy' applied at runtime (not baked)" }
+    }
+  }
+  return $plan
 }

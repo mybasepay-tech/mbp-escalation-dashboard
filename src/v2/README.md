@@ -181,6 +181,10 @@ package at [`backend/sharepoint/provisioning/`](./backend/sharepoint/provisionin
 validates / cleans up the `Escalations_v2_*` lists on a **non-production** test site. It
 defaults to dry-run, targets only a non-production site (never legacy), creates no Power
 Automate flows, and reads a **git-ignored** runtime config — no secrets/URLs are committed.
+As of Loop 21 (D27) the full schema — 9 lists including `Escalations_v2_Attachments`, all
+columns/lookups, indexes, and views — has been **provisioned live and validated** against
+the approved non-production test site (idempotently; dynamic view filters stay
+adapter-applied). `MockStore` remains the active UI backend.
 
 ## SharePoint backend readiness (design-only — no live services)
 `backend/sharepoint/schema.sharepoint-v2.json` is a **static, design-only** blueprint of the
@@ -217,11 +221,24 @@ and [`../../harness/SHAREPOINT_V2_DRY_RUN_CHECKLIST.md`](../../harness/SHAREPOIN
 - Adding a person while status is **New** or **Not yet assigned** auto-moves to
   **Assigned**. Status is **never** auto-advanced beyond Assigned.
 - Clearing the assignee on an **Assigned** ticket reverts to **Not yet assigned**.
-- **Complete** is the single final official closure state and is **owner-only**: only a
-  ticket's `ticketOwner` may move it to Complete (the worker/`assigneeId` may not). Moving to
-  Complete sets `completedDate`; **Reopened** clears it.
-- Every assignment, status, priority, comment, and note change records an immutable
-  activity event.
+- **Complete** is the single final official closure state and is **requester-only**
+  (Loop 21/D23): only the ticket's `submitterId` (the requester/creator) may move it to
+  Complete — not the assignee, not the `ticketOwner`, not a lead. Completing **requires a
+  non-empty final closing comment** (stored as `finalClosureNote` and carried in the
+  activity event). Complete sets `completedDate`; **Reopened** clears
+  `completedDate`/`finalClosureNote` while closure history stays in activity.
+- **Attachments are metadata-first** (Loop 21/D24): `addAttachment`/`listAttachments`/
+  `removeAttachment` (soft delete) manage metadata rows only — no file bytes, no document
+  library — and emit `attachment` activity events.
+- **Optional amount involved** (Loop 21/D26): `setAmount` sets/clears a non-negative
+  `amountInvolved` (currency defaults to USD) with a `field_change` activity event.
+- **No-movement reminder readiness** (Loop 21/D25): every movement updates
+  `lastActivityAt`; `rules.reminderCandidate(ticket, now)` flags open tickets past their
+  priority threshold (Critical 2 / High 3 / Medium 7 / Low 14 days). Local indicator only —
+  **no notification is sent, no Power Automate flow exists**. The UI shows a
+  "no movement" badge, a "Needs attention" department filter, and a report counter.
+- Every assignment, status, priority, comment, note, and attachment change records an
+  immutable activity event.
 
 ## Sample scenarios in the seed
 New · Department-only · Person-assigned · In Process · Pending Research · Pending Member ·

@@ -7,7 +7,7 @@
 import { STATUS, PRIORITY } from '../domain/constants.js';
 import {
   createTicket, createDepartment, createUser, createTag, createActivityEvent,
-  createComment, createNote,
+  createComment, createNote, createAttachment,
 } from '../domain/models.js';
 import { MockStore } from '../store/MockStore.js';
 
@@ -33,8 +33,9 @@ export const TAGS = [
 
 const T = '2026-06-01T09:00:00.000Z'; // fixed base timestamp for seed determinism
 
-// Department leads double as ticket owners (the closure authority for their queue).
-// ticketOwner is who alone may move a ticket to Complete; assigneeId is who does the work.
+// Department leads double as ticket owners (accountability for their queue). Closure
+// authority (Loop 21): ONLY the requester (submitterId) may move a ticket to Complete —
+// ticketOwner and assigneeId do NOT grant it. assigneeId is who does the work.
 // ----- Tickets: one per required scenario across the Loop 7 status vocabulary -----
 export const TICKETS = [
   // 1. New ticket — no department, no person, no owner yet (untriaged).
@@ -57,12 +58,13 @@ export const TICKETS = [
     ticketOwner: 'user_teri', requestingDept: 'Member Services', submitterId: 'user_maggie',
     issueCategory: 'Claims', issueType: 'Claim reprocessing', createdAt: T, escalationDate: T, modifiedAt: T,
   }),
-  // 4. In Process ticket — actively being worked.
+  // 4. In Process ticket — actively being worked. Carries an optional money amount.
   createTicket({
     id: 'esc_in_process', title: 'Investigation under way', status: STATUS.IN_PROCESS,
     priority: PRIORITY.HIGH, assignedDeptId: 'dept_benefits', assigneeId: 'user_maggie',
     ticketOwner: 'user_teri', requestingDept: 'Operations', submitterId: 'user_sarah',
     issueCategory: 'Billing', issueType: 'Overbilling', tagIds: ['tag_financial', 'tag_member_impact'],
+    amountInvolved: 1250.75, amountCurrency: 'USD',
     createdAt: T, escalationDate: T, modifiedAt: T,
   }),
   // 5. Pending Research — waiting on internal research.
@@ -86,13 +88,16 @@ export const TICKETS = [
     ticketOwner: 'user_jennifer', requestingDept: 'Operations', submitterId: 'user_teri',
     issueCategory: 'Payroll', createdAt: T, escalationDate: T, modifiedAt: T,
   }),
-  // 8. Complete — final official closure state (moved by the owner). completedDate set.
+  // 8. Complete — final official closure state (closed by the requester with a final
+  //    closing comment). completedDate + finalClosureNote set.
   createTicket({
     id: 'esc_complete', title: 'Closed out after resolution', status: STATUS.COMPLETE,
     priority: PRIORITY.LOW, assignedDeptId: 'dept_benefits', assigneeId: 'user_sarah',
     ticketOwner: 'user_teri', requestingDept: 'Member Services', submitterId: 'user_maggie',
     issueCategory: 'Eligibility', completedDate: '2026-06-10T12:00:00.000Z',
+    finalClosureNote: 'Eligibility corrected and member notified; confirmed resolved.',
     createdAt: T, escalationDate: T, modifiedAt: '2026-06-10T12:00:00.000Z',
+    lastActivityAt: '2026-06-10T12:00:00.000Z',
   }),
   // 9. Reopened ticket — a completed ticket that needed more work.
   createTicket({
@@ -129,7 +134,12 @@ export const ACTIVITY = [
     note: "Normalized legacy status drift (assignee present); see migrationNotes.",
     timestamp: '2026-06-01T08:30:00.000Z',
   }),
-  // Activity entries that accompany the seeded comment/note below.
+  // Activity entries that accompany the seeded comment/note/attachment below.
+  createActivityEvent({
+    id: 'act_att_esc_in_process', escalationId: 'esc_in_process', type: 'attachment',
+    actorId: 'user_sarah', to: { attachmentId: 'att_seed_1', fileName: 'billing-statement-march.pdf' },
+    note: 'Attachment added: billing-statement-march.pdf', timestamp: '2026-06-02T09:45:00.000Z',
+  }),
   createActivityEvent({
     id: 'act_cmt_esc_in_process', escalationId: 'esc_in_process', type: 'comment',
     actorId: 'user_maggie', note: 'Comment posted', timestamp: '2026-06-02T10:00:00.000Z',
@@ -158,6 +168,17 @@ export const NOTES = [
   }),
 ];
 
+// Attachment METADATA (Loop 21) — metadata-first: the fileUrl is a FAKE .invalid
+// placeholder; no real file exists and no document library is touched in the MVP.
+export const ATTACHMENTS = [
+  createAttachment({
+    id: 'att_seed_1', escalationId: 'esc_in_process', fileName: 'billing-statement-march.pdf',
+    fileUrl: 'https://files.example.invalid/mock/billing-statement-march.pdf',
+    mimeType: 'application/pdf', sizeBytes: 48213, uploadedBy: 'user_sarah',
+    uploadedAt: '2026-06-02T09:45:00.000Z', source: 'manual',
+  }),
+];
+
 /** Build a fresh dataset object. */
 export function buildSeed() {
   return {
@@ -168,6 +189,7 @@ export function buildSeed() {
     activity: ACTIVITY.map((a) => ({ ...a })),
     comments: COMMENTS.map((c) => ({ ...c })),
     notes: NOTES.map((n) => ({ ...n })),
+    attachments: ATTACHMENTS.map((a) => ({ ...a })),
   };
 }
 

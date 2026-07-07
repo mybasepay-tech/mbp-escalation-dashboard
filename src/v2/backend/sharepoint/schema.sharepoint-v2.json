@@ -1,12 +1,14 @@
 {
   "$comment": "DESIGN-ONLY SharePoint List v2 schema for Escalation System v2. This file is a STATIC blueprint. It does NOT connect to, provision, or query SharePoint, Microsoft Graph, Dataverse, Azure, or any live service. It contains no tenant IDs, site URLs, client IDs, secrets, OAuth scopes, or Power Automate flows. See docs/SHAREPOINT_V2_BACKEND_READINESS.md, docs/BACKEND_ADAPTER_PLAN.md, and docs/SHAREPOINT_V2_ADMIN_BUILD_PACKAGE.md.",
   "schemaName": "escalation-v2-sharepoint",
-  "schemaVersion": "0.2.0-design",
+  "schemaVersion": "0.3.0-design",
   "status": "design-only",
   "designOnly": true,
   "flowAutomationStatus": "deferred-for-mvp-phase-1-no-flows",
+  "attachmentModel": "metadata-first-no-file-upload",
+  "reminderModel": "local-candidate-calculation-only-no-notifications",
   "tagModel": "many-to-many-link-list",
-  "generatedBy": "Loop 9 — SharePoint schema hardening + admin build package",
+  "generatedBy": "Loop 21 — accelerated MVP schema (attachments metadata, requester-only closure, amount involved, no-movement reminder readiness)",
   "namingConvention": "All v2 lists are prefixed Escalations_v2_ to guarantee separation from the legacy Escalation Tracker list. v2 never reads or writes legacy lists.",
   "namingStrategy": {
     "listInternalName": "The JSON key for each list (e.g. Escalations_v2_TicketTags) is the stable internal/URL name used at creation time. It never changes once built.",
@@ -46,12 +48,16 @@
         { "name": "IssueType", "type": "Text", "required": false, "mapsTo": "issueType" },
         { "name": "AssignedDeptKey", "type": "Lookup", "required": false, "indexed": true, "mapsTo": "assignedDeptId", "lookupList": "Escalations_v2_Departments", "lookupField": "DeptKey", "notes": "Department/queue context — the departmentQueue owner." },
         { "name": "AssigneeKey", "type": "Lookup", "required": false, "indexed": true, "mapsTo": "assigneeId", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey", "notes": "Person responsible for the work (assignedTo). Nullable." },
-        { "name": "TicketOwnerKey", "type": "Lookup", "required": false, "mapsTo": "ticketOwner", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey", "notes": "Closure authority — only this person may move the ticket to Complete. Distinct from AssigneeKey." },
-        { "name": "SubmitterKey", "type": "Lookup", "required": false, "mapsTo": "submitterId", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey" },
+        { "name": "TicketOwnerKey", "type": "Lookup", "required": false, "mapsTo": "ticketOwner", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey", "notes": "Accountability owner for the queue. NOT closure authority (Loop 21): only the requester (SubmitterKey) may Complete. Distinct from AssigneeKey." },
+        { "name": "SubmitterKey", "type": "Lookup", "required": false, "indexed": true, "mapsTo": "submitterId", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey", "notes": "Requester/creator — the ONLY closure authority (Loop 21): only this person may move the ticket to Complete, and a final closing comment is required." },
         { "name": "RequestingDept", "type": "Text", "required": false, "mapsTo": "requestingDept" },
         { "name": "EscalationDate", "type": "DateTime", "required": false, "indexed": true, "mapsTo": "escalationDate" },
         { "name": "ExpectedResolutionDate", "type": "DateTime", "required": false, "mapsTo": "expectedResolutionDate", "notes": "Used for overdue/at-risk computation." },
         { "name": "CompletedDate", "type": "DateTime", "required": false, "mapsTo": "completedDate", "notes": "Set when status -> Complete; cleared on Reopened." },
+        { "name": "FinalClosureNote", "type": "Note", "required": false, "mapsTo": "finalClosureNote", "notes": "Required final closing comment stored when the requester Completes the ticket; cleared on Reopened (closure history is preserved in Escalations_v2_Activity)." },
+        { "name": "LastActivityAt", "type": "DateTime", "required": false, "indexed": true, "mapsTo": "lastActivityAt", "notes": "Last movement (status/assignment/priority/tag change, comment, note, attachment). Drives no-movement reminder candidacy (local calculation; no notifications, no flows)." },
+        { "name": "AmountInvolved", "type": "Currency", "required": false, "mapsTo": "amountInvolved", "notes": "Optional money amount involved in the escalation." },
+        { "name": "AmountCurrency", "type": "Text", "required": false, "mapsTo": "amountCurrency", "notes": "Currency code for AmountInvolved (default USD)." },
         { "name": "LegacyItemId", "type": "Text", "required": false, "mapsTo": "legacyItemId", "notes": "Legacy SharePoint item ID, preserved on migration. Read-only reference only — no write-back to legacy." },
         { "name": "LegacyUrl", "type": "Hyperlink", "required": false, "mapsTo": "legacyUrl", "notes": "Legacy item URL, preserved for traceability. Never queried by v2." },
         { "name": "MigrationNotes", "type": "Note", "required": false, "mapsTo": "migrationNotes" },
@@ -74,7 +80,7 @@
       "fields": [
         { "name": "ActivityKey", "type": "Text", "required": true, "indexed": true, "mapsTo": "id" },
         { "name": "EscalationKey", "type": "Lookup", "required": true, "indexed": true, "mapsTo": "escalationId", "lookupList": "Escalations_v2_Tickets", "lookupField": "TicketKey" },
-        { "name": "Type", "type": "Choice", "required": true, "indexed": true, "mapsTo": "type", "choices": ["created", "assignment_change", "status_change", "priority_change", "field_change", "comment", "note", "migration_normalization"] },
+        { "name": "Type", "type": "Choice", "required": true, "indexed": true, "mapsTo": "type", "choices": ["created", "assignment_change", "status_change", "priority_change", "field_change", "comment", "note", "attachment", "migration_normalization"] },
         { "name": "ActorKey", "type": "Lookup", "required": false, "mapsTo": "actorId", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey", "notes": "Null for system/migration entries." },
         { "name": "FromValue", "type": "Note", "required": false, "mapsTo": "from", "notes": "JSON-encoded old value." },
         { "name": "ToValue", "type": "Note", "required": false, "mapsTo": "to", "notes": "JSON-encoded new value." },
@@ -154,6 +160,27 @@
         { "name": "CreatedBy", "type": "Lookup", "required": false, "mapsTo": null, "lookupList": "Escalations_v2_Users", "lookupField": "UserKey", "notes": "Who applied the tag (Person column preferred in production; see Users strategy)." }
       ]
     },
+    "Escalations_v2_Attachments": {
+      "internalName": "Escalations_v2_Attachments",
+      "displayName": "Escalations v2 — Attachments (metadata)",
+      "title": "Escalations v2 — Attachments (metadata)",
+      "description": "Attachment METADATA records for tickets (Loop 21). Metadata-first by design: no file bytes are stored here and no live document library is provisioned or touched in the MVP — FileUrl is a storage-reference placeholder. Real file upload/storage is deferred. Maps to Attachment.",
+      "keyField": "AttachmentKey",
+      "mapsToModel": "Attachment",
+      "storageModel": "metadata-only; real file storage deferred",
+      "fields": [
+        { "name": "AttachmentKey", "type": "Text", "required": true, "indexed": true, "mapsTo": "id", "notes": "v2 primary key (e.g. att_...). Distinct from the SharePoint item ID." },
+        { "name": "EscalationKey", "type": "Lookup", "required": true, "indexed": true, "mapsTo": "escalationId", "lookupList": "Escalations_v2_Tickets", "lookupField": "TicketKey" },
+        { "name": "FileName", "type": "Text", "required": true, "mapsTo": "fileName" },
+        { "name": "FileUrl", "type": "Hyperlink", "required": false, "mapsTo": "fileUrl", "notes": "Storage-reference PLACEHOLDER only in the MVP — no real file behind it until file upload is implemented in a later loop." },
+        { "name": "MimeType", "type": "Text", "required": false, "mapsTo": "mimeType" },
+        { "name": "SizeBytes", "type": "Number", "required": false, "mapsTo": "sizeBytes" },
+        { "name": "UploadedByKey", "type": "Lookup", "required": false, "mapsTo": "uploadedBy", "lookupList": "Escalations_v2_Users", "lookupField": "UserKey" },
+        { "name": "UploadedAt", "type": "DateTime", "required": true, "indexed": true, "mapsTo": "uploadedAt" },
+        { "name": "Source", "type": "Choice", "required": false, "mapsTo": "source", "choices": ["manual", "migration", "import", "system"], "notes": "Provenance of the attachment record for auditing." },
+        { "name": "IsDeleted", "type": "Boolean", "required": false, "mapsTo": "isDeleted", "notes": "Soft-delete flag; deleted attachments keep their metadata for audit." }
+      ]
+    },
     "Escalations_v2_Departments": {
       "internalName": "Escalations_v2_Departments",
       "displayName": "Escalations v2 — Departments",
@@ -190,27 +217,31 @@
     { "list": "Escalations_v2_Tickets", "name": "My Assigned", "filter": "AssigneeKey = [Me]", "sortBy": "Priority desc, EscalationDate asc", "notes": "Backs the My Assigned Tickets panel." },
     { "list": "Escalations_v2_Tickets", "name": "Overdue / At-Risk", "filter": "ExpectedResolutionDate < [Today] AND Status in OPEN_STATUSES" },
     { "list": "Escalations_v2_Tickets", "name": "Legacy Migrated", "filter": "LegacyItemId is not null", "notes": "Traceability view for migrated records." },
+    { "list": "Escalations_v2_Tickets", "name": "No Movement Scan", "filter": "Status in OPEN_STATUSES", "sortBy": "LastActivityAt asc", "notes": "Backs the no-movement reminder-candidate calculation (oldest movement first). Local indicator only — no notification is sent and no flow exists." },
     { "list": "Escalations_v2_Activity", "name": "By Ticket (chronological)", "filter": "EscalationKey = [param]", "sortBy": "Timestamp asc" },
     { "list": "Escalations_v2_Comments", "name": "By Ticket", "filter": "EscalationKey = [param]", "sortBy": "CreatedAt asc" },
     { "list": "Escalations_v2_InternalNotes", "name": "By Ticket", "filter": "EscalationKey = [param]", "sortBy": "CreatedAt asc" },
     { "list": "Escalations_v2_TicketTags", "name": "Tags by Ticket", "filter": "TicketKey = [param] AND IsActive = true", "sortBy": "CreatedAt asc", "notes": "Query the tags on a given ticket (active links only)." },
     { "list": "Escalations_v2_TicketTags", "name": "Tickets by Tag", "filter": "TagKey = [param] AND IsActive = true", "sortBy": "CreatedAt desc", "notes": "Query the tickets carrying a given tag (active links only) — supports tag-based reporting." },
-    { "list": "Escalations_v2_TicketTags", "name": "Link Audit (all)", "filter": "(none)", "sortBy": "CreatedAt desc", "notes": "Full history including soft-deleted links for auditing." }
+    { "list": "Escalations_v2_TicketTags", "name": "Link Audit (all)", "filter": "(none)", "sortBy": "CreatedAt desc", "notes": "Full history including soft-deleted links for auditing." },
+    { "list": "Escalations_v2_Attachments", "name": "By Ticket", "filter": "EscalationKey = [param] AND IsDeleted = false", "sortBy": "UploadedAt asc", "notes": "Active attachment metadata for a ticket." },
+    { "list": "Escalations_v2_Attachments", "name": "Attachment Audit (all)", "filter": "(none)", "sortBy": "UploadedAt desc", "notes": "Full history including soft-deleted attachment records." }
   ],
   "recommendedIndexes": [
-    { "list": "Escalations_v2_Tickets", "columns": ["TicketKey", "Status", "Priority", "AssignedDeptKey", "AssigneeKey", "EscalationDate"], "reason": "SharePoint list-view threshold (5,000 items): filtered/sorted columns must be indexed to avoid throttling." },
+    { "list": "Escalations_v2_Tickets", "columns": ["TicketKey", "Status", "Priority", "AssignedDeptKey", "AssigneeKey", "SubmitterKey", "EscalationDate", "LastActivityAt"], "reason": "SharePoint list-view threshold (5,000 items): filtered/sorted columns must be indexed to avoid throttling. SubmitterKey backs the requester-only closure check; LastActivityAt backs the no-movement scan." },
     { "list": "Escalations_v2_Activity", "columns": ["ActivityKey", "EscalationKey", "Type", "Timestamp"], "reason": "Activity grows fastest; per-ticket and per-type queries must stay indexed." },
     { "list": "Escalations_v2_Comments", "columns": ["CommentKey", "EscalationKey", "CreatedAt"] },
     { "list": "Escalations_v2_InternalNotes", "columns": ["NoteKey", "EscalationKey", "CreatedAt"] },
     { "list": "Escalations_v2_TicketTags", "columns": ["TicketTagKey", "TicketKey", "TagKey", "IsActive", "CreatedAt"], "reason": "Tag-by-ticket and ticket-by-tag lookups must be indexed; TicketTags can grow large (many tags x many tickets)." },
-    { "list": "Escalations_v2_Tags", "columns": ["TagKey", "Label"] }
+    { "list": "Escalations_v2_Tags", "columns": ["TagKey", "Label"] },
+    { "list": "Escalations_v2_Attachments", "columns": ["AttachmentKey", "EscalationKey", "UploadedAt"], "reason": "Per-ticket attachment lookups must stay indexed." }
   ],
   "permissionModelAssumptions": {
     "note": "Assumptions only — no permissions are configured by this file. Finalized under D6 (Entra app) before any live work.",
     "assumptions": [
       "v2 lists live on a company-owned site/library, NOT a personal site, and separate from the legacy tracker.",
       "Read access for queue members; write access scoped by department membership (enforced in the app/adapter layer for MVP, by list permissions later).",
-      "Owner-only Complete is an application-layer rule (domain/rules.js), not a SharePoint permission, in early phases.",
+      "Requester-only Complete (with a required final closing comment) is an application-layer rule (domain/rules.js), not a SharePoint permission, in early phases.",
       "Internal notes visibility is metadata today; future hardening may gate it via item-level permissions or a separate secured list.",
       "TicketTags inherits the ticket's read scope; writing/removing links follows the same department-scoped write rules as the ticket.",
       "No legacy list permissions are altered. v2 uses its own site and (per D6) its own app registration."

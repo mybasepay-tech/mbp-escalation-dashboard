@@ -128,6 +128,10 @@ export function createActivityEvent({
  * @property {?string} escalationDate
  * @property {?string} expectedResolutionDate
  * @property {?string} completedDate     // set when status → Complete; cleared on Reopened
+ * @property {?string} finalClosureNote  // required closing comment stored on Complete; cleared on Reopened (history stays in activity)
+ * @property {string} lastActivityAt     // last movement (status/assignment/priority/tag/comment/note/attachment); drives reminder candidacy
+ * @property {?number} amountInvolved    // optional money amount involved in the escalation
+ * @property {string} amountCurrency     // currency code for amountInvolved (default USD)
  * @property {string[]} tagIds
  * @property {?string} legacyItemId      // preserved on migration; fake in mock data
  * @property {?string} legacyUrl         // preserved on migration; fake in mock data
@@ -153,6 +157,10 @@ export function createTicket({
   escalationDate = new Date().toISOString(),
   expectedResolutionDate = null,
   completedDate = null,
+  finalClosureNote = null,
+  lastActivityAt = null,
+  amountInvolved = null,
+  amountCurrency = 'USD',
   tagIds = [],
   legacyItemId = null,
   legacyUrl = null,
@@ -163,9 +171,38 @@ export function createTicket({
   return {
     id, title, description, status, priority, issueCategory, issueType,
     assignedDeptId, assigneeId, ticketOwner, submitterId, requestingDept,
-    escalationDate, expectedResolutionDate, completedDate,
+    escalationDate, expectedResolutionDate, completedDate, finalClosureNote,
+    lastActivityAt: lastActivityAt ?? createdAt,
+    amountInvolved, amountCurrency,
     tagIds, legacyItemId, legacyUrl, migrationNotes, createdAt, modifiedAt,
   };
+}
+
+/**
+ * @typedef {Object} Attachment
+ * @property {string} id
+ * @property {string} escalationId
+ * @property {string} fileName
+ * @property {?string} fileUrl        // storage reference PLACEHOLDER — metadata-first; no real file upload in MVP
+ * @property {?string} mimeType
+ * @property {?number} sizeBytes
+ * @property {?string} uploadedBy
+ * @property {string} uploadedAt
+ * @property {string} source          // 'manual' | 'migration' | 'import' | 'system'
+ * @property {boolean} isDeleted      // soft-delete flag; deleted attachments keep their metadata
+ */
+
+/**
+ * Attachment METADATA (Loop 21). v2 tracks attachment records only — no file bytes are
+ * uploaded and no live document library is touched in the MVP (deferred by design).
+ * @returns {Attachment}
+ */
+export function createAttachment({
+  id = newId('att'), escalationId, fileName, fileUrl = null, mimeType = null,
+  sizeBytes = null, uploadedBy = null, uploadedAt = new Date().toISOString(),
+  source = 'manual', isDeleted = false,
+}) {
+  return { id, escalationId, fileName, fileUrl, mimeType, sizeBytes, uploadedBy, uploadedAt, source, isDeleted };
 }
 
 /**

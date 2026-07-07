@@ -68,12 +68,15 @@ and [`../src/v2/tests/sharepoint-mapping-fidelity.test.js`](../src/v2/tests/shar
 | `listTickets(filter)` | Query `Tickets` via indexed views/`$filter` for `status`/`deptId`/`assigneeId`/`openOnly`. |
 | `createTicket(input)` | Create `Tickets` item + append a `created` `Activity` row. |
 | `assignDepartment` / `assignPerson` / `clearAssignee` | Patch `Tickets` lookup field + append `assignment_change` (and any auto `status_change`). |
-| `setStatus(id,status)` | Patch `Tickets.Status` + append `status_change` (after rules validate the transition + owner-only Complete). |
+| `setStatus(id,status)` | Patch `Tickets.Status` + append `status_change` (after rules validate the transition + the requester-only Complete with required `closureNote` — D23; Complete also patches `CompletedDate`/`FinalClosureNote`). |
 | `setPriority(id,priority)` | Patch `Tickets.Priority` + append `priority_change`. |
+| `setAmount(id,amount)` | Patch `Tickets.AmountInvolved`/`AmountCurrency` + append `field_change` (D26). |
 | `addTag` / `removeTag` | Upsert / soft-delete a row in `Escalations_v2_TicketTags` + append `field_change` (see §8). |
 | `listActivity(id)` | Query `Activity` where `EscalationKey = id`, ascending by `Timestamp`. |
 | `listComments(id)` / `listNotes(id)` | Query `Comments` / `InternalNotes` where `EscalationKey = id`, ascending by `CreatedAt`. |
-| `addComment` / `addNote` | Create `Comments` / `InternalNotes` item + append `comment` / `note` activity. |
+| `addComment` / `addNote` | Create `Comments` / `InternalNotes` item + append `comment` / `note` activity + patch `Tickets.LastActivityAt` (movement stamp, D25). |
+| `listAttachments(id)` | Query `Escalations_v2_Attachments` where `EscalationKey = id AND IsDeleted = false`, ascending by `UploadedAt` (metadata only — D24). |
+| `addAttachment` / `removeAttachment` | Create / soft-delete (`IsDeleted = true`) an `Attachments` metadata row + append `attachment` activity + patch `Tickets.LastActivityAt`. No file bytes are transferred. |
 | `departmentQueue(deptId)` | `Tickets` "Open by Department" view filtered to `AssignedDeptKey` (includes person-assigned). |
 | `myAssignedTickets(userId)` | `Tickets` "My Assigned" view filtered to `AssigneeKey`. |
 | `listDepartments` / `listUsers` / `listTags` | Read `Departments` / `Users` (or Person) / `Tags`. |

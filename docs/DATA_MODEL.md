@@ -32,12 +32,16 @@ target API backend):
 | `issueType` | string/enum | Sub-type. |
 | `assignedDeptId` | ref → `EscalationTeams` | Department/queue assignment (the `departmentQueue` context). |
 | `assigneeId` | ref → person | Person responsible for the work (`assignedTo`, nullable). |
-| `ticketOwner` | ref → person | Closure authority — the only person who may move the ticket to **Complete** (nullable). Distinct from `assigneeId`. See [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §3.2. |
-| `submitterId` | ref → person | Who raised it. |
+| `ticketOwner` | ref → person | Queue-accountability owner (nullable). Distinct from `assigneeId`. **No longer the closure authority** — see `submitterId` and D23. |
+| `submitterId` | ref → person | Who raised it — the requester/creator. **The ONLY closure authority (Loop 21/D23):** only this person may move the ticket to **Complete**, and a final closing comment is required. See [`STATUS_WORKFLOW.md`](./STATUS_WORKFLOW.md) §3.2. |
 | `requestingDept` | string | Originating department. |
 | `escalationDate` | datetime | Created/escalated. |
 | `expectedResolutionDate` | datetime | Used for overdue/at-risk. |
 | `completedDate` | datetime | Set when status → **Complete**; cleared on **Reopened**. (Loop 7 replaced the earlier `resolvedDate`/`closedDate` pair.) |
+| `finalClosureNote` | text | Required final closing comment stored when the requester Completes (Loop 21/D23); cleared on **Reopened** — closure history stays in activity. |
+| `lastActivityAt` | datetime | Last movement (status/assignment/priority/tag change, comment, note, attachment). Drives no-movement reminder candidacy (Loop 21/D25). Defaults to `createdAt`. |
+| `amountInvolved` | money | Optional amount of money involved (non-negative, nullable — Loop 21/D26). |
+| `amountCurrency` | string | Currency code for `amountInvolved`; defaults to `USD`. |
 | `financialImpactAmount` | money | Optional. |
 | `amountRemaining` | money | Optional. |
 | `tags` | refs → `EscalationTags` | Many-to-many. |
@@ -71,6 +75,7 @@ target API backend):
 | `field_change` | Any other tracked field changes (catch-all). |
 | `comment` | A comment is posted (links to `EscalationComments`). |
 | `note` | An internal note is added. |
+| `attachment` | Attachment metadata added or soft-deleted (Loop 21/D24). |
 | `migration_normalization` | A legacy value was normalized during migration (drift correction); see [`MIGRATION_SPEC.md`](./MIGRATION_SPEC.md) §4. |
 
 Activity is **immutable** — corrections are new entries, never edits. See
@@ -86,6 +91,27 @@ Activity is **immutable** — corrections are new entries, never edits. See
 | `mentions` | refs → person | @-mentions resolved to identities. |
 | `createdAt` | datetime | |
 | `editedAt` | datetime | Nullable; comments may be editable (activity is not). |
+
+## 4a. `EscalationAttachments` (metadata-first — Loop 21/D24)
+Attachment **metadata** records only. No file bytes are stored and no document library is
+touched in the MVP; `fileUrl` is a storage-reference placeholder until real upload is
+approved in a later loop. Backed by `Escalations_v2_Attachments` in SharePoint v2.
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `id` | guid | e.g. `att_...`. |
+| `escalationId` | ref | |
+| `fileName` | string | Required. |
+| `fileUrl` | string | Placeholder storage ref (nullable); no real file behind it in the MVP. |
+| `mimeType` | string | Optional. |
+| `sizeBytes` | number | Optional. |
+| `uploadedBy` | ref → person | |
+| `uploadedAt` | datetime | |
+| `source` | enum | `manual` / `migration` / `import` / `system`. |
+| `isDeleted` | boolean | Soft delete — metadata preserved for audit. |
+
+Adding/soft-deleting an attachment emits an `attachment` activity event and counts as ticket
+movement (`lastActivityAt`).
 
 ## 5. `EscalationTags`
 | Field | Type | Notes |

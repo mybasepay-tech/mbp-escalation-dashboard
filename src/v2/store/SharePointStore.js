@@ -22,16 +22,18 @@
 //   * Never writes to legacy. Tags use the Escalations_v2_TicketTags link list (D12).
 
 import { EscalationStore } from './EscalationStore.js';
-import { createTicket, createComment, createNote, createActivityEvent, newId } from '../domain/models.js';
+import { createTicket, createComment, createNote, createActivityEvent, createAttachment, newId } from '../domain/models.js';
 import { ACTIVITY_TYPE, OPEN_STATUSES } from '../domain/constants.js';
 import {
   assignToDepartment, assignToPerson, clearAssignee, changeStatus, changePriority,
+  setAmountInvolved,
 } from '../domain/rules.js';
 import {
   LISTS, LINK_COLS,
   ticketToFields, fieldsToTicket, activityToFields, fieldsToActivity,
   commentToFields, fieldsToComment, noteToFields, fieldsToNote,
   fieldsToDept, fieldsToUser, fieldsToTag,
+  attachmentToFields, fieldsToAttachment,
 } from '../backend/sharepoint/mapping.js';
 
 /** The single message every design-only (no-client) operation throws. Exported for tests. */
@@ -227,6 +229,17 @@ export class SharePointStore extends EscalationStore {
   async clearAssignee(id, opts = {}) { return this.#mutateWithRule(id, (t) => clearAssignee(t, opts)); }
   async setStatus(id, status, opts = {}) { return this.#mutateWithRule(id, (t) => changeStatus(t, status, opts)); }
   async setPriority(id, priority, opts = {}) { return this.#mutateWithRule(id, (t) => changePriority(t, priority, opts)); }
+  async setAmount(id, amount, opts = {}) { return this.#mutateWithRule(id, (t) => setAmountInvolved(t, amount, opts)); }
+
+  // Comments/notes/attachments are ticket movement: persist the lastActivityAt bump on the
+  // ticket record (with the usual ETag-conflict retry), producing no extra activity event.
+  async #touchTicket(id, now) {
+    await this.#mutateWithRule(id, (t) => {
+      t.modifiedAt = now;
+      t.lastActivityAt = now;
+      return [];
+    });
+  }
 
   // ----- Tags (Escalations_v2_TicketTags link list, soft-delete, one-active-per-pair, D12) -----
   async addTag(id, tagId, opts = {}) {
@@ -290,6 +303,7 @@ export class SharePointStore extends EscalationStore {
     await this.#requireTicketRecord(id);
     const comment = createComment({ ...input, escalationId: id });
     await this.#create(LISTS.COMMENTS, commentToFields(comment));
+    await this.#touchTicket(id, comment.createdAt);
     await this.#appendActivity(createActivityEvent({
       escalationId: id, type: ACTIVITY_TYPE.COMMENT, actorId: comment.authorId,
       note: 'Comment posted', timestamp: comment.createdAt,
@@ -301,11 +315,50 @@ export class SharePointStore extends EscalationStore {
     await this.#requireTicketRecord(id);
     const note = createNote({ ...input, escalationId: id });
     await this.#create(LISTS.NOTES, noteToFields(note));
+    await this.#touchTicket(id, note.createdAt);
     await this.#appendActivity(createActivityEvent({
       escalationId: id, type: ACTIVITY_TYPE.NOTE, actorId: note.authorId,
       note: 'Internal note added', timestamp: note.createdAt,
     }));
     return note;
+  }
+
+  // ----- Attachments (metadata-first; no file bytes, no document library in MVP) -----
+  async listAttachments(id) {
+    const rows = await this.#all(LISTS.ATTACHMENTS, { EscalationKey: id });
+    return rows.map((r) => fieldsToAttachment(r.fields))
+      .filter((a) => !a.isDeleted)
+      .sort((a, b) => a.uploadedAt.localeCompare(b.uploadedAt));
+  }
+
+  async addAttachment(id, input) {
+    await this.#requireTicketRecord(id);
+    const attachment = createAttachment({ ...input, escalationId: id });
+    await this.#create(LISTS.ATTACHMENTS, attachmentToFields(attachment));
+    await this.#touchTicket(id, attachment.uploadedAt);
+    await this.#appendActivity(createActivityEvent({
+      escalationId: id, type: ACTIVITY_TYPE.ATTACHMENT, actorId: attachment.uploadedBy,
+      to: { attachmentId: attachment.id, fileName: attachment.fileName },
+      note: `Attachment added: ${attachment.fileName}`, timestamp: attachment.uploadedAt,
+    }));
+    return attachment;
+  }
+
+  async removeAttachment(id, attachmentId, opts = {}) {
+    await this.#requireTicketRecord(id);
+    const rec = await this.#findOne(LISTS.ATTACHMENTS, { EscalationKey: id, AttachmentKey: attachmentId });
+    if (!rec) return null;
+    const attachment = fieldsToAttachment(rec.fields);
+    if (attachment.isDeleted) return null; // no-op when already deleted
+    const now = opts.now ?? new Date().toISOString();
+    await this.#update(LISTS.ATTACHMENTS, rec.id, { IsDeleted: true }, { ifMatch: rec.etag });
+    await this.#touchTicket(id, now);
+    await this.#appendActivity(createActivityEvent({
+      escalationId: id, type: ACTIVITY_TYPE.ATTACHMENT, actorId: opts.actorId ?? null,
+      from: { attachmentId: attachment.id, fileName: attachment.fileName },
+      note: `Attachment removed: ${attachment.fileName}`, timestamp: now,
+    }));
+    return { ...attachment, isDeleted: true };
   }
 
   // ----- Views -----

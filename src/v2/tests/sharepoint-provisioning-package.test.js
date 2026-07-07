@@ -96,7 +96,12 @@ test('example config has safe, fail-closed defaults', () => {
 test('the real runtime config is git-ignored (never committed)', () => {
   const ignore = read('.gitignore');
   assert.match(ignore, /provision\.config\.json/, 'real config must be git-ignored');
-  assert.ok(!existsSync(p('provision.config.json')), 'no real provision.config.json may be committed');
+  // The real config MAY exist locally on an operator machine (it is required to run the
+  // provisioning scripts); the .gitignore rule above is what keeps it out of git. Guard the
+  // committed EXAMPLE instead: it must carry no live identifiers.
+  const raw = read(EXAMPLE);
+  assert.doesNotMatch(raw, /https?:\/\//i, 'example config must not contain a live URL');
+  assert.doesNotMatch(raw, /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i, 'example config must not contain a GUID');
 });
 
 test('package files contain no live URLs, tenant/client IDs, secrets, Graph endpoints, or legacy host targets', () => {

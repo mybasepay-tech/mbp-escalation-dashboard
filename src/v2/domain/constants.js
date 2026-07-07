@@ -79,8 +79,25 @@ export const ACTIVITY_TYPE = Object.freeze({
   FIELD_CHANGE: 'field_change',
   COMMENT: 'comment',
   NOTE: 'note',
+  ATTACHMENT: 'attachment',
   MIGRATION_NORMALIZATION: 'migration_normalization',
 });
+
+/**
+ * No-movement reminder thresholds in calendar days, by priority (Loop 21 stakeholder
+ * feedback). A ticket with no movement (no status/assignment/priority/tag change, comment,
+ * note, or attachment) for this many days becomes a reminder CANDIDATE. Local calculation
+ * only — no notification is sent and no Power Automate flow exists (deferred by design).
+ */
+export const REMINDER_THRESHOLD_DAYS = Object.freeze({
+  [PRIORITY.CRITICAL]: 2,
+  [PRIORITY.HIGH]: 3,
+  [PRIORITY.MEDIUM]: 7,
+  [PRIORITY.LOW]: 14,
+});
+
+/** Fallback threshold for unknown priorities (matches Medium/normal). */
+export const DEFAULT_REMINDER_THRESHOLD_DAYS = 7;
 
 // Shared list of working/pending targets reachable from any active working state.
 const WORKING_TARGETS = [

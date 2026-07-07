@@ -57,12 +57,25 @@ test('department filters: migrated and high-priority', async () => {
   assert.ok(high.every((t) => t.priority === 'High' || t.priority === 'Critical'));
 });
 
-test('department filters: there are exactly the nine required filters', () => {
+test('department filters: there are exactly the ten required filters', () => {
   const keys = DEPARTMENT_FILTERS.map((f) => f.key);
   assert.deepEqual(keys, [
     'all', 'unassigned', 'assigned_to_me', 'assigned_to_others', 'in_process',
-    'pending', 'completed', 'migrated', 'high_priority',
+    'pending', 'completed', 'migrated', 'high_priority', 'reminder_candidates',
   ]);
+});
+
+test('reminder_candidates filter flags only stale open tickets (deterministic now)', async () => {
+  const store = seededStore();
+  const tickets = await store.listTickets();
+  // Seed base timestamp is 2026-06-01; at 2026-06-02 only the legacy-migrated ticket
+  // (created 2025-11-15 with no movement since) is stale enough to be a candidate.
+  const early = applyDepartmentFilter(tickets, 'reminder_candidates', { now: '2026-06-02T00:00:00.000Z' });
+  assert.deepEqual(early.map((t) => t.id), ['esc_legacy_307']);
+  // Far in the future every OPEN ticket is a candidate; Complete/Cancelled never are.
+  const stale = applyDepartmentFilter(tickets, 'reminder_candidates', { now: '2026-12-01T00:00:00.000Z' });
+  assert.ok(stale.length > 0);
+  assert.ok(stale.every((t) => t.status !== STATUS.COMPLETE && t.status !== 'Cancelled'));
 });
 
 test('reporting: counts over all mock tickets are correct', async () => {

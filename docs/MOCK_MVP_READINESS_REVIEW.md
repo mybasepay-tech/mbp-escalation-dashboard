@@ -249,6 +249,29 @@ Execution-prep only — verified readiness without touching anything live:
 - No runtime config / transport bootstrap was committed; no real lists, no flows, no legacy
   writeback; `MockStore` remains the active UI backend.
 
+### Loops 20–21 — live provisioning on the approved non-production test site + accelerated MVP schema
+- **Loop 20** created the 8 `Escalations_v2_*` lists (lists-only) on the confirmed
+  non-production test site.
+- **Loop 21** incorporated stakeholder feedback into the domain/UI/tests and completed live
+  provisioning:
+  - **Requester-only Complete + required final closing comment (D23):** only `submitterId`
+    may Complete; a non-empty `closureNote` is required, stored as `finalClosureNote`, and
+    carried in activity. Reopen clears date+note; history survives in activity.
+  - **Attachments metadata-first (D24):** new `Escalations_v2_Attachments` list + store
+    methods (`addAttachment`/`listAttachments`/`removeAttachment` soft-delete) — no file
+    bytes, no document library.
+  - **No-movement reminder readiness (D25):** `lastActivityAt` movement stamp + priority
+    thresholds (2/3/7/14 days) → local candidate indicators/filters/report counts only; no
+    notifications, no flows.
+  - **Optional amount involved (D26):** `amountInvolved` (Currency) + `amountCurrency`
+    (USD default) with `setAmount` store method.
+  - **Live columns/indexes/views provisioned + validated (D27):** schema 0.3.0-design fully
+    provisioned idempotently (9 lists, 80 columns incl. 16 lookups, indexes, views) and
+    read-only validation reports a full match. Dynamic view filters remain adapter-applied
+    (never faked into stored views). Only `Escalations_v2_*` lists were touched.
+- Still: `MockStore` remains the **active UI backend**; no legacy writeback, no Power
+  Automate, no production users, no cutover.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

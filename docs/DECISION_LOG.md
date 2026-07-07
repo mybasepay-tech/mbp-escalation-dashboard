@@ -386,6 +386,11 @@
 | D20 | Adapter resilience hardening (Loop 16) | Prove throttling retry, ETag conflict retry, activity idempotency/compensation, tag-link uniqueness locally before live | No (gates live readiness) | **Accepted** (local/simulated) |
 | D21 | Live real-client execution gate (Loop 17) | Fail-closed `SharePointLiveClient` (injected transport, no SDK/secrets in git) + gated runner; store-contract acceptance | No (governs live execution) | **Accepted** (gate committed) |
 | D22 | Live execution prerequisites (Loop 18) | Runtime config + transport bootstrap stay local/git-ignored; committed guard keeps repo secret-free; no live run yet | No (execution-prep) | **Accepted** (prep only) |
+| D23 | Requester-only closure + closing comment (Loop 21) | Only the requester (`submitterId`) may Complete; a non-empty final closing comment is required and stored/audited | No (stakeholder rule) | **Accepted** |
+| D24 | Attachments metadata-first (Loop 21) | `Escalations_v2_Attachments` stores metadata only; no file bytes, no document library; real upload deferred | No (stakeholder rule) | **Accepted** |
+| D25 | Priority-based no-movement reminders, local-only (Loop 21) | `lastActivityAt` + thresholds (Critical 2 / High 3 / Medium 7 / Low 14 days) flag candidates locally; no notifications, no flows | No (stakeholder rule) | **Accepted** |
+| D26 | Optional amount involved (Loop 21) | `amountInvolved` (Currency, optional, non-negative) + `amountCurrency` (default USD) on tickets | No (stakeholder rule) | **Accepted** |
+| D27 | Columns/indexes/views provisioned on nonprod test site (Loop 21) | Schema 0.3.0-design fully provisioned + validated live against the approved non-production site only | No (nonprod only) | **Accepted** (executed) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -446,6 +451,35 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   bootstrap stay local and git-ignored; a committed guard test + validate check keep the repo
   secret-free. Loop 18 verified fail-closed behavior and ignore rules but performed no live run
   (PnP module + approved site reference + auth not present).
+- **D23 — Requester-only closure + required closing comment (Loop 21, stakeholder): Accepted.**
+  Official ticket closure (Complete) is restricted to the requester/creator (`submitterId`).
+  The assignee, the ticket owner, and department leads do NOT gain closure authority unless
+  they are also the requester. Completing requires a non-empty final closing comment, stored
+  as `finalClosureNote` on the ticket and carried in the `status_change` activity event;
+  Reopen clears `completedDate`/`finalClosureNote` while the activity stream preserves closure
+  history. Supersedes the Loop 7 owner-only rule; `ticketOwner` remains as the
+  queue-accountability owner only.
+- **D24 — Attachments are metadata-first (Loop 21, stakeholder): Accepted.** Tickets support
+  attachments as METADATA records in a new `Escalations_v2_Attachments` list (fileName,
+  placeholder fileUrl/storage ref, mimeType, sizeBytes, uploadedBy/At, source, soft-delete).
+  No file bytes are uploaded, and no live document library is provisioned or touched in the
+  MVP — real file storage/upload is deferred to a later, explicitly approved loop.
+- **D25 — No-movement reminders are priority-based, local-calculation only (Loop 21,
+  stakeholder): Accepted.** A ticket with no movement (status/assignment/priority/tag change,
+  comment, note, or attachment — tracked via `lastActivityAt`) past its priority threshold
+  (Critical 2, High 3, Medium/normal 7, Low 14 calendar days) becomes a reminder CANDIDATE,
+  surfaced as local UI indicators/filters only. Actual notification sending is deferred: no
+  Power Automate flow is created and no email/Teams message is sent.
+- **D26 — Optional amount involved (Loop 21, stakeholder): Accepted.** Tickets carry an
+  optional `amountInvolved` (non-negative number, Currency column) with `amountCurrency`
+  defaulting to USD. Setting/clearing it records a `field_change` activity event.
+- **D27 — SharePoint columns/indexes/views provisioned on the nonprod test site (Loop 21):
+  Accepted (executed).** Schema 0.3.0-design (9 `Escalations_v2_*` lists incl. Attachments)
+  was provisioned live — columns, lookups, indexes, and views — idempotently against the
+  approved NON-PRODUCTION test site only, and validated read-only as fully matching the
+  schema. Views with dynamic filters (`[param]`/`[Me]`/status sets) are applied by the adapter
+  at query time and are never faked into stored views. No legacy list touched, no Power
+  Automate created, no production cutover.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional

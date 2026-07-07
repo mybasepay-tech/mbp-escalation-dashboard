@@ -80,6 +80,7 @@ Authoritative shapes are in
 | `Escalations_v2_TicketTags` | (relation) | Many-to-many **link** list — source of truth for ticket↔tag (decision **D12**). |
 | `Escalations_v2_Departments` | `Department` | Departments/queues, leads, members. |
 | `Escalations_v2_Users` | `User` | Reference-user directory — **see §5 strategy** (prefer native Person columns). |
+| `Escalations_v2_Attachments` | `Attachment` | Attachment **metadata** only (Loop 21/D24) — no file bytes, no document library; `FileUrl` is a placeholder ref until real upload is approved. |
 
 ## 5. Field / column mapping
 Each schema field carries a `mapsTo` pointing at the v2 model property, so the adapter can
@@ -94,8 +95,12 @@ translate mechanically. Highlights for `Escalations_v2_Tickets`:
 | `priority` | `Priority` | Choice (indexed) | Low/Medium/High/Critical. |
 | `assignedDeptId` | `AssignedDeptKey` | Lookup → Departments (indexed) | Queue context. |
 | `assigneeId` | `AssigneeKey` | Lookup → Users (indexed) | Worker. |
-| `ticketOwner` | `TicketOwnerKey` | Lookup → Users | Closure authority (owner-only Complete). |
+| `ticketOwner` | `TicketOwnerKey` | Lookup → Users | Queue-accountability owner — **not** closure authority (D23). |
+| `submitterId` | `SubmitterKey` | Lookup → Users (indexed) | Requester — the ONLY closure authority (requester-only Complete + required closing comment, D23). |
 | `completedDate` | `CompletedDate` | DateTime | Set on Complete, cleared on Reopened. |
+| `finalClosureNote` | `FinalClosureNote` | Note | Required closing comment stored on Complete (D23); cleared on Reopened. |
+| `lastActivityAt` | `LastActivityAt` | DateTime (indexed) | Last movement; drives no-movement reminder candidacy (D25, local only). |
+| `amountInvolved` / `amountCurrency` | `AmountInvolved` / `AmountCurrency` | Currency / Text | Optional money involved (D26); currency defaults to USD. |
 | `tagIds` | *(none — link list)* | — | **D12:** materialized from `Escalations_v2_TicketTags` active links; **not** a column on Tickets. |
 | `legacyItemId` / `legacyUrl` | `LegacyItemId` / `LegacyUrl` | Text / Hyperlink | Read-only traceability. |
 | `createdAt` / `modifiedAt` | `CreatedAt` / `ModifiedAt` | DateTime | App timestamps, distinct from SharePoint Created/Modified. |
