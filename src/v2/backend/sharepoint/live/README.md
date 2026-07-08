@@ -18,6 +18,8 @@
 | `SharePointLiveErrors.js` | `NotFoundError`(404) / `ConflictError`(412) / `ThrottledError`(429) / `LiveNotConfiguredError`, with the same `code` values the adapter's retry logic expects. |
 | `run-testsite-contract.js` | Gated runner: loads git-ignored config, enforces approval+safety flags, refuses legacy/production, loads the runtime transport, smoke-tests connectivity, and points to the full contract run. |
 | `run-live-contract.js` | **Loop 22.** Gated runner for the FULL store contract against the live test site: same fail-closed gate, then seeds each contract test through the live client, tracks every item it creates, deletes exactly those (run-created only — never lists, never pre-existing rows), and verifies post-run item counts match pre-run. Non-zero exit on any test failure. |
+| `demo-fixtures.js` | **Loop 24.** Pure, client-injected demo fixture set (`esc_demo_loop24_*`, obviously TEST ONLY) + idempotent seed / exact-key cleanup engine. Refuses non-namespaced keys; unit-tested against the fake client. |
+| `seed-demo-fixtures.js` | **Loop 24.** Gated CLI around the engine: seed (idempotent, reports created/reused), `--verify` (read-only), `--cleanup [--ticket <key>]…` (exact keys only, reports deleted + leftovers; non-zero exit unless leftovers = 0). |
 | `testsite.config.example.json` | Placeholder config (safe, fail-closed defaults). Copy to `testsite.config.json` (git-ignored). |
 | `.gitignore` | Ensures `testsite.config.json`, transport bootstraps, `.env`, secrets, and reports are never committed. |
 

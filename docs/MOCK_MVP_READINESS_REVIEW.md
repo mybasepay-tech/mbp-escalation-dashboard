@@ -310,6 +310,24 @@ Execution-prep only — verified readiness without touching anything live:
 - Known UI gaps (next loops): no create-ticket form yet; live reference data (users/
   departments/tags) must be provisioned on the test site for a full interactive pilot.
 
+### Loop 24 — namespaced demo fixtures + full supervised UI lifecycle smoke (D30)
+- **Demo fixtures, safely:** a fixed `esc_demo_loop24_*` set (1 department, 2 users, 1 tag —
+  labels TEST ONLY, emails `.invalid`) seeded by the gated `live/seed-demo-fixtures.js` CLI.
+  Idempotency proven LIVE (run 1: 4 created / 0 reused; run 2: 0 / 4) and locally by tests.
+- **Minimal create-ticket demo form** added to the UI (title + button): always creates
+  `esc_demo_loop24_*` ids with the current user as requester — demo records stay
+  unmistakable and exactly cleanable. Works identically on MockStore.
+- **Full lifecycle smoke passed live through the UI seam:** create → read → priority →
+  dept/person assignment (auto-status verified) → public comment → internal note → tag →
+  **Complete without note REFUSED** → **Complete by assignee REFUSED (requester-only)** →
+  Complete by requester with note (completedDate + finalClosureNote) → Reopen (both
+  cleared) → 11-event activity chain intact.
+- **Cleanup to zero:** exact-key cleanup removed all 19 Loop 24 records (fixtures + ticket +
+  link + comment + note + 11 activity rows); leftover count 0; verify shows the site as
+  found. The cleanup engine refuses any non-namespaced key and never touches lists.
+- Still: MockStore default; opt-in gate fail-closed; no legacy, no flows, no notifications,
+  no real files, no production users, no cutover.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

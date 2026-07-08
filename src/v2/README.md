@@ -76,6 +76,12 @@ non-production only"** and uses `ui/remoteStore.js`, which talks ONLY to the loo
 process and never reach the browser or git. Missing/unsafe opt-in → a visible error, no
 silent fallback; unknown `backend` values → MockStore. See `docs/MVP_DEMO_GUIDE.md`.
 
+**Demo data (Loop 24, D30):** the live test lists stay empty by default. For supervised
+demos, `backend/sharepoint/live/seed-demo-fixtures.js` (gated CLI) idempotently seeds a
+small `esc_demo_loop24_*` TEST-ONLY fixture set and cleans it up by exact keys (leftover
+count must be 0). The UI's minimal **"New demo ticket"** form always creates
+`esc_demo_loop24_*` ids so demo tickets are unmistakable and exactly cleanable.
+
 The UI shell provides:
 - **Department queue** panel (includes tickets assigned to a person) and **My Assigned
   Tickets** panel (current mock user only) — toggle via the tabs.
