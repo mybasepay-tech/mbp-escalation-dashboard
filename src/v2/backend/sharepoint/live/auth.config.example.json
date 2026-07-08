@@ -1,0 +1,11 @@
+{
+  "_comment": "EXAMPLE D6 app-auth config — PLACEHOLDERS ONLY, fail-closed default. Copy to auth.config.local.json (GIT-IGNORED via *.local.json) only AFTER the D6 admin setup exists (see docs/D6_AUTH_APP_REGISTRATION_PLAN.md). All values are REFERENCES: the tenant/client ids are entered at runtime and the certificate is referenced by a local file path — no secret, key, or token is ever placed in a config file. Validation (d6AuthConfig.js) refuses placeholders, secret-style keys, inline key material, and legacy/production-looking targets.",
+  "enableAppAuth": false,
+  "authMode": "app-certificate",
+  "environmentLabel": "nonprod-test",
+  "tenantIdRef": "<TENANT_ID_PLACEHOLDER>",
+  "clientIdRef": "<D6_APP_CLIENT_ID_PLACEHOLDER>",
+  "certificateRef": "<LOCAL_PATH_TO_CERT_PFX_PLACEHOLDER>",
+  "siteScopeRef": "<TEST_SITE_REFERENCE_PLACEHOLDER>",
+  "permissionModel": "Sites.Selected"
+}

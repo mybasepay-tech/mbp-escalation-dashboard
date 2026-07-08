@@ -21,7 +21,7 @@ import { dirname, join } from 'node:path';
 import {
   selectBackend, BACKEND, INDICATOR_TEXT, MOCK_BANNER_TEXT, SHAREPOINT_TEST_WARNING,
 } from '../ui/backendSelect.js';
-import { resolveLiveBackend, STORE_METHODS } from '../ui/liveBackendGate.js';
+import { resolveLiveBackend, STORE_METHODS, sanitizeErrorMessage } from '../ui/liveBackendGate.js';
 import { EscalationStore } from '../store/EscalationStore.js';
 import { RemoteStore, connectRemoteStore } from '../ui/remoteStore.js';
 
@@ -156,6 +156,52 @@ test('gate: enabled only when every step passes — and exposes NO site/client/t
   assert.equal(res.runNamespace, 'ui-live');
   const exposed = Object.keys(res).join(',');
   assert.doesNotMatch(exposed, /site|client|token|url/i, 'no live identifiers leak through the gate result');
+});
+
+// ----- 2b. error sanitization: nothing sensitive can reach browser copy (Loop 26) -----
+
+test('sanitizeErrorMessage redacts URLs, GUID-shaped ids, tokens, and local paths — keeps the actionable class', () => {
+  const dirty = 'SharePoint REST 401 GET https://tenant.example.invalid/sites/x/_stuff :: token eyJhbGciOiJSUzI1NiIsImtpZCI6IjEifQ.eyJhdWQiOiJ4In0 id 12345678-abcd-4ef0-9876-1234567890ab at C:\\Users\\op\\repo\\file.json and ./relative/path/file';
+  const clean = sanitizeErrorMessage(dirty);
+  assert.doesNotMatch(clean, /https?:\/\//, 'no URLs');
+  assert.doesNotMatch(clean, /eyJ[A-Za-z0-9_-]{10,}/, 'no token material');
+  assert.doesNotMatch(clean, /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i, 'no GUID-shaped ids');
+  assert.doesNotMatch(clean, /C:\\Users/, 'no windows paths');
+  assert.doesNotMatch(clean, /\.\/relative\/path/, 'no relative paths');
+  assert.match(clean, /SharePoint REST 401/, 'the actionable error class survives');
+});
+
+test('sanitizeErrorMessage leaves business-rule messages untouched', () => {
+  for (const msg of [
+    'Only the requester who submitted the ticket can move it to Complete',
+    'Completing a ticket requires a final closing comment',
+    'Illegal status transition: New -> In Process',
+    'Unknown ticket: esc_demo_loop24_x',
+  ]) {
+    assert.equal(sanitizeErrorMessage(msg), msg);
+  }
+});
+
+test('gate reasons are sanitized: a config error carrying a path/URL cannot leak it', async () => {
+  const { deps } = spyDeps({
+    readUiLiveConfig: () => { throw new Error("ENOENT: no such file, open 'C:\\dev\\repo\\src\\v2\\ui\\ui-live.local.json'"); },
+  });
+  const res = await resolveLiveBackend(deps);
+  assert.equal(res.enabled, false);
+  assert.doesNotMatch(res.reason, /C:\\dev/, 'local path redacted');
+  assert.match(res.reason, /\[local-path\]|disabled/i);
+
+  const { deps: deps2 } = spyDeps({
+    readUiLiveConfig: () => JSON.stringify({ enableSharePointTestBackend: true, testsiteConfig: './testsite.config.json' }),
+    importRunner: async () => ({
+      loadConfig: () => ({}),
+      assertSafe: () => { throw new Error('refused target https://real.example.invalid/sites/prod'); },
+      loadTransport: async () => ({}),
+    }),
+  });
+  const res2 = await resolveLiveBackend(deps2);
+  assert.equal(res2.enabled, false);
+  assert.doesNotMatch(res2.reason, /https?:\/\//, 'URL redacted from gate reason');
 });
 
 // ----- 3. whitelist + RemoteStore -----

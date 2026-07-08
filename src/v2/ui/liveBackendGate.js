@@ -33,6 +33,21 @@ export const STORE_METHODS = Object.freeze([
 export const UI_LIVE_CONFIG_BASENAME = 'ui-live.local.json';
 
 /**
+ * Sanitize an error message before it can reach the browser (Loop 26 demo hardening).
+ * Gate/transport failures can embed local file paths, site URLs, GUID-shaped ids, or even
+ * token material from underlying libraries — none of that belongs in UI copy. The message
+ * stays actionable (the error CLASS is preserved); the specifics are redacted.
+ */
+export function sanitizeErrorMessage(message) {
+  return String(message ?? '')
+    .replace(/eyJ[A-Za-z0-9_-]{10,}(\.[A-Za-z0-9_-]+)*/g, '[redacted-token]')
+    .replace(/https?:\/\/\S+/gi, '[redacted-url]')
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '[redacted-id]')
+    .replace(/[A-Za-z]:[\\/][^\s'"`)]+/g, '[local-path]')
+    .replace(/(^|[\s'"`(])(?:\/|\.\.?\/)[^\s'"`)]*(?:\/[^\s'"`)]*)+/g, '$1[local-path]');
+}
+
+/**
  * Evaluate the gate. All I/O and live-module access comes through `deps`, so tests can prove
  * fail-closed ordering (e.g. the transport is never loaded when the opt-in flag is absent).
  *
@@ -45,7 +60,8 @@ export const UI_LIVE_CONFIG_BASENAME = 'ui-live.local.json';
  * @returns {Promise<{enabled: boolean, reason?: string, store?: object, environmentLabel?: string, runNamespace?: string}>}
  */
 export async function resolveLiveBackend(deps) {
-  const disabled = (reason) => ({ enabled: false, reason });
+  // Every reason string may end up in the browser banner — sanitize unconditionally.
+  const disabled = (reason) => ({ enabled: false, reason: sanitizeErrorMessage(reason) });
 
   // 1. Opt-in file must exist and parse (git-ignored; never committed).
   let uiCfg;

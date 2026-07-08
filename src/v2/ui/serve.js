@@ -26,7 +26,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize, extname, isAbsolute, resolve } from 'node:path';
 
-import { resolveLiveBackend, STORE_METHODS, UI_LIVE_CONFIG_BASENAME } from './liveBackendGate.js';
+import { resolveLiveBackend, STORE_METHODS, UI_LIVE_CONFIG_BASENAME, sanitizeErrorMessage } from './liveBackendGate.js';
 import { BACKEND, SHAREPOINT_TEST_WARNING } from './backendSelect.js';
 
 const UI_DIR = dirname(fileURLToPath(import.meta.url)); // .../src/v2/ui
@@ -118,8 +118,9 @@ async function handleApi(req, res, urlPath) {
     } catch (e) {
       // Business-rule rejections (illegal transition, requester-only Complete, missing
       // closure note, …) surface with their original message so the UI behaves identically
-      // to MockStore. Nothing is retried or faked here.
-      sendJson(res, 400, { error: String(e?.message ?? e) });
+      // to MockStore. Transport/infra failures are sanitized so no URL/path/id/token can
+      // leak into browser copy. Nothing is retried or faked here.
+      sendJson(res, 400, { error: sanitizeErrorMessage(e?.message ?? e) });
     }
     return true;
   }

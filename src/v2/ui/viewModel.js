@@ -5,7 +5,7 @@
 // Both ui/app.js (browser) and tests/ui-smoke.test.js (node) import this, so the UI and
 // its tests share one source of truth.
 
-import { STATUS, PRIORITY, ALLOWED_TRANSITIONS, ACTIVITY_TYPE, PENDING_STATUSES } from '../domain/constants.js';
+import { STATUS, PRIORITY, ALLOWED_TRANSITIONS, ACTIVITY_TYPE, PENDING_STATUSES, OPEN_STATUSES } from '../domain/constants.js';
 import { daysOpen } from '../domain/models.js';
 import { canComplete, reminderCandidate } from '../domain/rules.js';
 
@@ -252,6 +252,89 @@ const FILTERS_BY_KEY = new Map(DEPARTMENT_FILTERS.map((f) => [f.key, f]));
 export function applyDepartmentFilter(tickets, key, { currentUserId, now } = {}) {
   const filter = FILTERS_BY_KEY.get(key) ?? FILTERS_BY_KEY.get('all');
   return tickets.filter((t) => filter.predicate(t, { currentUserId, now }));
+}
+
+// ----- Structured filter toolbar (Loop 26) -----
+// The UI replaced the wall of filter chips with labeled dropdowns + a search field + a
+// "needs attention" toggle. Pure and composable: every dimension is independent and unknown
+// keys behave as "all" (the safe, show-everything direction). DEPARTMENT_FILTERS above stays
+// as the underlying single-dimension predicates (and for compatibility/tests).
+
+export const SCOPE_OPTIONS = Object.freeze([
+  { key: 'all', label: 'All tickets' },
+  { key: 'unassigned', label: 'Unassigned' },
+  { key: 'assigned_to_me', label: 'Assigned to me' },
+  { key: 'assigned_to_others', label: 'Assigned to others' },
+  { key: 'migrated', label: 'Migrated / legacy' },
+]);
+
+export const STATUS_FILTER_OPTIONS = Object.freeze([
+  { key: 'all', label: 'Any status' },
+  { key: 'open', label: 'Open (active)' },
+  { key: 'in_process', label: 'In Process' },
+  { key: 'pending', label: 'Pending (any)' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'reopened', label: 'Reopened' },
+  { key: 'cancelled', label: 'Cancelled' },
+]);
+
+export const PRIORITY_FILTER_OPTIONS = Object.freeze([
+  { key: 'all', label: 'Any priority' },
+  { key: 'high_critical', label: 'High + Critical' },
+  { key: 'critical', label: 'Critical' },
+  { key: 'high', label: 'High' },
+  { key: 'medium', label: 'Medium' },
+  { key: 'low', label: 'Low' },
+]);
+
+export const DEFAULT_TICKET_FILTERS = Object.freeze({
+  scope: 'all', status: 'all', priority: 'all', needsAttention: false, search: '',
+});
+
+const SCOPE_PREDICATES = {
+  all: () => true,
+  unassigned: (t) => !t.assigneeId,
+  assigned_to_me: (t, { currentUserId }) => t.assigneeId === currentUserId,
+  assigned_to_others: (t, { currentUserId }) => Boolean(t.assigneeId) && t.assigneeId !== currentUserId,
+  migrated: (t) => hasLegacy(t),
+};
+
+const STATUS_PREDICATES = {
+  all: () => true,
+  open: (t) => OPEN_STATUSES.has(t.status),
+  in_process: (t) => t.status === STATUS.IN_PROCESS,
+  pending: (t) => PENDING_STATUSES.has(t.status),
+  completed: (t) => t.status === STATUS.COMPLETE,
+  reopened: (t) => t.status === STATUS.REOPENED,
+  cancelled: (t) => t.status === STATUS.CANCELLED,
+};
+
+const PRIORITY_PREDICATES = {
+  all: () => true,
+  high_critical: (t) => HIGH_PRIORITIES.has(t.priority),
+  critical: (t) => t.priority === PRIORITY.CRITICAL,
+  high: (t) => t.priority === PRIORITY.HIGH,
+  medium: (t) => t.priority === PRIORITY.MEDIUM,
+  low: (t) => t.priority === PRIORITY.LOW,
+};
+
+/**
+ * Apply the structured filter criteria (all dimensions AND-ed). Unknown dimension keys act
+ * as "all"; search matches title or id, case-insensitively; needsAttention uses the local
+ * reminder-candidate calculation (indicator only — nothing is ever sent).
+ */
+export function applyTicketFilters(tickets, criteria = {}, { currentUserId, now } = {}) {
+  const c = { ...DEFAULT_TICKET_FILTERS, ...criteria };
+  const scope = SCOPE_PREDICATES[c.scope] ?? SCOPE_PREDICATES.all;
+  const status = STATUS_PREDICATES[c.status] ?? STATUS_PREDICATES.all;
+  const priority = PRIORITY_PREDICATES[c.priority] ?? PRIORITY_PREDICATES.all;
+  const needle = String(c.search ?? '').trim().toLowerCase();
+  return tickets.filter((t) =>
+    scope(t, { currentUserId })
+    && status(t)
+    && priority(t)
+    && (!c.needsAttention || reminderCandidate(t, now ?? new Date()).isCandidate)
+    && (!needle || t.title.toLowerCase().includes(needle) || t.id.toLowerCase().includes(needle)));
 }
 
 /**

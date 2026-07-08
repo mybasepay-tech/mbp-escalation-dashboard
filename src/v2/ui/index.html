@@ -8,21 +8,22 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">
-      <strong>Escalation System v2</strong>
-      <span class="sub">Mock UI Shell</span>
-      <span class="backend-indicator" id="backendIndicator" role="status">Mock backend</span>
+    <div class="topbar-row">
+      <div class="brand">
+        <strong>Escalation System v2</strong>
+        <span class="backend-indicator" id="backendIndicator" role="status">Mock backend</span>
+      </div>
+      <div class="ctx-controls">
+        <label>Current user
+          <select id="userSelect"></select>
+        </label>
+        <label>Department
+          <select id="deptSelect"></select>
+        </label>
+      </div>
     </div>
     <div class="banner" id="backendBanner" role="status">
       Mock data only — not connected to any live system (no Graph / SharePoint / production).
-    </div>
-    <div class="ctx-controls">
-      <label>Current user
-        <select id="userSelect"></select>
-      </label>
-      <label>Department
-        <select id="deptSelect"></select>
-      </label>
     </div>
   </header>
 
@@ -30,13 +31,30 @@
     <section class="panel list-panel">
       <div class="tabs" role="tablist">
         <button class="tab" id="tabDept" role="tab" aria-selected="true">Department queue</button>
-        <button class="tab" id="tabMine" role="tab" aria-selected="false">My assigned tickets</button>
+        <button class="tab" id="tabMine" role="tab" aria-selected="false">My assigned</button>
         <button class="tab" id="tabReport" role="tab" aria-selected="false">Reporting</button>
       </div>
-      <div class="filter-bar" id="filterBar"></div>
-      <div class="new-ticket-row">
+      <div class="filter-toolbar" id="filterToolbar">
+        <label id="filterScopeLabel">Scope
+          <select id="filterScope" aria-label="Filter by assignment scope"></select>
+        </label>
+        <label>Status
+          <select id="filterStatus" aria-label="Filter by status"></select>
+        </label>
+        <label>Priority
+          <select id="filterPriority" aria-label="Filter by priority"></select>
+        </label>
+        <label class="toggle" title="No movement past the priority threshold — local indicator only, no notification is sent">
+          <input type="checkbox" id="filterAttention" />
+          <span>Needs attention</span>
+        </label>
+      </div>
+      <div class="list-actions" id="listActions">
+        <input id="searchInput" type="search" placeholder="Search title or id…" aria-label="Search tickets" />
+      </div>
+      <div class="new-ticket-row" id="newTicketRow">
         <input id="newTicketTitle" type="text" placeholder="New demo ticket title…" aria-label="New demo ticket title" />
-        <button class="btn" id="newTicketBtn" title="Creates a namespaced demo ticket (esc_demo_loop24_*) via the active backend">New demo ticket</button>
+        <button class="btn primary" id="newTicketBtn" title="Creates a namespaced demo ticket (esc_demo_loop24_*) via the active backend">New demo ticket</button>
       </div>
       <p class="panel-hint" id="listHint"></p>
       <ul class="ticket-list" id="ticketList"></ul>

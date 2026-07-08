@@ -16,7 +16,9 @@ import {
   loadContext, ticketRows, detailView, activityLines,
   statusOptions, assignmentOptions, PRIORITY_OPTIONS,
   commentView, noteView, attachmentView, availableTags, tagLabel, userName,
-  actorCanComplete, DEPARTMENT_FILTERS, applyDepartmentFilter, buildReport,
+  actorCanComplete, buildReport,
+  SCOPE_OPTIONS, STATUS_FILTER_OPTIONS, PRIORITY_FILTER_OPTIONS,
+  DEFAULT_TICKET_FILTERS, applyTicketFilters,
 } from './viewModel.js';
 import {
   selectBackend, BACKEND, INDICATOR_TEXT, MOCK_BANNER_TEXT, SHAREPOINT_TEST_WARNING,
@@ -30,7 +32,7 @@ let ctx;                       // { usersById, deptsById, tagsById, users, depar
 let currentUserId = 'user_sarah';
 let currentDeptId = 'dept_benefits';
 let activePanel = 'dept';      // 'dept' | 'mine' | 'report'
-let activeFilter = 'all';      // department-panel filter key
+const filters = { ...DEFAULT_TICKET_FILTERS }; // structured toolbar state (Loop 26)
 let selectedTicketId = null;
 
 // ----- DOM helpers (textContent only — no innerHTML, no injection) -----
@@ -67,39 +69,55 @@ async function getPanelTickets() {
   return store.departmentQueue(currentDeptId);
 }
 
-function renderFilterBar() {
-  const bar = $('filterBar');
-  clear(bar);
-  if (activePanel !== 'dept') { bar.hidden = true; return; }
-  bar.hidden = false;
-  for (const f of DEPARTMENT_FILTERS) {
-    const btn = el('button', {
-      class: 'filter-btn', text: f.label,
-      attrs: { 'aria-pressed': String(f.key === activeFilter), 'data-key': f.key },
-    });
-    btn.addEventListener('click', () => { activeFilter = f.key; renderList(); });
-    bar.appendChild(btn);
-  }
+// Toolbar visibility: hidden on the report tab; the scope dropdown only makes sense in the
+// department queue (the "My assigned" tab is already scoped to one person).
+function renderToolbarVisibility() {
+  $('filterToolbar').hidden = activePanel === 'report';
+  $('listActions').hidden = activePanel === 'report';
+  $('newTicketRow').hidden = activePanel === 'report';
+  $('filterScopeLabel').hidden = activePanel === 'mine';
+}
+
+// CSS modifier for a status badge — grouped so meaning is carried by TEXT + tone, not color
+// alone (each badge always shows its full status text).
+function statusGroup(status) {
+  if (status === STATUS.COMPLETE) return 'complete';
+  if (status === STATUS.CANCELLED) return 'cancelled';
+  if (status === STATUS.PENDING_RESEARCH || status === STATUS.PENDING_MEMBER || status === STATUS.PENDING_CUSTOMER) return 'pending';
+  return 'open';
+}
+
+function metaPair(label, value, extraClass = '') {
+  return el('span', { class: `meta-pair ${extraClass}`.trim() }, [
+    el('span', { class: 'meta-label', text: label }),
+    el('span', { class: 'meta-value', text: value }),
+  ]);
 }
 
 function ticketListItem(r) {
-  const badges = el('div', {}, [
-    el('span', { class: 'badge status', text: r.status }),
-    el('span', { class: 'badge prio', text: r.priority }),
+  const badges = el('div', { class: 'badges' }, [
+    el('span', { class: `badge status ${statusGroup(r.status)}`, text: r.status }),
+    el('span', { class: `badge prio ${r.priority.toLowerCase()}`, text: r.priority }),
     r.hasLegacy ? el('span', { class: 'badge legacy', text: 'legacy' }) : null,
     // No-movement reminder candidate (local indicator only — nothing is sent).
     r.reminder?.isCandidate
-      ? el('span', { class: 'badge unassigned', text: `no movement ${r.reminder.daysSinceMovement}d` })
+      ? el('span', {
+        class: 'badge attention', text: `no movement ${r.reminder.daysSinceMovement}d`,
+        attrs: { title: 'Local indicator only — no notification is sent' },
+      })
       : null,
   ]);
   const meta = el('div', { class: 'meta' }, [
-    el('span', { text: `Dept: ${r.deptName}` }),
-    el('span', { class: r.isUnassignedPerson ? 'badge unassigned' : '', text: `Assignee: ${r.assigneeName}` }),
-    el('span', { text: `Owner: ${r.ownerName}` }),
-    el('span', { text: `${r.daysOpen}d open` }),
+    metaPair('Dept', r.deptName),
+    metaPair('Assignee', r.assigneeName, r.isUnassignedPerson ? 'meta-warn' : ''),
+    metaPair('Owner', r.ownerName),
   ]);
   const children = [
-    el('div', { class: 'row1' }, [el('span', { class: 'title', text: r.title }), badges]),
+    el('div', { class: 'row1' }, [
+      el('span', { class: 'title', text: r.title }),
+      el('span', { class: 'days-open', text: `${r.daysOpen}d`, attrs: { title: `${r.daysOpen} days open` } }),
+    ]),
+    badges,
     meta,
   ];
   if (r.tags.length) {
@@ -107,7 +125,7 @@ function ticketListItem(r) {
   }
   const item = el('li', {
     class: `ticket-item${r.id === selectedTicketId ? ' selected' : ''}`,
-    attrs: { 'data-id': r.id, role: 'button', tabindex: '0' },
+    attrs: { 'data-id': r.id, role: 'button', tabindex: '0', 'aria-selected': String(r.id === selectedTicketId) },
   }, children);
   item.addEventListener('click', () => selectTicket(r.id));
   item.addEventListener('keydown', (e) => { if (e.key === 'Enter') selectTicket(r.id); });
@@ -118,32 +136,50 @@ async function renderList() {
   $('tabDept').setAttribute('aria-selected', String(activePanel === 'dept'));
   $('tabMine').setAttribute('aria-selected', String(activePanel === 'mine'));
   $('tabReport').setAttribute('aria-selected', String(activePanel === 'report'));
-  renderFilterBar();
+  renderToolbarVisibility();
 
   const list = $('ticketList');
   const report = $('report');
 
   if (activePanel === 'report') {
     list.hidden = true; report.hidden = false;
-    $('listHint').textContent = 'Summary over all mock tickets.';
+    $('listHint').textContent = 'Summary over all tickets in the active backend.';
     await renderReport();
     return;
   }
   list.hidden = false; report.hidden = true;
 
-  let tickets = await getPanelTickets();
-  if (activePanel === 'dept') {
-    tickets = applyDepartmentFilter(tickets, activeFilter, { currentUserId });
-    const label = DEPARTMENT_FILTERS.find((f) => f.key === activeFilter)?.label ?? '';
-    $('listHint').textContent = `${ctx.deptsById.get(currentDeptId)?.name ?? currentDeptId} — ${label} (includes person-assigned).`;
-  } else {
-    $('listHint').textContent = `Tickets assigned to ${ctx.usersById.get(currentUserId)?.displayName ?? currentUserId} only.`;
+  // Loading state — noticeable on the (slower) SharePoint test backend, harmless on mock.
+  list.setAttribute('aria-busy', 'true');
+  $('listHint').textContent = 'Loading tickets…';
+  let all;
+  try {
+    all = await getPanelTickets();
+  } catch (err) {
+    list.removeAttribute('aria-busy');
+    clear(list);
+    list.appendChild(el('li', { class: 'empty error', text: `Could not load tickets — ${err.message}` }));
+    $('listHint').textContent = 'The backend did not respond. See the banner above for backend state.';
+    return;
   }
+  list.removeAttribute('aria-busy');
+
+  const criteria = activePanel === 'mine' ? { ...filters, scope: 'all' } : filters;
+  const tickets = applyTicketFilters(all, criteria, { currentUserId });
+
+  const where = activePanel === 'dept'
+    ? `${ctx.deptsById.get(currentDeptId)?.name ?? currentDeptId} queue (includes person-assigned)`
+    : `assigned to ${ctx.usersById.get(currentUserId)?.displayName ?? currentUserId}`;
+  $('listHint').textContent = `${tickets.length} of ${all.length} tickets — ${where}.`;
 
   const rows = ticketRows(tickets, ctx);
   clear(list);
   if (rows.length === 0) {
-    list.appendChild(el('li', { class: 'empty', text: 'No tickets in this view.' }));
+    const anyFilter = all.length > 0;
+    list.appendChild(el('li', {
+      class: 'empty',
+      text: anyFilter ? 'No tickets match the current filters.' : 'No tickets in this view yet.',
+    }));
     return;
   }
   for (const r of rows) list.appendChild(ticketListItem(r));
@@ -205,7 +241,11 @@ async function renderDetail() {
   const dv = detailView(ticket, ctx);
 
   detail.appendChild(el('h2', { text: dv.title }));
-  detail.appendChild(el('div', { class: 'sub', text: `${dv.id} · ${dv.status} · ${dv.priority}` }));
+  detail.appendChild(el('div', { class: 'sub' }, [
+    el('span', { class: 'mono', text: dv.id }),
+    el('span', { class: `badge status ${statusGroup(dv.status)}`, text: dv.status }),
+    el('span', { class: `badge prio ${dv.priority.toLowerCase()}`, text: dv.priority }),
+  ]));
 
   // Field grid
   const dl = el('dl');
@@ -231,8 +271,8 @@ async function renderDetail() {
 
   // No-movement reminder indicator (local calculation only — nothing is sent).
   if (dv.reminder?.isCandidate) {
-    detail.appendChild(el('div', { class: 'legacy-box' }, [
-      el('h3', { text: 'Reminder candidate' }),
+    detail.appendChild(el('div', { class: 'alert alert-attention', attrs: { role: 'note' } }, [
+      el('h3', { text: 'Needs attention — no movement' }),
       el('div', {
         class: 'note',
         text: `No movement for ${dv.reminder.daysSinceMovement} days (threshold for ${dv.priority} priority: ${dv.reminder.thresholdDays} days). Local indicator only — no notification is sent.`,
@@ -242,7 +282,7 @@ async function renderDetail() {
 
   // Final closure note (present only on completed tickets).
   if (dv.finalClosureNote) {
-    detail.appendChild(el('div', { class: 'legacy-box' }, [
+    detail.appendChild(el('div', { class: 'alert alert-closure', attrs: { role: 'note' } }, [
       el('h3', { text: 'Final closing comment' }),
       el('div', { class: 'note', text: dv.finalClosureNote }),
     ]));
@@ -463,20 +503,39 @@ async function buildActivity(ticket) {
   return el('div', { class: 'activity' }, [el('h3', { text: 'Activity trail' }), ul]);
 }
 
-// Run a store action then re-render the affected views.
+// Run a store action then re-render the affected views. Errors (business-rule refusals or
+// backend failures) surface visibly and never leave the UI half-rendered.
 async function act(fn) {
-  await fn();
+  try {
+    await fn();
+  } catch (err) {
+    window.alert(String(err?.message ?? err));
+  }
   await renderList();
   await renderDetail();
 }
 
 // ----- Wiring -----
+function fillFilterSelect(id, options, selectedKey) {
+  fillSelect($(id), options.map((o) => ({ id: o.key, label: o.label })), selectedKey);
+}
+
 function wireEvents() {
   $('tabDept').addEventListener('click', () => { activePanel = 'dept'; renderList(); });
   $('tabMine').addEventListener('click', () => { activePanel = 'mine'; renderList(); });
   $('tabReport').addEventListener('click', () => { activePanel = 'report'; renderList(); });
   $('userSelect').addEventListener('change', (e) => { currentUserId = e.target.value; renderList(); renderDetail(); });
   $('deptSelect').addEventListener('change', (e) => { currentDeptId = e.target.value; renderList(); });
+
+  // Structured filter toolbar (Loop 26) — every control drives the same pure filter model.
+  fillFilterSelect('filterScope', SCOPE_OPTIONS, filters.scope);
+  fillFilterSelect('filterStatus', STATUS_FILTER_OPTIONS, filters.status);
+  fillFilterSelect('filterPriority', PRIORITY_FILTER_OPTIONS, filters.priority);
+  $('filterScope').addEventListener('change', (e) => { filters.scope = e.target.value; renderList(); });
+  $('filterStatus').addEventListener('change', (e) => { filters.status = e.target.value; renderList(); });
+  $('filterPriority').addEventListener('change', (e) => { filters.priority = e.target.value; renderList(); });
+  $('filterAttention').addEventListener('change', (e) => { filters.needsAttention = e.target.checked; renderList(); });
+  $('searchInput').addEventListener('input', (e) => { filters.search = e.target.value; renderList(); });
   // Minimal demo create form (Loop 24): tickets get a clearly-namespaced demo id
   // (esc_demo_loop24_*) so supervised test records are unmistakable and exactly cleanable.
   // Works on both backends through the same store seam; the current user is the requester.
