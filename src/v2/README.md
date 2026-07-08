@@ -163,10 +163,11 @@ secrets, or identifiers committed**; fail-closed without a transport) and **gate
 store contract live — seeds per test, tracks and deletes ONLY run-created records, verifies
 post-run counts) for the approved non-production test site (decisions **D21/D28**). The real
 runtime config and transport bootstrap are **git-ignored**; live execution is operator-run
-only. **Loop 22 (D28): executed** — 28/30 contract tests ran live and all passed (the two
-interrupted stragglers pass in the committed local async-transport contract). The whole client
-path is async-safe: `tests/sharepoint-live-async-transport-contract.test.js` runs the FULL
-contract through `SharePointLiveClient` + an async transport locally on every `npm test`.
+only. **Loop 22 (D28): executed and GREEN** — all 30 contract tests ran live and passed, with
+verified full cleanup (every run-created record tracked + deleted; lists left as found). The
+whole client path is async-safe: `tests/sharepoint-live-async-transport-contract.test.js` runs
+the FULL contract through `SharePointLiveClient` + an async transport locally on every
+`npm test`.
 
 The **Phase-2 build** (when D6/D7 + Rod approval land) is fully specified and design-only: the
 [test-site build runbook](../../docs/SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md), the

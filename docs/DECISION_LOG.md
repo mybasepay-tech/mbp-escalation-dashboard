@@ -484,19 +484,20 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
 - **D28 — Live store-contract execution (Loop 22): Accepted (executed).** The full
   EscalationStore behavioral contract ran against the LIVE non-production test site through
   `SharePointStore` + `SharePointLiveClient` + an operator-supplied, git-ignored runtime
-  transport (SharePoint REST; token minted via PnP interactive auth). 28 of the 30 contract
-  tests executed live and ALL passed — including requester-only Complete, the required final
-  closing comment, completedDate/Reopen behavior, comments/notes/tags, optional amount, and
-  metadata-only attachments — before the runner process was externally interrupted; the two
-  remaining tests (lastActivityAt movement stamp assertions, reference-data listing) pass in
-  the committed local async-transport contract and are re-run live when auth allows. Committed
+  transport (SharePoint REST; token minted via PnP interactive auth). ALL 30 contract tests
+  executed live and passed — including requester-only Complete, the required final closing
+  comment, completedDate/Reopen behavior, comments/notes/tags, optional amount, metadata-only
+  attachments, and the lastActivityAt movement stamp (28 in the main session; the final two
+  re-run green in a follow-up session after an interactive-auth delay). Post-run verification:
+  every run-created record was deleted and item counts match pre-run exactly — the lists were
+  left empty, as found. Committed
   hardening from this loop: `SharePointLiveClient` and `SharePointStore` are fully
   async-client-safe (awaited `findBy`/`createItem` — without this, activity rows silently stop
   being written against a real backend), a full local contract now runs through the async
   live-client path, and `run-live-contract.js` seeds per test, tracks every record it creates,
   deletes ONLY those, and verifies post-run counts match pre-run. Run-created records are
-  contract fixtures with fixture keys (`esc_*`, `user_*`, `tag_*`, `dept_*`, …); any rows left
-  by an interrupted run are documented and removable via the operator-approved
+  contract fixtures with fixture keys (`esc_*`, `user_*`, `tag_*`, `dept_*`, …); if a future
+  run is interrupted, stale fixtures are reported and removable via the operator-approved
   `staleFixtureSweep` config flag. No legacy touched, no flows, no notifications, no real
   files, no cutover; MockStore remains the local UI backend.
 

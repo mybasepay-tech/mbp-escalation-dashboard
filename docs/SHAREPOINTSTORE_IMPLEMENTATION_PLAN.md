@@ -51,8 +51,8 @@ and [`../src/v2/tests/sharepoint-mapping-fidelity.test.js`](../src/v2/tests/shar
 design-only in practice: the full store contract ran live through `SharePointLiveClient` +
 a git-ignored runtime transport (SharePoint REST; lookup keys resolved to item ids,
 Hyperlink/DateTime/Boolean encode-decode, ETag If-Match, 404/412/429 translated to the typed
-errors). 28/30 tests executed live, all green (2 interrupted before running; both covered by
-the committed local async-transport contract). The store + wrapper are **async-client-safe**
+errors). All 30 contract tests executed live and passed, with verified full cleanup
+(run-created records only; lists left as found). The store + wrapper are **async-client-safe**
 (awaited `findBy`/`createItem` in the activity-append and tag-label paths — a live-blocking
 bug found and fixed in this loop), guarded by
 [`../src/v2/tests/sharepoint-live-async-transport-contract.test.js`](../src/v2/tests/sharepoint-live-async-transport-contract.test.js).

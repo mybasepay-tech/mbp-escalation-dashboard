@@ -182,10 +182,10 @@ any live work:
   ([`STORE_CONTRACT.md`](./STORE_CONTRACT.md)) — which passes against `MockStore` today — is
   the **acceptance gate**. `SharePointStore` ships only when it passes the *identical* contract
   run against a disposable test site, before any cutover.
-- **Loop 22 (D28) — gate EXECUTED live:** the contract ran against the provisioned
+- **Loop 22 (D28) — gate EXECUTED live and GREEN:** the contract ran against the provisioned
   non-production test site through `SharePointStore` + `SharePointLiveClient` + a git-ignored
-  runtime transport; 28/30 tests executed live, all green (the 2 interrupted stragglers pass
-  in the committed local async-transport contract). See `STORE_CONTRACT.md` §5a.
+  runtime transport; all 30 tests executed live and passed, with verified full cleanup
+  (run-created records only; lists left as found). See `STORE_CONTRACT.md` §5a.
 
 ## 9. Risks and open questions
 - **OQ-1 — D3 not decided.** SharePoint is *provisional*. If D3 lands on Dataverse or a

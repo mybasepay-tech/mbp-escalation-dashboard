@@ -112,12 +112,13 @@ runStoreContract('SharePointStore(test-site)', async (seed) => provisionAndLoad(
 The contract has now run against the **live, non-production test site** through
 `SharePointStore` + `SharePointLiveClient` + a git-ignored runtime transport, driven by the
 gated runner [`run-live-contract.js`](../src/v2/backend/sharepoint/live/run-live-contract.js):
-- **28 of 30 contract tests executed live and all passed** (2026-07-07), including
-  requester-only Complete + required closing comment (D23), completedDate/Reopen, activity
-  atomicity, comments/notes/tags, optional amount (D26), and metadata-only attachments (D24).
-  The runner process was externally interrupted before the final two tests (lastActivityAt
-  assertions, reference-data listing); those pass in the committed local async-transport
-  contract and are re-run live when auth allows.
+- **All 30 contract tests executed live and passed** (2026-07-07), including requester-only
+  Complete + required closing comment (D23), completedDate/Reopen, activity atomicity,
+  comments/notes/tags, optional amount (D26), metadata-only attachments (D24), and the
+  lastActivityAt movement stamp (D25). 28 ran in the main session; the final two re-ran
+  green in a follow-up session after an interactive-auth delay. Final verification: 89
+  records created / 89 deleted in the closing session, post-run item counts exactly match
+  pre-run — the lists were left empty, as found.
 - The client path is **async end-to-end** (Loop 22): `SharePointLiveClient` awaits its
   transport, `SharePointStore` awaits every client call, and
   `tests/sharepoint-live-async-transport-contract.test.js` runs the FULL contract through
