@@ -50,9 +50,30 @@ BOTH of the following — either one alone does nothing:
 - Reference data (users/departments/tags) is read-only through the UI seam; identity lookups
   that don’t resolve to existing `Escalations_v2_Users` rows are refused (fail-closed).
 
-## 3. Current status (Loop 23)
+## 3. Demo fixtures for the SharePoint test backend (Loop 24)
+The live lists are kept empty by default. For a supervised demo, seed the small, obviously
+test-only fixture set (1 department, 2 users, 1 tag — all keys prefixed
+`esc_demo_loop24_`, names marked "TEST ONLY", emails on `.invalid`):
+
+```bash
+cd src/v2/backend/sharepoint/live
+node seed-demo-fixtures.js               # idempotent: reports created vs reused
+node seed-demo-fixtures.js --verify      # read-only presence report
+node seed-demo-fixtures.js --cleanup --ticket <esc_demo_loop24_...>   # exact-key cleanup
+```
+- Seeding is idempotent (second run reuses, never duplicates).
+- Cleanup deletes ONLY the exact fixture keys plus explicitly named `esc_demo_loop24_*`
+  tickets (with their activity/comments/notes/tag links/attachment metadata) and reports a
+  leftover count — 0 means the site is exactly as before. Non-namespaced keys are refused.
+- The **"New demo ticket"** form in the UI creates tickets with `esc_demo_loop24_*` ids and
+  the current user as requester, so every demo record stays unmistakable and cleanable.
+
+## 4. Current status (Loop 24)
 - MockStore: default, unchanged, fully demoable.
-- SharePoint test backend: supervised smoke passed — a namespaced ticket was created, read
-  back, and updated live through the UI seam, then deleted (verified 0 remaining).
-- Not yet in the UI: a create-ticket form (tickets were created via the store seam), user
-  provisioning for the live Users list, any notification/flow behavior (deferred by design).
+- SharePoint test backend: full supervised lifecycle smoke passed through the UI seam —
+  create (demo form path), read, priority, department/person assignment with auto-status,
+  public comment, internal note, tag, **Complete refused without a closing note**,
+  **Complete refused for the non-requester (assignee)**, Complete by requester with note
+  (completedDate + finalClosureNote set), Reopen (both cleared), 11-event activity chain.
+  All records cleaned up afterwards (19 deleted, 0 leftovers).
+- Deferred by design: notifications/flows, real attachment files, production users, cutover.

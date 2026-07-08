@@ -393,6 +393,7 @@
 | D27 | Columns/indexes/views provisioned on nonprod test site (Loop 21) | Schema 0.3.0-design fully provisioned + validated live against the approved non-production site only | No (nonprod only) | **Accepted** (executed) |
 | D28 | Live store-contract execution (Loop 22) | Full EscalationStore contract executed against the live nonprod test site via SharePointStore + SharePointLiveClient + runtime transport; async client path committed and contract-tested locally | No (nonprod only) | **Accepted** (executed — see log entry for coverage detail) |
 | D29 | UI backend toggle, disabled by default (Loop 23) | v2 UI supports the SharePoint TEST backend behind a dual opt-in (git-ignored server config + explicit `?backend=sharepoint-test`); MockStore stays the default; loopback-only API keeps secrets out of the browser | No (opt-in, nonprod only) | **Accepted** (implemented + smoke-tested) |
+| D30 | Namespaced demo fixtures + gated seed/cleanup (Loop 24) | Demo data on the test site is a small `esc_demo_loop24_*` fixture set, seeded idempotently by a gated CLI with exact-key cleanup to zero leftovers; full UI lifecycle smoke passed live incl. both closure-rule refusals | No (test-only data) | **Accepted** (executed + cleaned) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -515,6 +516,20 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   visible error with NO silent fallback. Supervised smoke: one namespaced ticket created,
   read, and updated live through the UI seam, then deleted (0 remaining). No production
   users, no cutover, no flows, no notifications, no real attachment files.
+
+- **D30 — Namespaced demo fixtures + gated seed/cleanup (Loop 24): Accepted (executed +
+  cleaned).** Demo reference data for the SharePoint TEST backend is a small, fixed,
+  obviously test-only set (1 department, 2 users, 1 tag; every key prefixed
+  `esc_demo_loop24_`, labels marked TEST ONLY, emails on `.invalid`), seeded by a gated CLI
+  (`live/seed-demo-fixtures.js`) that is idempotent (created vs reused reported) and cleans
+  up by EXACT keys only — fixtures plus explicitly named demo tickets and their
+  activity/comments/notes/tag links/attachment metadata — refusing anything outside the
+  namespace. Live execution: seeded twice (4 created, then 4 reused), full supervised UI
+  lifecycle smoke passed (including live refusal of Complete without a closing note and of
+  a non-requester Complete, then requester Complete + Reopen), and cleanup removed all 19
+  records with 0 leftovers. The UI gained a minimal "New demo ticket" form that always
+  creates `esc_demo_loop24_*` ids. No legacy, no flows, no notifications, no real files,
+  no production users, no cutover.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional

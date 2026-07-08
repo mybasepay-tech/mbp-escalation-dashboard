@@ -36,6 +36,9 @@ body { margin: 0; background: var(--bg); color: var(--ink); }
 /* SharePoint TEST mode warning + fail-closed error banners. */
 .banner.live-warning { background: #fff3cd; color: #7a4d00; border-color: #e0b95e; font-weight: 600; }
 .banner.live-error { background: #fde8e8; color: #a33; border-color: #e5a3a3; font-weight: 600; }
+/* Minimal demo create-ticket row (Loop 24). */
+.new-ticket-row { display: flex; gap: 8px; padding: 8px 12px 0; }
+.new-ticket-row input { flex: 1; padding: 4px 8px; border: 1px solid var(--border); border-radius: 6px; }
 .ctx-controls { display: flex; gap: 12px; }
 .ctx-controls label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
 select, button { font: inherit; }

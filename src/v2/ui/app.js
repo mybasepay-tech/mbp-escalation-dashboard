@@ -11,6 +11,7 @@
 
 import { seededStore } from '../mock/seed.js';
 import { STATUS } from '../domain/constants.js';
+import { newId } from '../domain/models.js';
 import {
   loadContext, ticketRows, detailView, activityLines,
   statusOptions, assignmentOptions, PRIORITY_OPTIONS,
@@ -476,6 +477,23 @@ function wireEvents() {
   $('tabReport').addEventListener('click', () => { activePanel = 'report'; renderList(); });
   $('userSelect').addEventListener('change', (e) => { currentUserId = e.target.value; renderList(); renderDetail(); });
   $('deptSelect').addEventListener('change', (e) => { currentDeptId = e.target.value; renderList(); });
+  // Minimal demo create form (Loop 24): tickets get a clearly-namespaced demo id
+  // (esc_demo_loop24_*) so supervised test records are unmistakable and exactly cleanable.
+  // Works on both backends through the same store seam; the current user is the requester.
+  $('newTicketBtn').addEventListener('click', async () => {
+    const title = $('newTicketTitle').value.trim();
+    if (!title) return;
+    try {
+      const created = await store.createTicket({
+        id: newId('esc_demo_loop24'), title,
+        submitterId: currentUserId, requestingDept: 'Demo (test only)',
+      });
+      $('newTicketTitle').value = '';
+      await selectTicket(created.id);
+    } catch (err) {
+      window.alert(err.message);
+    }
+  });
 }
 
 // ----- Backend bootstrap (Loop 23) -----
