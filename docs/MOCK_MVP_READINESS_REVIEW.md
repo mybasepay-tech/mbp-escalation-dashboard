@@ -292,6 +292,24 @@ Execution-prep only — verified readiness without touching anything live:
 - Still: `MockStore` remains the **active UI backend**; runtime config/transport/token stay
   git-ignored; no legacy writeback, no flows, no notifications, no real files, no cutover.
 
+### Loop 23 — UI backend toggle, disabled by default (D29)
+- The v2 UI now supports the SharePoint TEST backend behind a **dual opt-in**: a git-ignored
+  `ui/ui-live.local.json` (server-side; re-runs the Loop 22 fail-closed safety gate before
+  any live module loads) AND an explicit `?backend=sharepoint-test` in the browser.
+  **MockStore remains the default** — unknown query values fall back to mock, and a missing/
+  unsafe opt-in produces a visible error with no silent fallback.
+- The browser talks only to loopback `/api/store/*` endpoints on `ui/serve.js` (whitelisted
+  store methods); the SharePoint client, runtime config, and token stay server-side and never
+  reach the browser or git. A visible **backend indicator** + **warning banner** state the
+  active backend at all times.
+- **Supervised smoke passed:** with the opt-in active, a namespaced ticket
+  (`esc_loop23_ui_live_smoke`) was created, read back, and priority-updated live through the
+  UI seam (activity + lastActivityAt verified), then deleted with its activity rows
+  (verified 0 remaining). Identity lookups correctly fail closed when the referenced user
+  row does not exist in `Escalations_v2_Users`.
+- Known UI gaps (next loops): no create-ticket form yet; live reference data (users/
+  departments/tags) must be provisioned on the test site for a full interactive pilot.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

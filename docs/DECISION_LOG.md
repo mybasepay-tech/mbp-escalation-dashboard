@@ -392,6 +392,7 @@
 | D26 | Optional amount involved (Loop 21) | `amountInvolved` (Currency, optional, non-negative) + `amountCurrency` (default USD) on tickets | No (stakeholder rule) | **Accepted** |
 | D27 | Columns/indexes/views provisioned on nonprod test site (Loop 21) | Schema 0.3.0-design fully provisioned + validated live against the approved non-production site only | No (nonprod only) | **Accepted** (executed) |
 | D28 | Live store-contract execution (Loop 22) | Full EscalationStore contract executed against the live nonprod test site via SharePointStore + SharePointLiveClient + runtime transport; async client path committed and contract-tested locally | No (nonprod only) | **Accepted** (executed — see log entry for coverage detail) |
+| D29 | UI backend toggle, disabled by default (Loop 23) | v2 UI supports the SharePoint TEST backend behind a dual opt-in (git-ignored server config + explicit `?backend=sharepoint-test`); MockStore stays the default; loopback-only API keeps secrets out of the browser | No (opt-in, nonprod only) | **Accepted** (implemented + smoke-tested) |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -500,6 +501,20 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   run is interrupted, stale fixtures are reported and removable via the operator-approved
   `staleFixtureSweep` config flag. No legacy touched, no flows, no notifications, no real
   files, no cutover; MockStore remains the local UI backend.
+
+- **D29 — UI backend toggle, disabled by default (Loop 23): Accepted.** The v2 UI can use the
+  SharePoint TEST backend, but only behind a DUAL opt-in: (1) a git-ignored
+  `ui/ui-live.local.json` with `enableSharePointTestBackend=true` on the local UI server —
+  which then re-runs the Loop 22 fail-closed safety gate (approvals, non-production label,
+  `Escalations_v2_` prefix, legacy/production refusal) before loading the git-ignored
+  transport; and (2) an explicit `?backend=sharepoint-test` query in the browser. MockStore
+  remains the default in every other case (including unknown query values). The browser talks
+  ONLY to loopback `/api/store/*` endpoints on `ui/serve.js`; the SharePoint client, runtime
+  config, and token live server-side and never reach the browser or git. A visible backend
+  indicator + warning banner state the active backend; a missing/unsafe opt-in yields a
+  visible error with NO silent fallback. Supervised smoke: one namespaced ticket created,
+  read, and updated live through the UI seam, then deleted (0 remaining). No production
+  users, no cutover, no flows, no notifications, no real attachment files.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional

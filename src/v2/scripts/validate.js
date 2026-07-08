@@ -75,10 +75,23 @@ function scanNetwork() {
   const hits = [];
   for (const f of allSource()) {
     const text = readFileSync(f, 'utf8');
-    if (/\bfetch\s*\(/.test(text)) hits.push(`${relative(V2_ROOT, f)} :: fetch()`);
-    if (/XMLHttpRequest/.test(text)) hits.push(`${relative(V2_ROOT, f)} :: XMLHttpRequest`);
+    const rel = relative(V2_ROOT, f).replace(/\\/g, '/');
+    if (rel === 'ui/remoteStore.js') {
+      // Sole exception (Loop 23): the browser-side client for the OPT-IN SharePoint test
+      // backend may fetch — but ONLY literal, relative '/api/' paths on the local loopback
+      // UI server (same origin). Absolute URLs / any other target still count as violations.
+      const calls = text.match(/fetch\s*\([^)]*/g) ?? [];
+      for (const c of calls) {
+        if (!/fetch\s*\(\s*'\/api\//.test(c)) hits.push(`${rel} :: non-loopback fetch (${c.slice(0, 40)}…)`);
+      }
+      if (/https?:\/\//.test(text)) hits.push(`${rel} :: absolute URL`);
+      if (/XMLHttpRequest/.test(text)) hits.push(`${rel} :: XMLHttpRequest`);
+      continue;
+    }
+    if (/\bfetch\s*\(/.test(text)) hits.push(`${rel} :: fetch()`);
+    if (/XMLHttpRequest/.test(text)) hits.push(`${rel} :: XMLHttpRequest`);
   }
-  record(hits.length === 0, 'No fetch/XMLHttpRequest network calls', hits.join('; '));
+  record(hits.length === 0, 'No fetch/XMLHttpRequest network calls (loopback /api exception: ui/remoteStore.js only)', hits.join('; '));
 }
 
 // ----- 4. Fake legacy domain only -----

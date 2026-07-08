@@ -51,17 +51,30 @@ The demo prints the seeded Benefits Ops department queue (showing that person-as
 tickets stay in the queue), Sarah's "My Assigned Tickets", then assigns the New ticket and
 shows the auto-status change to **Assigned** plus the activity trail.
 
-## Run the mock UI shell (browser)
+## Run the UI shell (browser)
 ```bash
 cd src/v2
-npm run ui      # alias for: node ui/serve.js  (starts a LOCAL static server)
+npm run ui      # alias for: node ui/serve.js  (starts a LOCAL loopback server)
 ```
 Then open the printed URL: **http://127.0.0.1:4173/ui/index.html**
 (set `PORT` to change the port, e.g. `PORT=4199 npm run ui`).
 
-> A tiny built-in (`node:http`) static server is used because browsers block ES-module
-> imports over `file://`. It binds to **loopback only**, serves files from `src/v2` only
-> (path traversal is rejected), and makes **no** outbound/production calls.
+> A tiny built-in (`node:http`) server is used because browsers block ES-module imports over
+> `file://`. It binds to **loopback only**, serves files from `src/v2` only (path traversal
+> is rejected), and makes **no** outbound/production calls of its own.
+
+**Backend selection (Loop 23, D29) — MockStore is the DEFAULT.** The page always shows a
+backend indicator ("Mock backend" / "SharePoint test backend"). The SharePoint TEST backend
+is opt-in only and needs BOTH:
+1. a git-ignored `ui/ui-live.local.json` with `enableSharePointTestBackend=true` (copy
+   `ui/ui-live.example.json`) pointing at the git-ignored live testsite config — the server
+   then re-runs the fail-closed live safety gate before loading anything live; and
+2. the explicit query `?backend=sharepoint-test` in the browser.
+With both, the UI shows the warning banner **"Test SharePoint backend enabled —
+non-production only"** and uses `ui/remoteStore.js`, which talks ONLY to the loopback
+`/api/store/*` endpoints — the SharePoint client/config/token stay in the local server
+process and never reach the browser or git. Missing/unsafe opt-in → a visible error, no
+silent fallback; unknown `backend` values → MockStore. See `docs/MVP_DEMO_GUIDE.md`.
 
 The UI shell provides:
 - **Department queue** panel (includes tickets assigned to a person) and **My Assigned

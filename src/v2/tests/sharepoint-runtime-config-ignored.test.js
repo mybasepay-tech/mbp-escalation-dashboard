@@ -25,6 +25,11 @@ test('live .gitignore keeps runtime config, transport bootstrap, env, and secret
   assert.match(ig, /secret/i, 'must ignore secrets');
 });
 
+test('ui .gitignore keeps the local live-backend opt-in out of git (Loop 23)', () => {
+  const ig = readFileSync(join(V2_ROOT, 'ui', '.gitignore'), 'utf8');
+  assert.match(ig, /\*\.local\.json/, 'must ignore *.local.json (ui-live.local.json opt-in)');
+});
+
 test('no real runtime config or secret-bearing file is present in the tracked tree', () => {
   // These are the exact paths an operator creates locally; they must never be committed.
   for (const p of [
