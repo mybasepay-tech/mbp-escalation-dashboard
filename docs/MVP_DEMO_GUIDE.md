@@ -4,6 +4,24 @@
 > **MockStore is the default.** The SharePoint TEST backend is strictly opt-in, local-only,
 > and non-production. No production or cutover has occurred; no Power Automate flows exist;
 > no notifications are sent; attachments are metadata-only (no real files).
+>
+> Presenting to decision-makers? Use the companion
+> [`STAKEHOLDER_WALKTHROUGH.md`](./STAKEHOLDER_WALKTHROUGH.md) — presenter script, demo
+> checklist, limitations, and the recommended ask. This guide is the operator how-to.
+
+## 0. Pre-demo prep (operator, test-backend demos only)
+1. **Restart the UI server** so it runs the current `ui/serve.js` (`npm run ui` from
+   `src/v2`) and check its startup log line — it states plainly whether the SharePoint TEST
+   backend is enabled or why it is not.
+2. **Token freshness:** live mode authenticates via a locally-minted token in the
+   git-ignored `.auth/` folder (see `backend/sharepoint/live/`). Tokens expire in about an
+   hour, and re-minting is interactive — mint **before** the demo, not during it. If the
+   token is stale mid-demo the UI shows an honest error rather than wrong data.
+3. **Cleanup-first:** run `node seed-demo-fixtures.js --verify` (below) and, if a previous
+   demo left records, `--cleanup` them before seeding fresh. Start every demo from a known
+   state.
+4. Open the default (mock) page first and confirm the indicator says **"Mock backend"** —
+   that's your baseline; the test-mode tab is opened separately and explicitly.
 
 ## 1. Default demo (MockStore — safe anywhere)
 
@@ -40,6 +58,15 @@ BOTH of the following — either one alone does nothing:
   **“SharePoint test backend UNAVAILABLE — …”** error and renders **no data** — it never
   silently falls back to mock (and plain `?backend=` typos fall back to mock, which never
   connects anywhere).
+
+### Troubleshooting the UNAVAILABLE banner
+The error text is the gate's actual reason. The common ones:
+- *no readable ui-live.local.json opt-in* — the server-side opt-in file is absent; copy the
+  example and set the flag (step 1 above), then restart the server.
+- *fail-closed safety gate* — the referenced testsite config failed an approval/target
+  check; fix the config, never the gate.
+- *transport/store init failed* — usually an expired token or auth problem; re-mint the
+  local token and retry. Nothing was connected; nothing is faked.
 
 ### How it works (and why it’s safe)
 - The browser never talks to SharePoint. It calls loopback-only `/api/store/*` endpoints on
