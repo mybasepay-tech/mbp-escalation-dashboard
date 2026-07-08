@@ -1,0 +1,5 @@
+{
+  "_comment": "EXAMPLE UI live-backend opt-in — PLACEHOLDERS ONLY, fail-closed default. Copy to ui-live.local.json (GIT-IGNORED) to opt the LOCAL UI server into the SharePoint TEST backend. MockStore stays the default either way; the browser additionally needs ?backend=sharepoint-test. Never commit the real file; never put a site URL, client/tenant ID, or token here — those live only in the separately git-ignored testsite config/transport.",
+  "enableSharePointTestBackend": false,
+  "testsiteConfig": "<RELATIVE_OR_ABSOLUTE_PATH_TO_GIT_IGNORED_TESTSITE_CONFIG>"
+}

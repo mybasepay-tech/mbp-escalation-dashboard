@@ -186,6 +186,11 @@ any live work:
   non-production test site through `SharePointStore` + `SharePointLiveClient` + a git-ignored
   runtime transport; all 30 tests executed live and passed, with verified full cleanup
   (run-created records only; lists left as found). See `STORE_CONTRACT.md` §5a.
+- **Loop 23 (D29) — UI toggle, disabled by default:** the local UI can use the adapter behind
+  a dual opt-in (git-ignored `ui/ui-live.local.json` + `?backend=sharepoint-test`) via a
+  loopback-only API on `ui/serve.js`; MockStore remains the default; a visible indicator +
+  warning banner state the active backend. Supervised smoke passed (namespaced ticket
+  created/read/updated live, then deleted). See `docs/MVP_DEMO_GUIDE.md`.
 
 ## 9. Risks and open questions
 - **OQ-1 — D3 not decided.** SharePoint is *provisional*. If D3 lands on Dataverse or a

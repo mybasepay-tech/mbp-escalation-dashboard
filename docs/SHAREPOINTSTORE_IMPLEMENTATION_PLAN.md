@@ -58,6 +58,14 @@ bug found and fixed in this loop), guarded by
 [`../src/v2/tests/sharepoint-live-async-transport-contract.test.js`](../src/v2/tests/sharepoint-live-async-transport-contract.test.js).
 Live acceptance entry point: [`../src/v2/backend/sharepoint/live/run-live-contract.js`](../src/v2/backend/sharepoint/live/run-live-contract.js).
 
+**Loop 23 (D29) — UI reaches the adapter behind a disabled-by-default toggle.** The local UI
+server (`ui/serve.js`) can host `SharePointStore` behind loopback-only `/api/store/*`
+endpoints, but ONLY with the dual opt-in (git-ignored `ui/ui-live.local.json` +
+`?backend=sharepoint-test`); the gate (`ui/liveBackendGate.js`) re-runs the same fail-closed
+safety checks as the live contract runner before any live module is even imported. The
+browser-side `ui/remoteStore.js` implements the store contract over that API — secrets stay
+server-side. MockStore remains the default UI backend. See `docs/MVP_DEMO_GUIDE.md`.
+
 ## 3. Future implementation scope
 > **Prerequisite (D18):** the test site must first be provisioned and **validated against the
 > schema** using the scripted, fail-closed package

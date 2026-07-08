@@ -125,12 +125,24 @@ const PROD_PATTERNS = [
 ];
 
 test('browser-facing UI files make no network calls and reference no production hosts', () => {
-  for (const rel of ['ui/app.js', 'ui/viewModel.js', 'ui/index.html', 'ui/styles.css']) {
+  for (const rel of ['ui/app.js', 'ui/viewModel.js', 'ui/index.html', 'ui/styles.css', 'ui/backendSelect.js', 'ui/liveBackendGate.js']) {
     const text = readFileSync(join(V2_ROOT, rel), 'utf8');
     assert.doesNotMatch(text, /\bfetch\s*\(/, `${rel} must not call fetch`);
     assert.doesNotMatch(text, /XMLHttpRequest/, `${rel} must not use XMLHttpRequest`);
     for (const re of PROD_PATTERNS) assert.doesNotMatch(text, re, `${rel} contains forbidden marker ${re}`);
   }
+});
+
+test('remoteStore.js is the ONLY UI file allowed fetch — and only to relative /api/ paths', () => {
+  const text = readFileSync(join(V2_ROOT, 'ui', 'remoteStore.js'), 'utf8');
+  const calls = text.match(/fetch\s*\([^)]*/g) ?? [];
+  assert.ok(calls.length > 0, 'remoteStore.js should use fetch for the loopback API');
+  for (const c of calls) {
+    assert.match(c, /fetch\s*\(\s*'\/api\//, `every fetch must target a literal relative /api/ path, got: ${c.slice(0, 60)}`);
+  }
+  assert.doesNotMatch(text, /https?:\/\//, 'remoteStore.js must not contain absolute URLs');
+  assert.doesNotMatch(text, /XMLHttpRequest/, 'no XMLHttpRequest');
+  for (const re of PROD_PATTERNS) assert.doesNotMatch(text, re, `remoteStore.js contains forbidden marker ${re}`);
 });
 
 test('local server binds to loopback and references no production hosts', () => {

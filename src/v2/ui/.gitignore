@@ -1,0 +1,3 @@
+# NEVER commit local UI runtime opt-ins (they reference git-ignored live config).
+# Only ui-live.example.json (placeholders, fail-closed defaults) is tracked.
+*.local.json

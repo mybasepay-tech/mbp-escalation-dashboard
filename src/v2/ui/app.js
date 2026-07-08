@@ -1,8 +1,13 @@
-// Mock UI shell controller.
+// v2 UI shell controller.
 //
-// Imports the EXISTING domain rules + MockStore + mock seed (no reimplementation) and
-// renders them to the DOM. Strictly local: all data comes from the in-memory seededStore.
-// There are NO network calls (no fetch/XHR), no Graph, no SharePoint, no credentials.
+// Imports the EXISTING domain rules + stores (no reimplementation) and renders them to the
+// DOM. DEFAULT: strictly local MockStore — all data comes from the in-memory seededStore and
+// this file makes NO network calls itself (no fetch/XHR here; the scans enforce it).
+//
+// Loop 23 — opt-in SharePoint TEST backend: with ?backend=sharepoint-test AND the local
+// server's git-ignored opt-in (see ui/liveBackendGate.js), the UI uses RemoteStore, which
+// talks only to the loopback /api/store endpoints of ui/serve.js. If the opt-in/gate is
+// missing the UI shows a VISIBLE error and renders nothing — it never silently falls back.
 
 import { seededStore } from '../mock/seed.js';
 import { STATUS } from '../domain/constants.js';
@@ -12,9 +17,14 @@ import {
   commentView, noteView, attachmentView, availableTags, tagLabel, userName,
   actorCanComplete, DEPARTMENT_FILTERS, applyDepartmentFilter, buildReport,
 } from './viewModel.js';
+import {
+  selectBackend, BACKEND, INDICATOR_TEXT, MOCK_BANNER_TEXT, SHAREPOINT_TEST_WARNING,
+} from './backendSelect.js';
+import { connectRemoteStore } from './remoteStore.js';
 
 // ----- State -----
-const store = seededStore();
+const backendSelection = selectBackend(window.location.search);
+let store;                     // MockStore (default) or RemoteStore (opt-in test backend)
 let ctx;                       // { usersById, deptsById, tagsById, users, departments, tags }
 let currentUserId = 'user_sarah';
 let currentDeptId = 'dept_benefits';
@@ -468,7 +478,42 @@ function wireEvents() {
   $('deptSelect').addEventListener('change', (e) => { currentDeptId = e.target.value; renderList(); });
 }
 
+// ----- Backend bootstrap (Loop 23) -----
+function applyBackendChrome(mode) {
+  const indicator = $('backendIndicator');
+  const banner = $('backendBanner');
+  indicator.textContent = INDICATOR_TEXT[mode] ?? INDICATOR_TEXT[BACKEND.MOCK];
+  if (mode === BACKEND.SHAREPOINT_TEST) {
+    indicator.classList.add('live-test');
+    banner.classList.add('live-warning');
+    banner.textContent = SHAREPOINT_TEST_WARNING;
+  } else {
+    banner.textContent = MOCK_BANNER_TEXT;
+  }
+}
+
+// Visible, fail-closed error: the test backend was explicitly requested but is unavailable.
+// No data is rendered and there is NO silent fallback to mock data.
+function renderBackendError(message) {
+  const banner = $('backendBanner');
+  banner.classList.add('live-error');
+  banner.textContent = `SharePoint test backend UNAVAILABLE — ${message}`;
+  $('listHint').textContent = 'No backend connected. Remove ?backend=sharepoint-test to use the default mock backend.';
+  $('detailEmpty').textContent = 'No backend connected.';
+}
+
 async function main() {
+  applyBackendChrome(backendSelection.mode);
+  if (backendSelection.mode === BACKEND.SHAREPOINT_TEST) {
+    try {
+      ({ store } = await connectRemoteStore());
+    } catch (err) {
+      renderBackendError(String(err?.message ?? err));
+      return; // fail closed — nothing else boots
+    }
+  } else {
+    store = seededStore(); // the unchanged default: 100% local mock data
+  }
   ctx = await loadContext(store);
   await renderContextControls();
   wireEvents();
