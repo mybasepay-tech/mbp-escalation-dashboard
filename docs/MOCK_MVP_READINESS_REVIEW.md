@@ -328,6 +328,25 @@ Execution-prep only — verified readiness without touching anything live:
 - Still: MockStore default; opt-in gate fail-closed; no legacy, no flows, no notifications,
   no real files, no production users, no cutover.
 
+### Loop 26 — UI polish, demo hardening, D6 auth readiness
+- **UI overhaul (no behavior change):** the chip wall became a structured filter toolbar
+  (scope/status/priority dropdowns + needs-attention toggle + search), backed by a pure,
+  fully-tested filter model (`applyTicketFilters`); polished ticket cards (status/priority
+  badges with non-color-only meaning, labeled metadata, selected state), cleaner detail
+  grouping and action grid, sticky two-row header keeping the backend indicator + warning
+  banner always visible, design-token stylesheet, loading/empty/error list states, and
+  visible errors on every action. All business rules and the store contract untouched.
+- **Demo hardening:** every gate/API error that can reach the browser is now sanitized
+  (`sanitizeErrorMessage` — URLs, GUID-shaped ids, tokens, local paths redacted; business-
+  rule messages pass through verbatim). Verified in the server boot log and by tests.
+- **D6 readiness (NOT executed):** committed the fail-closed validation contract for the
+  future app-auth config (`d6AuthConfig.js`: certificate-only, `Sites.Selected`,
+  non-production, reference-not-secret; refuses placeholders/secret keys/inline key
+  material) + placeholder example + `docs/D6_AUTH_APP_REGISTRATION_PLAN.md` with the exact
+  manual admin steps. Marked **ready for approval/admin setup** — the interactive-token
+  limitation stands until then.
+- 278/278 tests; no live records were created this loop.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

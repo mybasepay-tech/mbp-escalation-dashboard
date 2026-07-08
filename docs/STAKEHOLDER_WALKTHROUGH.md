@@ -143,6 +143,9 @@ Say this plainly (see the script below):
 - **Auth is operator-dependent:** live mode needs a locally-minted, short-lived token and
   interactive sign-in that can stall when unattended — the main operational risk during a
   live demo, and the reason D6 (dedicated app registration/auth) is the top follow-up.
+  The full D6 plan — certificate-based, `Sites.Selected` least privilege, exact admin
+  steps — is written and **ready for approval**:
+  [`D6_AUTH_APP_REGISTRATION_PLAN.md`](./D6_AUTH_APP_REGISTRATION_PLAN.md).
 - **No production users or permissions** — identity is fixture data; role enforcement is
   application-layer only.
 - **No real attachments** — metadata records only, by design (D24).
@@ -160,7 +163,9 @@ cutover by themselves:
    pilot on the test site (participants, duration, success criteria) as a plan to be
    brought back for sign-off.
 2. **Approve resolving the D6 app-registration/auth story** — a dedicated, least-privilege
-   app identity so live mode stops depending on operator token minting.
+   app identity so live mode stops depending on operator token minting. The plan is ready
+   to execute (`D6_AUTH_APP_REGISTRATION_PLAN.md`): certificate-only, `Sites.Selected`
+   scoped to the single test site, under an hour of admin work.
 3. **Approve planning a controlled data-import strategy** — design-first, read-only against
    legacy, no writeback, to be executed only after its own review.
 

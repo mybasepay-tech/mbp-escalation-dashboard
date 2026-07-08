@@ -400,7 +400,10 @@ These must be **explicitly approved by Rod** before any backend adapter / ShareP
 / Dataverse / migration-dry-run work starts:
 
 1. ~~**D3** backend choice.~~ **DECIDED (Loop 11): SharePoint List v2.**
-2. **D6** Entra app decision.
+2. **D6** Entra app decision — plan written and READY FOR APPROVAL (Loop 26):
+   [`D6_AUTH_APP_REGISTRATION_PLAN.md`](./D6_AUTH_APP_REGISTRATION_PLAN.md)
+   (certificate-based app-only auth, `Sites.Selected` single-site grant; fail-closed config
+   validation already committed and tested). Awaiting admin execution.
 3. **D7** legacy read-access method for the migration dry-run.
 4. Company-owned site/resource confirmation (v2 must not live on a personal site).
 5. Migration dry-run approval (read-only, **no write-back** to legacy — see **D15**).

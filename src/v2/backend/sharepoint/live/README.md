@@ -21,6 +21,8 @@
 | `demo-fixtures.js` | **Loop 24.** Pure, client-injected demo fixture set (`esc_demo_loop24_*`, obviously TEST ONLY) + idempotent seed / exact-key cleanup engine. Refuses non-namespaced keys; unit-tested against the fake client. |
 | `seed-demo-fixtures.js` | **Loop 24.** Gated CLI around the engine: seed (idempotent, reports created/reused), `--verify` (read-only), `--cleanup [--ticket <key>]…` (exact keys only, reports deleted + leftovers; non-zero exit unless leftovers = 0). |
 | `testsite.config.example.json` | Placeholder config (safe, fail-closed defaults). Copy to `testsite.config.json` (git-ignored). |
+| `d6AuthConfig.js` | **Loop 26 (D6 readiness).** Fail-closed validation contract for the FUTURE app-registration auth config: certificate-only, `Sites.Selected`, non-production, references-not-secrets; refuses placeholders, secret-style keys, and inline key material. No auth is performed; see `docs/D6_AUTH_APP_REGISTRATION_PLAN.md`. |
+| `auth.config.example.json` | Placeholder D6 template (disabled, fail-closed). Real file: `auth.config.local.json` (git-ignored via `*.local.json`) — only after the D6 admin setup is approved and executed. |
 | `.gitignore` | Ensures `testsite.config.json`, transport bootstraps, `.env`, secrets, and reports are never committed. |
 
 ## The transport boundary (operator provides at runtime, NOT committed)

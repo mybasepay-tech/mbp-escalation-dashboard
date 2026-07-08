@@ -36,6 +36,10 @@ npm run ui          # local loopback server
 - Banner: *“Mock data only — not connected to any live system …”*.
 - All data is the in-memory seed; nothing touches the network. This mode requires no config
   and can never connect to SharePoint — the live path isn’t even loaded by the server.
+- The queue panel (Loop 26) has a structured filter toolbar — scope, status, and priority
+  dropdowns, a **Needs attention** toggle (local no-movement indicator; nothing is sent),
+  and a search field — plus the demo create-ticket row. Filters combine (AND) and the hint
+  line shows “N of M tickets”.
 
 ## 2. Opt-in SharePoint TEST backend (non-production test site only)
 

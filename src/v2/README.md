@@ -83,6 +83,9 @@ count must be 0). The UI's minimal **"New demo ticket"** form always creates
 `esc_demo_loop24_*` ids so demo tickets are unmistakable and exactly cleanable.
 
 The UI shell provides:
+- A **structured filter toolbar** (Loop 26): scope / status / priority dropdowns, a
+  "Needs attention" toggle (local no-movement indicator only — nothing is sent), and a
+  search field, backed by the pure `applyTicketFilters` model in `ui/viewModel.js`.
 - **Department queue** panel (includes tickets assigned to a person) and **My Assigned
   Tickets** panel (current mock user only) — toggle via the tabs.
 - A **ticket list** with status/priority/legacy badges, and a **ticket detail** pane.
