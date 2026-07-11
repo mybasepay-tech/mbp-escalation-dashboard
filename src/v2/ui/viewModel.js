@@ -44,9 +44,14 @@ export function ticketRow(ticket, ctx, now = new Date()) {
   return {
     reminder, // { isCandidate, daysSinceMovement, thresholdDays } — local no-movement indicator only
     id: ticket.id,
+    ref: ticketRef(ticket.id),
     title: ticket.title,
     status: ticket.status,
     priority: ticket.priority,
+    requestingDept: ticket.requestingDept ?? '—',
+    issueCategory: ticket.issueCategory ?? '—',
+    submitterId: ticket.submitterId,
+    submitterName: userName(ctx, ticket.submitterId),
     assigneeId: ticket.assigneeId,
     assigneeName: userName(ctx, ticket.assigneeId),
     ownerId: ticket.ticketOwner,
@@ -289,7 +294,7 @@ export const PRIORITY_FILTER_OPTIONS = Object.freeze([
 ]);
 
 export const DEFAULT_TICKET_FILTERS = Object.freeze({
-  scope: 'all', status: 'all', priority: 'all', needsAttention: false, search: '',
+  scope: 'all', status: 'all', priority: 'all', dept: 'all', needsAttention: false, search: '',
 });
 
 const SCOPE_PREDICATES = {
@@ -334,8 +339,44 @@ export function applyTicketFilters(tickets, criteria = {}, { currentUserId, now 
     scope(t, { currentUserId })
     && status(t)
     && priority(t)
+    && (c.dept === 'all' || !c.dept || t.assignedDeptId === c.dept)
     && (!c.needsAttention || reminderCandidate(t, now ?? new Date()).isCandidate)
     && (!needle || t.title.toLowerCase().includes(needle) || t.id.toLowerCase().includes(needle)));
+}
+
+/**
+ * Human-friendly display reference for a ticket id (Loop 28) — pure presentation sugar,
+ * derived deterministically from the REAL id (which stays authoritative everywhere):
+ * 'esc_fin_0891' -> '#FIN-0891'. Never stored, never used as a key.
+ */
+export function ticketRef(id) {
+  return `#${String(id ?? '').replace(/^esc_/, '').replace(/_/g, '-').toUpperCase()}`;
+}
+
+/**
+ * Queue-page KPI metrics (Loop 28) — honest, derived from the ticket set in view:
+ *   open              = tickets in an open/active status
+ *   needsAttention    = open tickets past their no-movement threshold (LOCAL indicator only)
+ *   assignedToMe      = tickets assigned to the current user
+ *   completedTotal    = tickets in Complete
+ *   completedThisWeek = Complete with a completedDate within the last 7 days of `now`
+ * No trends are invented — there is no historical store, so callers should label helper
+ * text accordingly (e.g. "all time" on demo data).
+ */
+export function buildQueueMetrics(tickets, { currentUserId, now } = {}) {
+  const at = now ? new Date(now) : new Date();
+  const weekAgoMs = at.getTime() - 7 * 86_400_000;
+  let open = 0; let needsAttention = 0; let assignedToMe = 0; let completedTotal = 0; let completedThisWeek = 0;
+  for (const t of tickets) {
+    if (OPEN_STATUSES.has(t.status)) open += 1;
+    if (reminderCandidate(t, at).isCandidate) needsAttention += 1;
+    if (currentUserId && t.assigneeId === currentUserId) assignedToMe += 1;
+    if (t.status === STATUS.COMPLETE) {
+      completedTotal += 1;
+      if (t.completedDate && new Date(t.completedDate).getTime() >= weekAgoMs) completedThisWeek += 1;
+    }
+  }
+  return { open, needsAttention, assignedToMe, completedTotal, completedThisWeek };
 }
 
 /**

@@ -23,7 +23,7 @@ import {
   commentView, noteView, attachmentView, availableTags, tagLabel, userName,
   actorCanComplete, buildReport,
   SCOPE_OPTIONS, STATUS_FILTER_OPTIONS, PRIORITY_FILTER_OPTIONS,
-  DEFAULT_TICKET_FILTERS, applyTicketFilters,
+  DEFAULT_TICKET_FILTERS, applyTicketFilters, buildQueueMetrics,
 } from './viewModel.js';
 import {
   selectBackend, BACKEND, INDICATOR_TEXT, MOCK_BANNER_TEXT, SHAREPOINT_TEST_WARNING,
@@ -36,9 +36,10 @@ let store;                     // MockStore (default) or RemoteStore (opt-in tes
 let ctx;                       // { usersById, deptsById, tagsById, users, departments, tags }
 let currentUserId = 'user_sarah';
 let currentDeptId = 'dept_benefits';
-let activePanel = 'dept';      // 'dept' | 'mine' | 'report'
+let activePanel = 'all';       // 'all' | 'dept' | 'mine' | 'report'
 const filters = { ...DEFAULT_TICKET_FILTERS };
 let selectedTicketId = null;   // non-null => the detail view is open
+let lastSelectedTicketId = null;
 let composerMode = 'reply';    // 'reply' | 'note' (conversation composer tab)
 let composerDraft = '';        // survives re-renders (tab switches, sidebar toggles)
 let showAllActivity = false;
@@ -91,6 +92,7 @@ function renderViewVisibility() {
 
 async function openTicket(id) {
   selectedTicketId = id;
+  lastSelectedTicketId = id;
   composerMode = 'reply';
   composerDraft = '';
   showAllActivity = false;
@@ -107,15 +109,17 @@ async function backToQueue() {
 
 // ----- List / queue view -----
 async function getPanelTickets() {
+  if (activePanel === 'all') return store.listTickets();
   if (activePanel === 'mine') return store.myAssignedTickets(currentUserId);
   return store.departmentQueue(currentDeptId);
 }
 
 function renderToolbarVisibility() {
   $('filterToolbar').hidden = activePanel === 'report';
-  $('listActions').hidden = activePanel === 'report';
   $('newTicketRow').hidden = activePanel === 'report';
   $('filterScopeLabel').hidden = activePanel === 'mine';
+  $('filterDeptLabel').hidden = activePanel !== 'all';
+  $('metricsStrip').hidden = activePanel === 'report';
 }
 
 function statusGroup(status) {
@@ -144,24 +148,45 @@ function ticketListItem(r) {
       })
       : null,
   ]);
+  const queueMeta = el('div', { class: 'ticket-subline' }, [
+    el('span', { class: 'ticket-ref mono', text: r.ref }),
+    el('span', { class: 'dot-sep', text: '·' }),
+    el('span', { text: r.deptName }),
+    el('span', { class: 'dot-sep', text: '·' }),
+    el('span', { text: r.requestingDept }),
+    r.issueCategory && r.issueCategory !== '—' ? el('span', { class: 'dot-sep', text: '·' }) : null,
+    r.issueCategory && r.issueCategory !== '—' ? el('span', { text: r.issueCategory }) : null,
+  ]);
   const meta = el('div', { class: 'meta' }, [
-    metaPair('Dept', r.deptName),
     metaPair('Assignee', r.assigneeName, r.isUnassignedPerson ? 'meta-warn' : ''),
+    metaPair('Requester', r.submitterName),
     metaPair('Owner', r.ownerName),
   ]);
+  const icon = el('span', { class: 'ticket-icon', text: 'T', attrs: { 'aria-hidden': 'true' } });
+  const kebab = el('button', {
+    class: 'row-action',
+    text: '...',
+    attrs: { type: 'button', title: 'Ticket actions', 'aria-label': `Actions for ${r.ref}` },
+  });
+  kebab.addEventListener('click', (e) => { e.stopPropagation(); openTicket(r.id); });
   const children = [
-    el('div', { class: 'row1' }, [
-      el('span', { class: 'title', text: r.title }),
-      el('span', { class: 'days-open', text: `${r.daysOpen}d`, attrs: { title: `${r.daysOpen} days open` } }),
+    icon,
+    el('div', { class: 'ticket-main' }, [
+      el('div', { class: 'row1' }, [
+        el('span', { class: 'title', text: r.title }),
+        queueMeta,
+      ]),
+      meta,
     ]),
     badges,
-    meta,
+    el('span', { class: 'days-open', text: `${r.daysOpen}d`, attrs: { title: `${r.daysOpen} days open` } }),
+    kebab,
   ];
   if (r.tags.length) {
-    children.push(el('div', { class: 'tags' }, r.tags.map((t) => el('span', { class: 'chip mini', text: t.label }))));
+    children[1].appendChild(el('div', { class: 'tags' }, r.tags.map((t) => el('span', { class: 'chip mini', text: t.label }))));
   }
   const item = el('li', {
-    class: 'ticket-item',
+    class: `ticket-item${r.id === lastSelectedTicketId ? ' selected' : ''}`,
     attrs: { 'data-id': r.id, role: 'button', tabindex: '0' },
   }, children);
   item.addEventListener('click', () => openTicket(r.id));
@@ -169,11 +194,35 @@ function ticketListItem(r) {
   return item;
 }
 
-const PANEL_TITLES = { dept: 'Department queue', mine: 'My assigned tickets', report: 'Reporting' };
+const PANEL_TITLES = {
+  all: 'All tickets',
+  dept: 'Department queue',
+  mine: 'My assigned tickets',
+  report: 'Reporting',
+};
+
+function renderMetrics(sourceTickets) {
+  const strip = $('metricsStrip');
+  clear(strip);
+  const m = buildQueueMetrics(sourceTickets, { currentUserId });
+  const cards = [
+    { label: 'Open tickets', value: m.open, helper: 'Active in this view' },
+    { label: 'Needs attention', value: m.needsAttention, helper: 'No movement indicator' },
+    { label: 'Assigned to me', value: m.assignedToMe, helper: ctx.usersById.get(currentUserId)?.displayName ?? 'Current user' },
+    { label: 'Completed', value: `${m.completedTotal} / ${m.completedThisWeek}`, helper: 'Total / this week' },
+  ];
+  for (const c of cards) {
+    strip.appendChild(el('section', { class: 'metric-card' }, [
+      el('span', { class: 'metric-label', text: c.label }),
+      el('strong', { class: 'metric-value', text: String(c.value) }),
+      el('span', { class: 'metric-helper', text: c.helper }),
+    ]));
+  }
+}
 
 async function renderList() {
-  for (const [id, key] of [['tabDept', 'dept'], ['tabMine', 'mine'], ['tabReport', 'report']]) {
-    $(id).setAttribute('aria-current', activePanel === key ? 'page' : 'false');
+  for (const [id, key] of [['tabAll', 'all'], ['tabDept', 'dept'], ['tabMine', 'mine'], ['tabReport', 'report']]) {
+    $(id).setAttribute('aria-selected', activePanel === key ? 'true' : 'false');
   }
   $('listTitle').textContent = PANEL_TITLES[activePanel];
   renderToolbarVisibility();
@@ -183,6 +232,7 @@ async function renderList() {
 
   if (activePanel === 'report') {
     list.hidden = true; report.hidden = false;
+    $('metricsStrip').hidden = true;
     $('listHint').textContent = 'Summary over all tickets in the active backend.';
     await renderReport();
     return;
@@ -203,12 +253,18 @@ async function renderList() {
   }
   list.removeAttribute('aria-busy');
 
-  const criteria = activePanel === 'mine' ? { ...filters, scope: 'all' } : filters;
+  renderMetrics(all);
+
+  const criteria = activePanel === 'mine'
+    ? { ...filters, scope: 'all', dept: 'all' }
+    : (activePanel === 'dept' ? { ...filters, dept: 'all' } : filters);
   const tickets = applyTicketFilters(all, criteria, { currentUserId });
 
-  const where = activePanel === 'dept'
-    ? `${ctx.deptsById.get(currentDeptId)?.name ?? currentDeptId} queue (includes person-assigned)`
-    : `assigned to ${ctx.usersById.get(currentUserId)?.displayName ?? currentUserId}`;
+  const where = activePanel === 'all'
+    ? 'all departments and queues'
+    : (activePanel === 'dept'
+      ? `${ctx.deptsById.get(currentDeptId)?.name ?? currentDeptId} queue`
+      : `assigned to ${ctx.usersById.get(currentUserId)?.displayName ?? currentUserId}`);
   $('listHint').textContent = `${tickets.length} of ${all.length} tickets — ${where}.`;
 
   const rows = ticketRows(tickets, ctx);
@@ -641,7 +697,7 @@ function renderBackendError(message) {
   banner.textContent = `SharePoint test backend UNAVAILABLE — ${message}`;
   $('listHint').textContent = 'No backend connected. Remove ?backend=sharepoint-test to use the default mock backend.';
   $('filterToolbar').hidden = true;
-  $('listActions').hidden = true;
+  $('metricsStrip').hidden = true;
   $('newTicketRow').hidden = true;
 }
 
@@ -652,6 +708,7 @@ function fillFilterSelect(id, options, selectedKey) {
 
 function wireEvents() {
   const goPanel = (key) => { activePanel = key; selectedTicketId = null; renderViewVisibility(); renderList(); };
+  $('tabAll').addEventListener('click', () => goPanel('all'));
   $('tabDept').addEventListener('click', () => goPanel('dept'));
   $('tabMine').addEventListener('click', () => goPanel('mine'));
   $('tabReport').addEventListener('click', () => goPanel('report'));
@@ -669,9 +726,11 @@ function wireEvents() {
   fillFilterSelect('filterScope', SCOPE_OPTIONS, filters.scope);
   fillFilterSelect('filterStatus', STATUS_FILTER_OPTIONS, filters.status);
   fillFilterSelect('filterPriority', PRIORITY_FILTER_OPTIONS, filters.priority);
+  fillSelect($('filterDept'), [{ id: 'all', label: 'All departments' }, ...ctx.departments.map((d) => ({ id: d.id, label: d.name }))], filters.dept);
   $('filterScope').addEventListener('change', (e) => { filters.scope = e.target.value; renderList(); });
   $('filterStatus').addEventListener('change', (e) => { filters.status = e.target.value; renderList(); });
   $('filterPriority').addEventListener('change', (e) => { filters.priority = e.target.value; renderList(); });
+  $('filterDept').addEventListener('change', (e) => { filters.dept = e.target.value; renderList(); });
   $('filterAttention').addEventListener('change', (e) => { filters.needsAttention = e.target.checked; renderList(); });
   $('searchInput').addEventListener('input', (e) => { filters.search = e.target.value; renderList(); });
 

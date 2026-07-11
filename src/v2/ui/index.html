@@ -11,17 +11,23 @@
     <div class="appnav-brand">
       <span class="appnav-logo" aria-hidden="true">E</span>
       <div class="appnav-name">
-        <strong>Escalations</strong>
-        <span>myBasePay v2</span>
+        <strong>Escalations System v2</strong>
+        <span>myBasePay</span>
       </div>
     </div>
+    <span class="backend-indicator" id="backendIndicator" role="status">Mock backend</span>
     <nav class="appnav-items" aria-label="Main navigation">
-      <button class="nav-item" id="tabDept" aria-current="page">Department queue</button>
-      <button class="nav-item" id="tabMine" aria-current="false">My assigned</button>
-      <button class="nav-item" id="tabReport" aria-current="false">Reporting</button>
+      <button class="nav-item" aria-current="false">Home</button>
+      <button class="nav-item" aria-current="page">Tickets</button>
+      <button class="nav-item" aria-current="false">Queues</button>
+      <button class="nav-item" aria-current="false">Reports</button>
+      <button class="nav-item" aria-current="false">Members</button>
+      <button class="nav-item" aria-current="false">Knowledge</button>
+      <button class="nav-item" aria-current="false">Settings</button>
+      <button class="nav-item" aria-current="false">Help</button>
     </nav>
     <div class="appnav-foot">
-      <span class="backend-indicator" id="backendIndicator" role="status">Mock backend</span>
+      <button class="collapse-btn" type="button">Collapse</button>
     </div>
   </aside>
 
@@ -44,9 +50,19 @@
       <!-- Queue / reporting view (default) -->
       <section class="view" id="viewList">
         <div class="view-head">
-          <h1 id="listTitle">Department queue</h1>
-          <p class="panel-hint" id="listHint"></p>
+          <div>
+            <h1 id="listTitle">All tickets</h1>
+            <p class="panel-hint" id="listHint"></p>
+          </div>
+          <button class="btn primary" id="newTicketBtn" title="Creates a namespaced demo ticket (esc_demo_loop24_*) via the active backend">New demo ticket</button>
         </div>
+        <div class="page-tabs" role="tablist" aria-label="Ticket views">
+          <button class="page-tab" id="tabAll" type="button" role="tab" aria-selected="true">All tickets</button>
+          <button class="page-tab" id="tabDept" type="button" role="tab" aria-selected="false">Department queue</button>
+          <button class="page-tab" id="tabMine" type="button" role="tab" aria-selected="false">My assigned</button>
+          <button class="page-tab" id="tabReport" type="button" role="tab" aria-selected="false">Reporting</button>
+        </div>
+        <div class="metrics-strip" id="metricsStrip" aria-label="Queue metrics"></div>
         <div class="filter-toolbar" id="filterToolbar">
           <label id="filterScopeLabel">Scope
             <select id="filterScope" aria-label="Filter by assignment scope"></select>
@@ -57,17 +73,20 @@
           <label>Priority
             <select id="filterPriority" aria-label="Filter by priority"></select>
           </label>
+          <label id="filterDeptLabel">Department / queue
+            <select id="filterDept" aria-label="Filter by department or queue"></select>
+          </label>
           <label class="toggle" title="No movement past the priority threshold — local indicator only, no notification is sent">
             <input type="checkbox" id="filterAttention" />
             <span>Needs attention</span>
           </label>
-        </div>
-        <div class="list-actions" id="listActions">
-          <input id="searchInput" type="search" placeholder="Search title or id…" aria-label="Search tickets" />
+          <button class="btn filters-btn" id="filtersBtn" type="button">Filters</button>
+          <div class="toolbar-search">
+            <input id="searchInput" type="search" placeholder="Search title or id…" aria-label="Search tickets" />
+          </div>
         </div>
         <div class="new-ticket-row" id="newTicketRow">
           <input id="newTicketTitle" type="text" placeholder="New demo ticket title…" aria-label="New demo ticket title" />
-          <button class="btn primary" id="newTicketBtn" title="Creates a namespaced demo ticket (esc_demo_loop24_*) via the active backend">New demo ticket</button>
         </div>
         <ul class="ticket-list" id="ticketList"></ul>
         <div class="report" id="report" hidden></div>

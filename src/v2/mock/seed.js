@@ -14,7 +14,8 @@ import { MockStore } from '../store/MockStore.js';
 // ----- Reference data -----
 export const DEPARTMENTS = [
   createDepartment({ id: 'dept_benefits', name: 'Benefits Ops', leadIds: ['user_teri'], memberIds: ['user_maggie', 'user_sarah'] }),
-  createDepartment({ id: 'dept_payroll', name: 'Payroll', leadIds: ['user_jennifer'], memberIds: ['user_jennifer'] }),
+  createDepartment({ id: 'dept_payroll', name: 'Payroll Ops', leadIds: ['user_jennifer'], memberIds: ['user_jennifer', 'user_luis'] }),
+  createDepartment({ id: 'dept_financial', name: 'Financial Ops', leadIds: ['user_james'], memberIds: ['user_james'] }),
 ];
 
 export const USERS = [
@@ -22,6 +23,8 @@ export const USERS = [
   createUser({ id: 'user_sarah', displayName: 'Sarah', email: 'sarah@example.invalid', departmentIds: ['dept_benefits'] }),
   createUser({ id: 'user_jennifer', displayName: 'Jennifer', email: 'jennifer@example.invalid', departmentIds: ['dept_payroll'] }),
   createUser({ id: 'user_teri', displayName: 'Teri', email: 'teri@example.invalid', departmentIds: ['dept_benefits'] }),
+  createUser({ id: 'user_james', displayName: 'James', email: 'james@example.invalid', departmentIds: ['dept_financial'] }),
+  createUser({ id: 'user_luis', displayName: 'Luis', email: 'luis@example.invalid', departmentIds: ['dept_payroll'] }),
 ];
 
 export const TAGS = [
@@ -116,6 +119,30 @@ export const TICKETS = [
     legacyUrl: 'https://legacy.example.invalid/lists/escalations/items/3071',
     migrationNotes: "Legacy status was 'Not yet assigned' with an assignee; normalized to 'Assigned' on migration.",
     createdAt: '2025-11-15T08:00:00.000Z', escalationDate: '2025-11-15T08:00:00.000Z', modifiedAt: T,
+  }),
+  // 11-13. Cross-department examples (Loop 28) so the All-tickets overview spans queues.
+  //        Fabricated demo data only; recent createdAt keeps them out of reminder candidacy
+  //        in the deterministic seed-era tests.
+  createTicket({
+    id: 'esc_fin_0891', title: 'COBRA coverage question', status: STATUS.IN_PROCESS,
+    priority: PRIORITY.MEDIUM, assignedDeptId: 'dept_financial', assigneeId: 'user_james',
+    ticketOwner: 'user_james', requestingDept: 'Billing & Payments', submitterId: 'user_teri',
+    issueCategory: 'Billing', createdAt: '2026-06-26T09:00:00.000Z',
+    escalationDate: '2026-06-26T09:00:00.000Z', modifiedAt: '2026-06-26T09:00:00.000Z',
+  }),
+  createTicket({
+    id: 'esc_pay_0778', title: 'Payroll discrepancy for overtime', status: STATUS.IN_PROCESS,
+    priority: PRIORITY.HIGH, assignedDeptId: 'dept_payroll', assigneeId: 'user_luis',
+    ticketOwner: 'user_jennifer', requestingDept: 'Payroll Services', submitterId: 'user_maggie',
+    issueCategory: 'Payroll', createdAt: '2026-06-30T09:00:00.000Z',
+    escalationDate: '2026-06-30T09:00:00.000Z', modifiedAt: '2026-06-30T09:00:00.000Z',
+  }),
+  createTicket({
+    id: 'esc_ben_1019', title: '401(k) deferral change not showing', status: STATUS.PENDING_RESEARCH,
+    priority: PRIORITY.LOW, assignedDeptId: 'dept_benefits', assigneeId: 'user_sarah',
+    ticketOwner: 'user_teri', requestingDept: 'Retirement Benefits', submitterId: 'user_jennifer',
+    issueCategory: 'Retirement', createdAt: '2026-07-03T09:00:00.000Z',
+    escalationDate: '2026-07-03T09:00:00.000Z', modifiedAt: '2026-07-03T09:00:00.000Z',
   }),
 ];
 
