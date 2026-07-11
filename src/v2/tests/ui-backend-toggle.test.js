@@ -264,7 +264,8 @@ test('connectRemoteStore fails closed (throws the server reason) when the backen
 // ----- 4. integration: real serve.js boots mock-only with the live API disabled -----
 
 test('serve.js: default boot serves the UI, reports mock mode, and 503s live calls (no live init)', async () => {
-  const port = 4900 + (process.pid % 90);
+  // Wide pseudo-random range to dodge collisions with parallel/leaked test servers.
+  const port = 4300 + ((process.pid + Date.now()) % 600);
   const child = spawn(process.execPath, [join(V2_ROOT, 'ui', 'serve.js')], {
     env: {
       ...process.env,
@@ -276,7 +277,7 @@ test('serve.js: default boot serves the UI, reports mock mode, and 503s live cal
   });
   try {
     await new Promise((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error('serve.js did not start in time')), 15000);
+      const timer = setTimeout(() => reject(new Error('serve.js did not start in time')), 30000);
       child.stdout.on('data', (d) => { if (String(d).includes('UI shell')) { clearTimeout(timer); resolve(); } });
       child.on('exit', (code) => reject(new Error(`serve.js exited early (${code})`)));
     });

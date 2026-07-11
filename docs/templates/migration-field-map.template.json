@@ -1,0 +1,42 @@
+{
+  "_comment": "Machine-readable migration field-map SKELETON (Loop 30). Placeholder/example rows only — no real data, URLs, GUIDs, or production identifiers. Fill during legacy inspection; the human-readable source of truth is docs/MIGRATION_MAPPING_TEMPLATE.md. A future importer (Loop 32) may consume the completed copy from a git-ignored location.",
+  "version": "0.1.0-template",
+  "standingRules": [
+    "legacy status values preserved exactly (identity mapping; blank -> New + note)",
+    "StatusUpdates preserved verbatim and un-truncated on every ticket",
+    "unknown legacy fields preserved in legacy/additional data, never dropped",
+    "no legacy writeback; import targets v2 pre-production lists only"
+  ],
+  "fields": [
+    {
+      "legacyField": "Title",
+      "legacyType": "Text",
+      "meaning": "Ticket title",
+      "v2Field": "title",
+      "v2Type": "Text",
+      "rule": "copy",
+      "required": true,
+      "fallback": "(no title) + migration note",
+      "risk": "low",
+      "decisionOwner": null,
+      "status": "mapped"
+    },
+    {
+      "legacyField": "<EXAMPLE_LEGACY_COLUMN>",
+      "legacyType": "<Choice|Text|Note|DateTime|Lookup|Currency|YesNo>",
+      "meaning": "<what the column means operationally>",
+      "v2Field": "<v2 model field or 'legacy-additional-data'>",
+      "v2Type": "<Text|Note|Choice|DateTime|Lookup|Currency|Boolean>",
+      "rule": "<copy|resolve|derive|preserve-verbatim|exclude>",
+      "required": false,
+      "fallback": "<default when blank>",
+      "risk": "<low|med|high>",
+      "decisionOwner": "<name or null>",
+      "status": "<mapped|needs inspection|business decision|deferred>"
+    }
+  ],
+  "statuses": [
+    { "legacyValue": "Complete", "v2Value": "Complete", "preserveExact": true, "reportingBucket": "completed", "notes": "example row" },
+    { "legacyValue": "<EXAMPLE_STATUS>", "v2Value": "<same value — preserved exactly>", "preserveExact": true, "reportingBucket": "<open|pending|completed|cancelled>", "notes": "<placeholder>" }
+  ]
+}

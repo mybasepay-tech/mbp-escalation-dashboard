@@ -188,15 +188,33 @@ integration · department-specific panel configuration (modeled since the MVP).
 | Data duplication during parallel run | v2 pre-prod holds COPIES clearly labeled; legacy remains sole source of truth until cutover |
 | Rollback unreadiness | Rollback = keep using legacy (it is never written to); runbook defines the decision point and comms |
 
-## I. Open questions for Rodolfo / business
-1. Are Member/Customer/Worker names still required fields day-one? (They render in legacy.)
-2. Is `AmountRemaining` still used, or is `FinancialImpactAmount` (v2 `amountInvolved`) enough?
-3. Must the InternalDocumentationNeeded closing gate carry into v2, or does the
-   requester-closure + final-note rule replace it?
-4. Does the Teams-channel notification need day-one parity?
-5. What exports/reports are actually used today (confirm spreadsheet-order export + RFP CSV)?
-6. Who should see internal notes, and who are the admins? (Plan §F matrix needs names.)
-7. What is `AssignmentID` and does anything downstream consume it?
-8. Are native SharePoint attachments used on tracker items?
-9. Acceptable freeze window length for cutover (hours? a day?)?
-10. Who owns v2 support after launch?
+## I. Open questions — status after Rodolfo's Loop 30 decisions
+
+**Answered (Loop 30):**
+- Permissions: **all users can see the full tracker/All-tickets for now; no fine-grained
+  permissions this phase.** Internal notes **visible to all users for now.**
+- Closure: **creator/requester-only closure stays required** (D23 confirmed).
+- Notifications: **Teams/Power Automate parity is DEFERRED — a separate launch-decision
+  gate** (decision expected shortly; documented, not implemented).
+- Statuses: **legacy status values respected 100%** — identity mapping; normalization only
+  into reporting buckets (see `MIGRATION_MAPPING_TEMPLATE.md` §2).
+- History: **`StatusUpdates` preserved verbatim** during migration; parsing into
+  activity/history is optional-later and never discards the blob.
+- `AmountRemaining`: **not an active business requirement today** — preserved as
+  legacy/additional data, not a primary UI field.
+- Attachments: **not believed critical** — confirm by inspection (runbook §8), real file
+  migration not prioritized.
+- Reporting day-one baseline: **totals, open, by status, by department/queue,
+  needs-attention, completed** (all already computable in v2).
+
+**Still open:**
+1. Member/Customer/Worker name fields — day-one v2 fields, description fold-in, or legacy
+   data? (Highest-impact remaining mapping decision.)
+2. `AssignmentID` semantics and downstream consumers — inspection.
+3. Exact export column lists actually used today (spreadsheet-order/RFP) — inspection §12.
+4. Departed-author placeholder policy for requester-only closure on migrated tickets.
+5. Cutover freeze-window length; 6. post-launch support owner.
+
+Inspection execution: [`LEGACY_INSPECTION_RUNBOOK.md`](./LEGACY_INSPECTION_RUNBOOK.md).
+Mapping capture: [`MIGRATION_MAPPING_TEMPLATE.md`](./MIGRATION_MAPPING_TEMPLATE.md).
+Dry-run (future): [`MIGRATION_DRY_RUN_PLAN.md`](./MIGRATION_DRY_RUN_PLAN.md).

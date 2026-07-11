@@ -62,35 +62,44 @@ Automated report comparing legacy export vs v2 import:
   attachments; tickets with the longest StatusUpdates blobs.
 - Output is a sanitized report (counts and keys only — no live URLs/identities in git).
 
-## F. Permission / access readiness (matrix to fill in phase 3/8)
-| Capability | Who (to confirm) |
+## F. Permission / access readiness — SIMPLIFIED for initial launch (Rodolfo, Loop 30)
+| Capability | Who (initial launch) |
 |---|---|
-| See all tickets | [needs business confirmation] |
-| See department queue | department members/leads |
-| See my assigned | every signed-in user |
-| Create tickets | [needs business confirmation — all staff?] |
-| Close tickets | requester (D23 rule) — confirm operationally |
-| View internal notes | [needs business confirmation] |
-| Edit assignment/status | department members/leads |
-| Run reports/exports | leads + leadership |
-| Admin | Rodolfo + [named backup] |
+| See all tickets | **all users** |
+| See department queue / my assigned | all users |
+| Create tickets | all users |
+| Close tickets | **requester/creator only** (D23 — must-have, unchanged) |
+| View internal notes | **all users for now** |
+| Edit assignment/status | all users (app-layer rules still apply) |
+| Run reports/exports | all users (day-one baseline) |
+| Admin | Rodolfo + [named backup — still open] |
 
-v2 currently enforces rules at the application layer; SharePoint group/site permissions
-for the pre-production/production site are defined and applied before the pilot.
+Fine-grained permissions are explicitly **deferred to a post-launch phase**; the initial
+model is one site-level access group. The application-layer rules (transition guard,
+requester-only closure with final note) remain enforced regardless.
 
-## G. Launch checklist
+## G. Launch checklist (updated with Loop 30 decisions)
+**Must-haves (confirmed):**
 - [ ] D6 completed and live contract green under app auth
-- [ ] Legacy inspection done; mapping matrix approved
-- [ ] "No v2 field" decisions made (names/amount-remaining/doc-gate/TeamsPost)
-- [ ] Migration dry run passed; validation report reviewed
-- [ ] Notification parity decision implemented or signed off as deferred
-- [ ] Reporting/export parity confirmed
-- [ ] Permissions applied and spot-checked
+- [ ] Legacy inspection done ([`LEGACY_INSPECTION_RUNBOOK.md`](./LEGACY_INSPECTION_RUNBOOK.md)); mapping frozen ([`MIGRATION_MAPPING_TEMPLATE.md`](./MIGRATION_MAPPING_TEMPLATE.md))
+- [ ] **Legacy status values preserved 100%** (identity mapping — verified in dry-run)
+- [ ] **StatusUpdates preserved verbatim, un-truncated** (checksum-verified in dry-run)
+- [ ] **Requester/creator-only closure** enforced (already live-tested; re-verified in pilot)
+- [ ] Remaining mapping decisions made (party-name fields, doc-gate, departed-author policy)
+- [ ] Migration dry run passed per [`MIGRATION_DRY_RUN_PLAN.md`](./MIGRATION_DRY_RUN_PLAN.md); reconciliation report accepted
+- [ ] **Day-one reporting baseline** verified (totals / open / by status / by dept / needs-attention / completed)
+- [ ] Simplified permission model applied (§F): all-users visibility, one access group
 - [ ] Pilot/user acceptance passed
-- [ ] Rollback plan approved
-- [ ] Communications approved
-- [ ] Launch date + legacy freeze window approved
-- [ ] Support owner assigned
+- [ ] Rollback plan approved; communications approved
+- [ ] Launch date + legacy freeze window approved; support owner assigned
+
+**Deferred decision gates (explicit, not forgotten):**
+- [ ] **Teams/Power Automate notification parity** — deferred by Rodolfo (decision pending
+      shortly); must be decided (implement / defer past launch) before the cutover runbook
+      is approved. The legacy flow is never modified before cutover.
+- [ ] Fine-grained permissions — post-launch phase.
+- [ ] Real attachment file migration — pending inspection evidence; not prioritized.
+- [ ] `AmountRemaining` as an active field — preserved as legacy data unless confirmed.
 
 ## H. Recommended next loops
 - **Loop 30:** Legacy inspection checklist runner + migration mapping template (read-only
