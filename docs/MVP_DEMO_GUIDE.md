@@ -40,6 +40,11 @@ npm run ui          # local loopback server
   dropdowns, a **Needs attention** toggle (local no-movement indicator; nothing is sent),
   and a search field — plus the demo create-ticket row. Filters combine (AND) and the hint
   line shows “N of M tickets”.
+- Navigation (Loop 27): the left sidebar switches between **Department queue / My assigned
+  / Reporting**; opening a ticket shows a focused detail page (issue summary + conversation
+  central, details/assignment/tags/notes/attachments in the sidebar) with “← Back to
+  queue”. Assignment edits are staged and applied with one **Save changes** button — the
+  same rules refuse the same things (e.g. Complete without a closing comment).
 
 ## 2. Opt-in SharePoint TEST backend (non-production test site only)
 

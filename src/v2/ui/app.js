@@ -1,13 +1,18 @@
-// v2 UI shell controller.
+// v2 UI shell controller — production-style master→detail layout (Loop 27).
 //
 // Imports the EXISTING domain rules + stores (no reimplementation) and renders them to the
 // DOM. DEFAULT: strictly local MockStore — all data comes from the in-memory seededStore and
 // this file makes NO network calls itself (no fetch/XHR here; the scans enforce it).
 //
-// Loop 23 — opt-in SharePoint TEST backend: with ?backend=sharepoint-test AND the local
+// Opt-in SharePoint TEST backend (Loop 23): with ?backend=sharepoint-test AND the local
 // server's git-ignored opt-in (see ui/liveBackendGate.js), the UI uses RemoteStore, which
 // talks only to the loopback /api/store endpoints of ui/serve.js. If the opt-in/gate is
 // missing the UI shows a VISIBLE error and renders nothing — it never silently falls back.
+//
+// Loop 27 layout: a left app-nav shell; the queue is a full-width list view; opening a
+// ticket navigates to a focused detail view (issue summary + conversation central, ticket
+// details / assignment / tags / notes / attachments in a calm sidebar). Business rules and
+// store calls are unchanged — this is presentation only.
 
 import { seededStore } from '../mock/seed.js';
 import { STATUS } from '../domain/constants.js';
@@ -32,8 +37,12 @@ let ctx;                       // { usersById, deptsById, tagsById, users, depar
 let currentUserId = 'user_sarah';
 let currentDeptId = 'dept_benefits';
 let activePanel = 'dept';      // 'dept' | 'mine' | 'report'
-const filters = { ...DEFAULT_TICKET_FILTERS }; // structured toolbar state (Loop 26)
-let selectedTicketId = null;
+const filters = { ...DEFAULT_TICKET_FILTERS };
+let selectedTicketId = null;   // non-null => the detail view is open
+let composerMode = 'reply';    // 'reply' | 'note' (conversation composer tab)
+let composerDraft = '';        // survives re-renders (tab switches, sidebar toggles)
+let showAllActivity = false;
+let showAllDetails = false;
 
 // ----- DOM helpers (textContent only — no innerHTML, no injection) -----
 const $ = (id) => document.getElementById(id);
@@ -47,6 +56,16 @@ function el(tag, opts = {}, children = []) {
 }
 function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
 function fmtDate(iso) { return iso ? String(iso).slice(0, 10) : '—'; }
+function daysAgo(iso, now = new Date()) {
+  if (!iso) return null;
+  return Math.max(0, Math.floor((now.getTime() - new Date(iso).getTime()) / 86_400_000));
+}
+function fmtAgo(iso) {
+  const d = daysAgo(iso);
+  if (d == null) return '—';
+  if (d === 0) return 'today';
+  return d === 1 ? '1 day ago' : `${d} days ago`;
+}
 
 // ----- Context selectors -----
 function fillSelect(select, options, selectedId) {
@@ -63,14 +82,35 @@ async function renderContextControls() {
   fillSelect($('deptSelect'), ctx.departments.map((d) => ({ id: d.id, label: d.name })), currentDeptId);
 }
 
-// ----- List panel -----
+// ----- View switching (master → detail) -----
+function renderViewVisibility() {
+  const detailOpen = selectedTicketId != null;
+  $('viewList').hidden = detailOpen;
+  $('viewDetail').hidden = !detailOpen;
+}
+
+async function openTicket(id) {
+  selectedTicketId = id;
+  composerMode = 'reply';
+  composerDraft = '';
+  showAllActivity = false;
+  showAllDetails = false;
+  renderViewVisibility();
+  await renderDetail();
+}
+
+async function backToQueue() {
+  selectedTicketId = null;
+  renderViewVisibility();
+  await renderList();
+}
+
+// ----- List / queue view -----
 async function getPanelTickets() {
   if (activePanel === 'mine') return store.myAssignedTickets(currentUserId);
   return store.departmentQueue(currentDeptId);
 }
 
-// Toolbar visibility: hidden on the report tab; the scope dropdown only makes sense in the
-// department queue (the "My assigned" tab is already scoped to one person).
 function renderToolbarVisibility() {
   $('filterToolbar').hidden = activePanel === 'report';
   $('listActions').hidden = activePanel === 'report';
@@ -78,8 +118,6 @@ function renderToolbarVisibility() {
   $('filterScopeLabel').hidden = activePanel === 'mine';
 }
 
-// CSS modifier for a status badge — grouped so meaning is carried by TEXT + tone, not color
-// alone (each badge always shows its full status text).
 function statusGroup(status) {
   if (status === STATUS.COMPLETE) return 'complete';
   if (status === STATUS.CANCELLED) return 'cancelled';
@@ -99,7 +137,6 @@ function ticketListItem(r) {
     el('span', { class: `badge status ${statusGroup(r.status)}`, text: r.status }),
     el('span', { class: `badge prio ${r.priority.toLowerCase()}`, text: r.priority }),
     r.hasLegacy ? el('span', { class: 'badge legacy', text: 'legacy' }) : null,
-    // No-movement reminder candidate (local indicator only — nothing is sent).
     r.reminder?.isCandidate
       ? el('span', {
         class: 'badge attention', text: `no movement ${r.reminder.daysSinceMovement}d`,
@@ -124,18 +161,21 @@ function ticketListItem(r) {
     children.push(el('div', { class: 'tags' }, r.tags.map((t) => el('span', { class: 'chip mini', text: t.label }))));
   }
   const item = el('li', {
-    class: `ticket-item${r.id === selectedTicketId ? ' selected' : ''}`,
-    attrs: { 'data-id': r.id, role: 'button', tabindex: '0', 'aria-selected': String(r.id === selectedTicketId) },
+    class: 'ticket-item',
+    attrs: { 'data-id': r.id, role: 'button', tabindex: '0' },
   }, children);
-  item.addEventListener('click', () => selectTicket(r.id));
-  item.addEventListener('keydown', (e) => { if (e.key === 'Enter') selectTicket(r.id); });
+  item.addEventListener('click', () => openTicket(r.id));
+  item.addEventListener('keydown', (e) => { if (e.key === 'Enter') openTicket(r.id); });
   return item;
 }
 
+const PANEL_TITLES = { dept: 'Department queue', mine: 'My assigned tickets', report: 'Reporting' };
+
 async function renderList() {
-  $('tabDept').setAttribute('aria-selected', String(activePanel === 'dept'));
-  $('tabMine').setAttribute('aria-selected', String(activePanel === 'mine'));
-  $('tabReport').setAttribute('aria-selected', String(activePanel === 'report'));
+  for (const [id, key] of [['tabDept', 'dept'], ['tabMine', 'mine'], ['tabReport', 'report']]) {
+    $(id).setAttribute('aria-current', activePanel === key ? 'page' : 'false');
+  }
+  $('listTitle').textContent = PANEL_TITLES[activePanel];
   renderToolbarVisibility();
 
   const list = $('ticketList');
@@ -149,7 +189,6 @@ async function renderList() {
   }
   list.hidden = false; report.hidden = true;
 
-  // Loading state — noticeable on the (slower) SharePoint test backend, harmless on mock.
   list.setAttribute('aria-busy', 'true');
   $('listHint').textContent = 'Loading tickets…';
   let all;
@@ -214,62 +253,341 @@ async function renderReport() {
   report.appendChild(breakdownCard('By priority', rep.byPriority));
 }
 
-// ----- Detail panel -----
-async function selectTicket(id) {
-  selectedTicketId = id;
-  await renderList();
+// ----- Detail view -----
+
+// Run a store action then re-render the detail (and keep errors visible, never half-drawn).
+async function act(fn) {
+  try {
+    await fn();
+  } catch (err) {
+    window.alert(String(err?.message ?? err));
+  }
   await renderDetail();
 }
 
-function controlBlock(labelText, selectEl, buttonEl) {
-  return el('div', { class: 'control' }, [
-    el('span', { text: labelText }),
-    el('div', { class: 'actions' }, [selectEl, buttonEl]),
+function sectionCard(title, count, children = [], opts = {}) {
+  const head = el('div', { class: 'card-head' }, [
+    el('h3', { text: title }),
+    count != null ? el('span', { class: 'count-pill', text: String(count) }) : null,
+    opts.headExtra ?? null,
+  ]);
+  return el('section', { class: `card ${opts.class ?? ''}`.trim() }, [head, ...children]);
+}
+
+function detailHeader(dv) {
+  const movement = dv.reminder?.daysSinceMovement;
+  const ageBits = [`Opened ${fmtAgo(dv.escalationDate)}`];
+  if (movement != null && movement > 0) ageBits.push(`No movement for ${movement} day${movement === 1 ? '' : 's'}`);
+  return el('header', { class: 'detail-head' }, [
+    el('div', { class: 'detail-id mono', text: dv.id }),
+    el('h2', { text: dv.title }),
+    el('div', { class: 'detail-meta-row' }, [
+      el('span', { class: `badge status ${statusGroup(dv.status)}`, text: dv.status }),
+      el('span', { class: `badge prio ${dv.priority.toLowerCase()}`, text: dv.priority }),
+      el('span', { class: 'age-line', text: ageBits.join(' · ') }),
+    ]),
   ]);
 }
 
-async function renderDetail() {
-  const detail = $('detail');
-  const empty = $('detailEmpty');
-  if (!selectedTicketId) { detail.hidden = true; empty.hidden = false; return; }
+function issueSummaryCard(dv) {
+  const paragraphs = String(dv.description ?? '').split(/\n{2,}|\r\n\r\n/).map((p) => p.trim()).filter(Boolean);
+  const body = paragraphs.length
+    ? paragraphs.map((p) => el('p', { text: p }))
+    : [el('p', { class: 'empty', text: 'No description was provided for this ticket.' })];
+  return sectionCard('Issue summary', null, [el('div', { class: 'issue-body' }, body)], { class: 'issue-card' });
+}
 
+function messageBubble(item, { isRequester = false, internal = false } = {}) {
+  const initial = (item.author || '?').trim().charAt(0).toUpperCase();
+  const roleTag = internal
+    ? el('span', { class: 'msg-role internal', text: 'internal note' })
+    : (isRequester ? el('span', { class: 'msg-role', text: 'Requester' }) : null);
+  return el('div', { class: `msg${internal ? ' internal' : ''}` }, [
+    el('span', { class: 'avatar', text: initial, attrs: { 'aria-hidden': 'true' } }),
+    el('div', { class: 'msg-main' }, [
+      el('div', { class: 'msg-head' }, [
+        el('span', { class: 'who', text: item.author }),
+        roleTag,
+        el('span', { class: 'when', text: fmtAgo(item.createdAt), attrs: { title: fmtDate(item.createdAt) } }),
+      ]),
+      el('div', { class: 'msg-body', text: item.body }),
+    ]),
+  ]);
+}
+
+function conversationCard(ticket, comments) {
+  const items = comments.map((c) => messageBubble(c, { isRequester: c.authorId === ticket.submitterId }));
+  const thread = el('div', { class: 'thread' },
+    items.length ? items : [el('p', { class: 'empty', text: 'No public conversation yet.' })]);
+
+  // Composer with Reply / Internal note tabs — the visibility difference is explicit.
+  const replyTab = el('button', { class: 'composer-tab', text: 'Public reply', attrs: { 'aria-pressed': String(composerMode === 'reply') } });
+  const noteTab = el('button', { class: 'composer-tab', text: 'Internal note', attrs: { 'aria-pressed': String(composerMode === 'note') } });
+  const ta = el('textarea', {
+    attrs: {
+      placeholder: composerMode === 'reply'
+        ? 'Write a public reply (visible to the requester)…'
+        : 'Add an internal note (not member-facing)…',
+      'aria-label': composerMode === 'reply' ? 'Public reply' : 'Internal note',
+    },
+  });
+  ta.value = composerDraft; // drafts survive tab switches and sidebar toggles
+  ta.addEventListener('input', () => { composerDraft = ta.value; });
+  const send = el('button', {
+    class: `btn primary${composerMode === 'note' ? ' note-btn' : ''}`,
+    text: composerMode === 'reply' ? 'Send reply' : 'Add internal note',
+  });
+  replyTab.addEventListener('click', () => { composerMode = 'reply'; renderDetail(); });
+  noteTab.addEventListener('click', () => { composerMode = 'note'; renderDetail(); });
+  send.addEventListener('click', () => {
+    const body = ta.value.trim();
+    if (!body) return;
+    composerDraft = '';
+    act(() => (composerMode === 'reply'
+      ? store.addComment(ticket.id, { authorId: currentUserId, body })
+      : store.addNote(ticket.id, { authorId: currentUserId, body })));
+  });
+  const composer = el('div', { class: `composer${composerMode === 'note' ? ' internal' : ''}` }, [
+    el('div', { class: 'composer-tabs', attrs: { role: 'tablist' } }, [replyTab, noteTab]),
+    ta,
+    el('div', { class: 'composer-foot' }, [
+      el('span', {
+        class: 'hint',
+        text: composerMode === 'reply' ? 'Visible in the public conversation.' : 'Internal only — never member-facing.',
+      }),
+      send,
+    ]),
+  ]);
+
+  return sectionCard('Public conversation', comments.length, [thread, composer]);
+}
+
+function activityCard(ticket, events) {
+  const lines = activityLines(events, ctx).slice().reverse(); // newest first
+  const visible = showAllActivity ? lines : lines.slice(0, 6);
+  const ul = el('ul', { class: 'timeline' });
+  for (const line of visible) {
+    ul.appendChild(el('li', {}, [
+      el('span', { class: 'dot', attrs: { 'aria-hidden': 'true' } }),
+      el('span', { class: 'type-tag', text: line.type }),
+      el('div', { class: 'timeline-main' }, [
+        el('span', { text: line.summary }),
+        el('span', { class: 'timeline-sub' }, [
+          el('span', { class: 'who', text: line.actor }),
+          el('span', { class: 'when', text: fmtDate(line.timestamp) }),
+        ]),
+      ]),
+    ]));
+  }
+  const children = [ul];
+  if (lines.length > 6) {
+    const toggle = el('button', {
+      class: 'link-btn',
+      text: showAllActivity ? 'Show recent only' : `View full activity (${lines.length})`,
+    });
+    toggle.addEventListener('click', () => { showAllActivity = !showAllActivity; renderDetail(); });
+    children.push(toggle);
+  }
+  return sectionCard('Activity', events.length, children, { class: 'activity-card' });
+}
+
+function ticketDetailsCard(dv) {
+  const dl = el('dl');
+  const row = (k, v) => { dl.appendChild(el('dt', { text: k })); dl.appendChild(el('dd', { text: v })); };
+  row('Department / queue', dv.deptName);
+  row('Ticket owner', dv.ownerName);
+  row('Requester', dv.submitterName);
+  row('Requesting dept', dv.requestingDept || '—');
+  row('Days open', String(dv.daysOpen));
+  row('Escalated', fmtDate(dv.escalationDate));
+  row('Last movement', fmtDate(dv.lastActivityAt));
+  if (showAllDetails) {
+    row('Issue category', dv.issueCategory || '—');
+    row('Issue type', dv.issueType || '—');
+    row('Amount involved', dv.amountInvolved == null ? '— (optional)' : `${dv.amountInvolved.toFixed(2)} ${dv.amountCurrency}`);
+    row('Expected resolution', fmtDate(dv.expectedResolutionDate));
+    row('Completed', fmtDate(dv.completedDate));
+  }
+  const toggle = el('button', { class: 'link-btn', text: showAllDetails ? 'Show fewer details' : 'View all details' });
+  toggle.addEventListener('click', () => { showAllDetails = !showAllDetails; renderDetail(); });
+
+  const children = [dl, toggle];
+  if (dv.legacy) {
+    children.push(el('div', { class: 'legacy-box' }, [
+      el('h3', { text: 'Legacy metadata (migrated)' }),
+      el('div', { class: 'mono', text: `Legacy ID: ${dv.legacy.legacyItemId ?? '—'}` }),
+      el('div', { class: 'mono', text: `Legacy URL: ${dv.legacy.legacyUrl ?? '—'}` }),
+      dv.legacy.migrationNotes ? el('div', { class: 'note', text: dv.legacy.migrationNotes }) : null,
+    ]));
+  }
+  return sectionCard('Ticket details', null, children, { class: 'side-card' });
+}
+
+// Assignment & status: one compact card, staged edits, a single "Save changes" button.
+// Each changed field is applied through the SAME store calls as before (rules unchanged);
+// failures surface individually and nothing is retried or faked.
+function assignmentCard(ticket) {
+  const opts = assignmentOptions(ctx);
+  const deptSel = el('select', { attrs: { 'aria-label': 'Department / queue' } });
+  // An unrouted ticket gets an explicit "not routed" option — otherwise the browser would
+  // preselect the first department and a blind Save would silently route the ticket.
+  fillSelect(deptSel,
+    ticket.assignedDeptId ? opts.departments : [{ id: '', label: '— not routed —' }, ...opts.departments],
+    ticket.assignedDeptId ?? '');
+  const personSel = el('select', { attrs: { 'aria-label': 'Assigned person' } });
+  fillSelect(personSel, [{ id: '', label: '— unassigned —' }, ...opts.people], ticket.assigneeId ?? '');
+  const statusSel = el('select', { attrs: { 'aria-label': 'Status' } });
+  fillSelect(statusSel, statusOptions(ticket, { currentUserId }).map((s) => ({ id: s, label: s })), ticket.status);
+  const prioSel = el('select', { attrs: { 'aria-label': 'Priority' } });
+  fillSelect(prioSel, PRIORITY_OPTIONS.map((p) => ({ id: p, label: p })), ticket.priority);
+  const amountInput = el('input', {
+    attrs: { type: 'number', min: '0', step: '0.01', placeholder: 'Enter amount', 'aria-label': 'Amount involved (USD, optional)' },
+  });
+  if (ticket.amountInvolved != null) amountInput.value = String(ticket.amountInvolved);
+
+  const closureTa = el('textarea', {
+    attrs: { placeholder: 'Final closing comment (required to Complete)…', 'aria-label': 'Final closing comment' },
+  });
+  const closureRow = el('div', { class: 'field closure-row' }, [
+    el('span', { class: 'field-label', text: 'Closing comment' }),
+    closureTa,
+  ]);
+  closureRow.hidden = true;
+  const refreshClosureVisibility = () => {
+    closureRow.hidden = !(statusSel.value === STATUS.COMPLETE && ticket.status !== STATUS.COMPLETE);
+  };
+  statusSel.addEventListener('change', refreshClosureVisibility);
+  refreshClosureVisibility();
+
+  const canCompleteHere = actorCanComplete(ticket, currentUserId);
+  const completeHint = canCompleteHere
+    ? 'You submitted this ticket — completing requires a final closing comment.'
+    : `Only the requester (${userName(ctx, ticket.submitterId)}) can move this ticket to Complete.`;
+
+  const saveBtn = el('button', { class: 'btn primary save-btn', text: 'Save changes' });
+  saveBtn.addEventListener('click', () => act(async () => {
+    const errors = [];
+    const attempt = async (label, fn) => {
+      try { await fn(); } catch (e) { errors.push(`${label}: ${e.message}`); }
+    };
+    if (deptSel.value && deptSel.value !== (ticket.assignedDeptId ?? '')) {
+      await attempt('Department', () => store.assignDepartment(ticket.id, deptSel.value, { actorId: currentUserId }));
+    }
+    const person = personSel.value || null;
+    if (person !== (ticket.assigneeId ?? null)) {
+      await attempt('Assignee', () => (person
+        ? store.assignPerson(ticket.id, person, { actorId: currentUserId })
+        : store.clearAssignee(ticket.id, { actorId: currentUserId })));
+    }
+    if (statusSel.value !== ticket.status) {
+      await attempt('Status', () => store.setStatus(ticket.id, statusSel.value, {
+        actorId: currentUserId, closureNote: closureTa.value,
+      }));
+    }
+    if (prioSel.value !== ticket.priority) {
+      await attempt('Priority', () => store.setPriority(ticket.id, prioSel.value, { actorId: currentUserId }));
+    }
+    const raw = amountInput.value.trim();
+    const amount = raw === '' ? null : Number(raw);
+    if (amount !== (ticket.amountInvolved ?? null)) {
+      await attempt('Amount', () => store.setAmount(ticket.id, amount, { actorId: currentUserId }));
+    }
+    if (errors.length) throw new Error(errors.join('\n'));
+  }));
+
+  const field = (label, control, hint) => el('div', { class: 'field' }, [
+    el('span', { class: 'field-label', text: label }),
+    control,
+    hint ? el('span', { class: 'hint', text: hint }) : null,
+  ]);
+
+  return sectionCard('Assignment & status', null, [
+    field('Department / queue', deptSel),
+    field('Assign to', personSel),
+    field('Status', statusSel, completeHint),
+    closureRow,
+    field('Priority', prioSel),
+    field('Amount (optional, USD)', amountInput),
+    saveBtn,
+  ], { class: 'side-card assignment-card' });
+}
+
+function tagsCard(ticket) {
+  const chips = el('div', { class: 'tags' });
+  for (const tagId of ticket.tagIds) {
+    const x = el('button', { class: 'x', text: '×', attrs: { title: 'Remove tag', 'aria-label': `Remove tag ${tagLabel(ctx, tagId)}` } });
+    x.addEventListener('click', () => act(() => store.removeTag(ticket.id, tagId, { actorId: currentUserId })));
+    chips.appendChild(el('span', { class: 'chip' }, [el('span', { text: tagLabel(ctx, tagId) }), x]));
+  }
+  if (!ticket.tagIds.length) chips.appendChild(el('span', { class: 'empty', text: 'No tags.' }));
+
+  const children = [chips];
+  const avail = availableTags(ticket, ctx);
+  if (avail.length) {
+    const sel = el('select', { attrs: { 'aria-label': 'Tag to add' } });
+    fillSelect(sel, avail, avail[0].id);
+    const btn = el('button', { class: 'btn', text: 'Add' });
+    btn.addEventListener('click', () => act(() => store.addTag(ticket.id, sel.value, { actorId: currentUserId })));
+    children.push(el('div', { class: 'add-row' }, [sel, btn]));
+  }
+  return sectionCard('Tags', ticket.tagIds.length, children, { class: 'side-card' });
+}
+
+function notesCard(notes) {
+  const items = notes.length
+    ? notes.map((n) => messageBubble(n, { internal: true }))
+    : [el('p', { class: 'empty', text: 'No internal notes yet. Use the composer’s "Internal note" tab.' })];
+  return sectionCard('Internal notes', notes.length, items, { class: 'side-card notes-card' });
+}
+
+function attachmentsCard(ticket, attachments) {
+  const children = [el('p', { class: 'hint', text: 'No file uploads — only metadata is tracked (by design).' })];
+  if (!attachments.length) {
+    children.push(el('p', { class: 'empty', text: 'No attachments.' }));
+  }
+  for (const a of attachments) {
+    const size = a.sizeBytes != null ? `${Math.round(a.sizeBytes / 1024)} KB` : 'size n/a';
+    const x = el('button', { class: 'x', text: '×', attrs: { title: 'Remove attachment metadata (soft delete)', 'aria-label': `Remove attachment ${a.fileName}` } });
+    x.addEventListener('click', () => act(() => store.removeAttachment(ticket.id, a.id, { actorId: currentUserId })));
+    children.push(el('div', { class: 'attachment-row' }, [
+      el('div', { class: 'attachment-main' }, [
+        el('span', { class: 'attachment-name', text: a.fileName }),
+        el('span', { class: 'attachment-sub', text: `${a.mimeType ?? 'file'} · ${size} · ${a.uploadedBy} · ${fmtDate(a.uploadedAt)}` }),
+      ]),
+      x,
+    ]));
+  }
+  const nameInput = el('input', { attrs: { type: 'text', placeholder: 'File name (metadata only)…', 'aria-label': 'Attachment file name' } });
+  const btn = el('button', { class: 'btn', text: 'Add' });
+  btn.addEventListener('click', () => {
+    const fileName = nameInput.value.trim();
+    if (fileName) act(() => store.addAttachment(ticket.id, { fileName, uploadedBy: currentUserId, source: 'manual' }));
+  });
+  children.push(el('div', { class: 'add-row' }, [nameInput, btn]));
+  return sectionCard('Attachments (metadata only)', attachments.length, children, { class: 'side-card' });
+}
+
+async function renderDetail() {
+  if (selectedTicketId == null) return;
+  const detail = $('detail');
   const ticket = await store.getTicket(selectedTicketId);
-  if (!ticket) { detail.hidden = true; empty.hidden = false; return; }
-  empty.hidden = true; detail.hidden = false;
+  if (!ticket) {
+    clear(detail);
+    detail.appendChild(el('p', { class: 'empty error', text: 'This ticket could not be loaded.' }));
+    return;
+  }
+  const [comments, notes, attachments, events] = await Promise.all([
+    store.listComments(ticket.id),
+    store.listNotes(ticket.id),
+    store.listAttachments(ticket.id),
+    store.listActivity(ticket.id),
+  ]);
+  const dv = detailView(ticket, ctx);
   clear(detail);
 
-  const dv = detailView(ticket, ctx);
+  detail.appendChild(detailHeader(dv));
 
-  detail.appendChild(el('h2', { text: dv.title }));
-  detail.appendChild(el('div', { class: 'sub' }, [
-    el('span', { class: 'mono', text: dv.id }),
-    el('span', { class: `badge status ${statusGroup(dv.status)}`, text: dv.status }),
-    el('span', { class: `badge prio ${dv.priority.toLowerCase()}`, text: dv.priority }),
-  ]));
-
-  // Field grid
-  const dl = el('dl');
-  const amountText = dv.amountInvolved == null
-    ? '— (optional)'
-    : `${dv.amountInvolved.toFixed(2)} ${dv.amountCurrency}`;
-  const pairs = [
-    ['Department / queue', dv.deptName],
-    ['Assigned person', dv.assigneeName],
-    ['Ticket owner', dv.ownerName],
-    ['Requesting dept', dv.requestingDept || '—'],
-    ['Requester / submitter', dv.submitterName],
-    ['Issue category', dv.issueCategory || '—'],
-    ['Amount involved', amountText],
-    ['Escalated', fmtDate(dv.escalationDate)],
-    ['Expected resolution', fmtDate(dv.expectedResolutionDate)],
-    ['Completed', fmtDate(dv.completedDate)],
-    ['Last movement', fmtDate(dv.lastActivityAt)],
-    ['Days open', String(dv.daysOpen)],
-  ];
-  for (const [k, v] of pairs) { dl.appendChild(el('dt', { text: k })); dl.appendChild(el('dd', { text: v })); }
-  detail.appendChild(dl);
-
-  // No-movement reminder indicator (local calculation only — nothing is sent).
+  // Prominent-but-composed alerts, above the two-column split.
   if (dv.reminder?.isCandidate) {
     detail.appendChild(el('div', { class: 'alert alert-attention', attrs: { role: 'note' } }, [
       el('h3', { text: 'Needs attention — no movement' }),
@@ -279,8 +597,6 @@ async function renderDetail() {
       }),
     ]));
   }
-
-  // Final closure note (present only on completed tickets).
   if (dv.finalClosureNote) {
     detail.appendChild(el('div', { class: 'alert alert-closure', attrs: { role: 'note' } }, [
       el('h3', { text: 'Final closing comment' }),
@@ -288,271 +604,19 @@ async function renderDetail() {
     ]));
   }
 
-  // Legacy metadata — shown only when present
-  if (dv.legacy) {
-    const box = el('div', { class: 'legacy-box' }, [
-      el('h3', { text: 'Legacy metadata (migrated)' }),
-      el('div', { class: 'mono', text: `Legacy ID: ${dv.legacy.legacyItemId ?? '—'}` }),
-      el('div', { class: 'mono', text: `Legacy URL: ${dv.legacy.legacyUrl ?? '—'}` }),
-    ]);
-    if (dv.legacy.migrationNotes) box.appendChild(el('div', { class: 'note', text: dv.legacy.migrationNotes }));
-    detail.appendChild(box);
-  }
-
-  detail.appendChild(await buildControls(ticket));
-  detail.appendChild(await buildTags(ticket));
-  detail.appendChild(await buildAttachments(ticket));
-  detail.appendChild(await buildComments(ticket));
-  detail.appendChild(await buildNotes(ticket));
-  detail.appendChild(await buildActivity(ticket));
-}
-
-function entry(item) {
-  return el('div', { class: 'entry' }, [
-    el('div', { class: 'head' }, [
-      el('span', { class: 'who', text: item.author }),
-      el('span', { class: 'vis', text: item.visibility }),
-      el('span', { class: 'when', text: fmtDate(item.createdAt) }),
-    ]),
-    el('div', { class: 'body', text: item.body }),
+  const main = el('div', { class: 'detail-main' }, [
+    issueSummaryCard(dv),
+    conversationCard(ticket, comments.map((c) => commentView(c, ctx))),
+    activityCard(ticket, events),
   ]);
-}
-
-async function buildTags(ticket) {
-  const wrap = el('div', { class: 'section' }, [el('h3', { text: 'Tags' })]);
-  const chips = el('div', { class: 'tags' });
-  for (const tagId of ticket.tagIds) {
-    const x = el('button', { class: 'x', text: '×', attrs: { title: 'Remove tag', 'aria-label': 'Remove tag' } });
-    x.addEventListener('click', () => act(() => store.removeTag(ticket.id, tagId, { actorId: currentUserId })));
-    chips.appendChild(el('span', { class: 'chip' }, [el('span', { text: tagLabel(ctx, tagId) }), x]));
-  }
-  if (!ticket.tagIds.length) chips.appendChild(el('span', { class: 'empty', text: 'No tags.' }));
-  wrap.appendChild(chips);
-
-  const avail = availableTags(ticket, ctx);
-  if (avail.length) {
-    const sel = el('select');
-    fillSelect(sel, avail, avail[0].id);
-    const btn = el('button', { class: 'btn', text: 'Add tag' });
-    btn.addEventListener('click', () => act(() => store.addTag(ticket.id, sel.value, { actorId: currentUserId })));
-    wrap.appendChild(el('div', { class: 'add-row' }, [sel, btn]));
-  }
-  return wrap;
-}
-
-// Attachment METADATA only (Loop 21): no real file is uploaded and no document library is
-// touched — the "Add attachment" control records a metadata row with a placeholder ref.
-async function buildAttachments(ticket) {
-  const items = (await store.listAttachments(ticket.id)).map((a) => attachmentView(a, ctx));
-  const wrap = el('div', { class: 'section' }, [el('h3', { text: 'Attachments (metadata only)' })]);
-  if (!items.length) wrap.appendChild(el('p', { class: 'empty', text: 'No attachments. File upload is deferred — only metadata is tracked in the MVP.' }));
-  for (const a of items) {
-    const size = a.sizeBytes != null ? `${Math.round(a.sizeBytes / 1024)} KB` : 'size n/a';
-    const x = el('button', { class: 'x', text: '×', attrs: { title: 'Remove attachment (soft delete)', 'aria-label': 'Remove attachment' } });
-    x.addEventListener('click', () => act(() => store.removeAttachment(ticket.id, a.id, { actorId: currentUserId })));
-    wrap.appendChild(el('div', { class: 'entry' }, [
-      el('div', { class: 'head' }, [
-        el('span', { class: 'who', text: a.fileName }),
-        el('span', { class: 'vis', text: `${a.mimeType ?? 'file'} · ${size}` }),
-        el('span', { class: 'when', text: `${a.uploadedBy} · ${fmtDate(a.uploadedAt)}` }),
-        x,
-      ]),
-    ]));
-  }
-  const nameInput = el('input', { attrs: { type: 'text', placeholder: 'File name (metadata only — no upload)…' } });
-  const btn = el('button', { class: 'btn', text: 'Add attachment metadata' });
-  btn.addEventListener('click', () => {
-    const fileName = nameInput.value.trim();
-    if (fileName) {
-      act(() => store.addAttachment(ticket.id, { fileName, uploadedBy: currentUserId, source: 'manual' }));
-    }
-  });
-  wrap.appendChild(el('div', { class: 'add-row' }, [nameInput, btn]));
-  return wrap;
-}
-
-async function buildComments(ticket) {
-  const items = (await store.listComments(ticket.id)).map((c) => commentView(c, ctx));
-  const wrap = el('div', { class: 'section' }, [el('h3', { text: 'Public comments' })]);
-  if (!items.length) wrap.appendChild(el('p', { class: 'empty', text: 'No public comments yet.' }));
-  for (const c of items) wrap.appendChild(entry(c));
-
-  const ta = el('textarea', { attrs: { placeholder: 'Write a public comment…' } });
-  const btn = el('button', { class: 'btn primary', text: 'Add comment' });
-  btn.addEventListener('click', () => {
-    const body = ta.value.trim();
-    if (body) act(() => store.addComment(ticket.id, { authorId: currentUserId, body }));
-  });
-  wrap.appendChild(el('div', { class: 'add-row' }, [ta, btn]));
-  return wrap;
-}
-
-async function buildNotes(ticket) {
-  const items = (await store.listNotes(ticket.id)).map((n) => noteView(n, ctx));
-  const wrap = el('div', { class: 'section notes-section' }, [el('h3', { text: 'Internal notes' })]);
-  if (!items.length) wrap.appendChild(el('p', { class: 'empty', text: 'No internal notes yet.' }));
-  for (const n of items) wrap.appendChild(entry(n));
-
-  const ta = el('textarea', { attrs: { placeholder: 'Add an internal note (not member-facing)…' } });
-  const btn = el('button', { class: 'btn', text: 'Add note' });
-  btn.addEventListener('click', () => {
-    const body = ta.value.trim();
-    if (body) act(() => store.addNote(ticket.id, { authorId: currentUserId, body }));
-  });
-  wrap.appendChild(el('div', { class: 'add-row' }, [ta, btn]));
-  return wrap;
-}
-
-async function buildControls(ticket) {
-  const wrap = el('div', { class: 'controls' });
-  const opts = assignmentOptions(ctx);
-
-  // Assign department
-  const deptSel = el('select');
-  fillSelect(deptSel, opts.departments, ticket.assignedDeptId);
-  const deptBtn = el('button', { class: 'btn', text: 'Assign dept' });
-  deptBtn.addEventListener('click', () => act(() => store.assignDepartment(ticket.id, deptSel.value, { actorId: currentUserId })));
-  wrap.appendChild(controlBlock('Department / queue', deptSel, deptBtn));
-
-  // Assign person (+ unassign)
-  const personSel = el('select');
-  fillSelect(personSel, opts.people, ticket.assigneeId);
-  const personBtn = el('button', { class: 'btn primary', text: 'Assign person' });
-  personBtn.addEventListener('click', () => act(() => store.assignPerson(ticket.id, personSel.value, { actorId: currentUserId })));
-  const clearBtn = el('button', { class: 'btn', text: 'Unassign' });
-  clearBtn.addEventListener('click', () => act(() => store.clearAssignee(ticket.id, { actorId: currentUserId })));
-  wrap.appendChild(el('div', { class: 'control' }, [
-    el('span', { text: 'Assigned person (auto-status to Assigned)' }),
-    el('div', { class: 'actions' }, [personSel, personBtn, clearBtn]),
-  ]));
-
-  // Status. Complete is REQUESTER-only (Loop 21): the option is shown only when the current
-  // mock user submitted the ticket (the store rule enforces this too — the UI just avoids
-  // dead options), and completing requires a final closing comment.
-  const statusSel = el('select');
-  fillSelect(statusSel, statusOptions(ticket, { currentUserId }).map((s) => ({ id: s, label: s })), ticket.status);
-  const closureTa = el('textarea', { attrs: { placeholder: 'Final closing comment (required to Complete)…' } });
-  const validationMsg = el('span', { class: 'hint', text: '' });
-  const statusBtn = el('button', { class: 'btn', text: 'Set status' });
-  statusBtn.addEventListener('click', () => act(async () => {
-    validationMsg.textContent = '';
-    try {
-      await store.setStatus(ticket.id, statusSel.value, {
-        actorId: currentUserId, closureNote: closureTa.value,
-      });
-    } catch (err) {
-      validationMsg.textContent = err.message;
-      window.alert(err.message);
-    }
-  }));
-  const submitterName = userName(ctx, ticket.submitterId);
-  const completeHint = actorCanComplete(ticket, currentUserId)
-    ? 'You submitted this ticket — you can Complete it (a final closing comment is required).'
-    : `Only the requester (${submitterName}) can move this ticket to Complete.`;
-  const statusChildren = [
-    el('span', { text: 'Status' }),
-    el('div', { class: 'actions' }, [statusSel, statusBtn]),
-    el('span', { class: 'hint', text: completeHint }),
-  ];
-  // The closure-comment input only makes sense for the requester (Complete is in their list).
-  if (actorCanComplete(ticket, currentUserId) && statusOptions(ticket, { currentUserId }).includes(STATUS.COMPLETE)) {
-    statusChildren.push(el('div', { class: 'add-row' }, [closureTa]));
-  }
-  statusChildren.push(validationMsg);
-  wrap.appendChild(el('div', { class: 'control' }, statusChildren));
-
-  // Priority
-  const prioSel = el('select');
-  fillSelect(prioSel, PRIORITY_OPTIONS.map((p) => ({ id: p, label: p })), ticket.priority);
-  const prioBtn = el('button', { class: 'btn', text: 'Set priority' });
-  prioBtn.addEventListener('click', () => act(() => store.setPriority(ticket.id, prioSel.value, { actorId: currentUserId })));
-  wrap.appendChild(controlBlock('Priority', prioSel, prioBtn));
-
-  // Amount involved (optional money field — clear by leaving the input empty).
-  const amountInput = el('input', {
-    attrs: { type: 'number', min: '0', step: '0.01', placeholder: 'Amount (optional)' },
-  });
-  if (ticket.amountInvolved != null) amountInput.value = String(ticket.amountInvolved);
-  const amountBtn = el('button', { class: 'btn', text: 'Set amount' });
-  amountBtn.addEventListener('click', () => act(async () => {
-    const raw = amountInput.value.trim();
-    const amount = raw === '' ? null : Number(raw);
-    try { await store.setAmount(ticket.id, amount, { actorId: currentUserId }); }
-    catch (err) { window.alert(err.message); }
-  }));
-  wrap.appendChild(el('div', { class: 'control' }, [
-    el('span', { text: 'Amount involved (USD, optional)' }),
-    el('div', { class: 'actions' }, [amountInput, amountBtn]),
-  ]));
-
-  return wrap;
-}
-
-async function buildActivity(ticket) {
-  const events = await store.listActivity(ticket.id);
-  const lines = activityLines(events, ctx).slice().reverse(); // newest first
-  const ul = el('ul');
-  for (const line of lines) {
-    ul.appendChild(el('li', {}, [
-      el('span', { class: 'type-tag', text: line.type }),
-      el('span', { text: line.summary }),
-      el('span', { class: 'who', text: line.actor }),
-      el('span', { class: 'when', text: fmtDate(line.timestamp) }),
-    ]));
-  }
-  return el('div', { class: 'activity' }, [el('h3', { text: 'Activity trail' }), ul]);
-}
-
-// Run a store action then re-render the affected views. Errors (business-rule refusals or
-// backend failures) surface visibly and never leave the UI half-rendered.
-async function act(fn) {
-  try {
-    await fn();
-  } catch (err) {
-    window.alert(String(err?.message ?? err));
-  }
-  await renderList();
-  await renderDetail();
-}
-
-// ----- Wiring -----
-function fillFilterSelect(id, options, selectedKey) {
-  fillSelect($(id), options.map((o) => ({ id: o.key, label: o.label })), selectedKey);
-}
-
-function wireEvents() {
-  $('tabDept').addEventListener('click', () => { activePanel = 'dept'; renderList(); });
-  $('tabMine').addEventListener('click', () => { activePanel = 'mine'; renderList(); });
-  $('tabReport').addEventListener('click', () => { activePanel = 'report'; renderList(); });
-  $('userSelect').addEventListener('change', (e) => { currentUserId = e.target.value; renderList(); renderDetail(); });
-  $('deptSelect').addEventListener('change', (e) => { currentDeptId = e.target.value; renderList(); });
-
-  // Structured filter toolbar (Loop 26) — every control drives the same pure filter model.
-  fillFilterSelect('filterScope', SCOPE_OPTIONS, filters.scope);
-  fillFilterSelect('filterStatus', STATUS_FILTER_OPTIONS, filters.status);
-  fillFilterSelect('filterPriority', PRIORITY_FILTER_OPTIONS, filters.priority);
-  $('filterScope').addEventListener('change', (e) => { filters.scope = e.target.value; renderList(); });
-  $('filterStatus').addEventListener('change', (e) => { filters.status = e.target.value; renderList(); });
-  $('filterPriority').addEventListener('change', (e) => { filters.priority = e.target.value; renderList(); });
-  $('filterAttention').addEventListener('change', (e) => { filters.needsAttention = e.target.checked; renderList(); });
-  $('searchInput').addEventListener('input', (e) => { filters.search = e.target.value; renderList(); });
-  // Minimal demo create form (Loop 24): tickets get a clearly-namespaced demo id
-  // (esc_demo_loop24_*) so supervised test records are unmistakable and exactly cleanable.
-  // Works on both backends through the same store seam; the current user is the requester.
-  $('newTicketBtn').addEventListener('click', async () => {
-    const title = $('newTicketTitle').value.trim();
-    if (!title) return;
-    try {
-      const created = await store.createTicket({
-        id: newId('esc_demo_loop24'), title,
-        submitterId: currentUserId, requestingDept: 'Demo (test only)',
-      });
-      $('newTicketTitle').value = '';
-      await selectTicket(created.id);
-    } catch (err) {
-      window.alert(err.message);
-    }
-  });
+  const side = el('aside', { class: 'detail-side' }, [
+    ticketDetailsCard(dv),
+    assignmentCard(ticket),
+    tagsCard(ticket),
+    notesCard(notes.map((n) => noteView(n, ctx))),
+    attachmentsCard(ticket, attachments.map((a) => attachmentView(a, ctx))),
+  ]);
+  detail.appendChild(el('div', { class: 'detail-grid' }, [main, side]));
 }
 
 // ----- Backend bootstrap (Loop 23) -----
@@ -576,7 +640,56 @@ function renderBackendError(message) {
   banner.classList.add('live-error');
   banner.textContent = `SharePoint test backend UNAVAILABLE — ${message}`;
   $('listHint').textContent = 'No backend connected. Remove ?backend=sharepoint-test to use the default mock backend.';
-  $('detailEmpty').textContent = 'No backend connected.';
+  $('filterToolbar').hidden = true;
+  $('listActions').hidden = true;
+  $('newTicketRow').hidden = true;
+}
+
+// ----- Wiring -----
+function fillFilterSelect(id, options, selectedKey) {
+  fillSelect($(id), options.map((o) => ({ id: o.key, label: o.label })), selectedKey);
+}
+
+function wireEvents() {
+  const goPanel = (key) => { activePanel = key; selectedTicketId = null; renderViewVisibility(); renderList(); };
+  $('tabDept').addEventListener('click', () => goPanel('dept'));
+  $('tabMine').addEventListener('click', () => goPanel('mine'));
+  $('tabReport').addEventListener('click', () => goPanel('report'));
+  $('backToQueue').addEventListener('click', backToQueue);
+  $('userSelect').addEventListener('change', (e) => {
+    currentUserId = e.target.value;
+    if (selectedTicketId != null) renderDetail(); else renderList();
+  });
+  $('deptSelect').addEventListener('change', (e) => {
+    currentDeptId = e.target.value;
+    if (selectedTicketId == null) renderList();
+  });
+
+  // Structured filter toolbar (Loop 26).
+  fillFilterSelect('filterScope', SCOPE_OPTIONS, filters.scope);
+  fillFilterSelect('filterStatus', STATUS_FILTER_OPTIONS, filters.status);
+  fillFilterSelect('filterPriority', PRIORITY_FILTER_OPTIONS, filters.priority);
+  $('filterScope').addEventListener('change', (e) => { filters.scope = e.target.value; renderList(); });
+  $('filterStatus').addEventListener('change', (e) => { filters.status = e.target.value; renderList(); });
+  $('filterPriority').addEventListener('change', (e) => { filters.priority = e.target.value; renderList(); });
+  $('filterAttention').addEventListener('change', (e) => { filters.needsAttention = e.target.checked; renderList(); });
+  $('searchInput').addEventListener('input', (e) => { filters.search = e.target.value; renderList(); });
+
+  // Minimal demo create form (Loop 24): namespaced esc_demo_loop24_* ids, requester = current user.
+  $('newTicketBtn').addEventListener('click', async () => {
+    const title = $('newTicketTitle').value.trim();
+    if (!title) return;
+    try {
+      const created = await store.createTicket({
+        id: newId('esc_demo_loop24'), title,
+        submitterId: currentUserId, requestingDept: 'Demo (test only)',
+      });
+      $('newTicketTitle').value = '';
+      await openTicket(created.id);
+    } catch (err) {
+      window.alert(err.message);
+    }
+  });
 }
 
 async function main() {
@@ -594,8 +707,8 @@ async function main() {
   ctx = await loadContext(store);
   await renderContextControls();
   wireEvents();
+  renderViewVisibility();
   await renderList();
-  await renderDetail();
 }
 
 main();

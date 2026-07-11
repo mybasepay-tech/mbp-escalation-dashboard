@@ -3,15 +3,32 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Escalation System v2 — Mock UI Shell</title>
+  <title>Escalation System v2</title>
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
-  <header class="topbar">
-    <div class="topbar-row">
-      <div class="brand">
-        <strong>Escalation System v2</strong>
-        <span class="backend-indicator" id="backendIndicator" role="status">Mock backend</span>
+  <aside class="appnav" aria-label="Application">
+    <div class="appnav-brand">
+      <span class="appnav-logo" aria-hidden="true">E</span>
+      <div class="appnav-name">
+        <strong>Escalations</strong>
+        <span>myBasePay v2</span>
+      </div>
+    </div>
+    <nav class="appnav-items" aria-label="Main navigation">
+      <button class="nav-item" id="tabDept" aria-current="page">Department queue</button>
+      <button class="nav-item" id="tabMine" aria-current="false">My assigned</button>
+      <button class="nav-item" id="tabReport" aria-current="false">Reporting</button>
+    </nav>
+    <div class="appnav-foot">
+      <span class="backend-indicator" id="backendIndicator" role="status">Mock backend</span>
+    </div>
+  </aside>
+
+  <div class="app-main">
+    <header class="topbar">
+      <div class="banner" id="backendBanner" role="status">
+        Mock data only — not connected to any live system (no Graph / SharePoint / production).
       </div>
       <div class="ctx-controls">
         <label>Current user
@@ -21,51 +38,48 @@
           <select id="deptSelect"></select>
         </label>
       </div>
-    </div>
-    <div class="banner" id="backendBanner" role="status">
-      Mock data only — not connected to any live system (no Graph / SharePoint / production).
-    </div>
-  </header>
+    </header>
 
-  <main class="layout">
-    <section class="panel list-panel">
-      <div class="tabs" role="tablist">
-        <button class="tab" id="tabDept" role="tab" aria-selected="true">Department queue</button>
-        <button class="tab" id="tabMine" role="tab" aria-selected="false">My assigned</button>
-        <button class="tab" id="tabReport" role="tab" aria-selected="false">Reporting</button>
-      </div>
-      <div class="filter-toolbar" id="filterToolbar">
-        <label id="filterScopeLabel">Scope
-          <select id="filterScope" aria-label="Filter by assignment scope"></select>
-        </label>
-        <label>Status
-          <select id="filterStatus" aria-label="Filter by status"></select>
-        </label>
-        <label>Priority
-          <select id="filterPriority" aria-label="Filter by priority"></select>
-        </label>
-        <label class="toggle" title="No movement past the priority threshold — local indicator only, no notification is sent">
-          <input type="checkbox" id="filterAttention" />
-          <span>Needs attention</span>
-        </label>
-      </div>
-      <div class="list-actions" id="listActions">
-        <input id="searchInput" type="search" placeholder="Search title or id…" aria-label="Search tickets" />
-      </div>
-      <div class="new-ticket-row" id="newTicketRow">
-        <input id="newTicketTitle" type="text" placeholder="New demo ticket title…" aria-label="New demo ticket title" />
-        <button class="btn primary" id="newTicketBtn" title="Creates a namespaced demo ticket (esc_demo_loop24_*) via the active backend">New demo ticket</button>
-      </div>
-      <p class="panel-hint" id="listHint"></p>
-      <ul class="ticket-list" id="ticketList"></ul>
-      <div class="report" id="report" hidden></div>
-    </section>
+    <main class="content">
+      <!-- Queue / reporting view (default) -->
+      <section class="view" id="viewList">
+        <div class="view-head">
+          <h1 id="listTitle">Department queue</h1>
+          <p class="panel-hint" id="listHint"></p>
+        </div>
+        <div class="filter-toolbar" id="filterToolbar">
+          <label id="filterScopeLabel">Scope
+            <select id="filterScope" aria-label="Filter by assignment scope"></select>
+          </label>
+          <label>Status
+            <select id="filterStatus" aria-label="Filter by status"></select>
+          </label>
+          <label>Priority
+            <select id="filterPriority" aria-label="Filter by priority"></select>
+          </label>
+          <label class="toggle" title="No movement past the priority threshold — local indicator only, no notification is sent">
+            <input type="checkbox" id="filterAttention" />
+            <span>Needs attention</span>
+          </label>
+        </div>
+        <div class="list-actions" id="listActions">
+          <input id="searchInput" type="search" placeholder="Search title or id…" aria-label="Search tickets" />
+        </div>
+        <div class="new-ticket-row" id="newTicketRow">
+          <input id="newTicketTitle" type="text" placeholder="New demo ticket title…" aria-label="New demo ticket title" />
+          <button class="btn primary" id="newTicketBtn" title="Creates a namespaced demo ticket (esc_demo_loop24_*) via the active backend">New demo ticket</button>
+        </div>
+        <ul class="ticket-list" id="ticketList"></ul>
+        <div class="report" id="report" hidden></div>
+      </section>
 
-    <section class="panel detail-panel" id="detailPanel">
-      <p class="empty" id="detailEmpty">Select a ticket to see details.</p>
-      <article class="detail" id="detail" hidden></article>
-    </section>
-  </main>
+      <!-- Ticket detail view (replaces the queue when a ticket is open) -->
+      <section class="view" id="viewDetail" hidden>
+        <button class="back-link" id="backToQueue">← Back to queue</button>
+        <article class="detail" id="detail"></article>
+      </section>
+    </main>
+  </div>
 
   <script type="module" src="./app.js"></script>
 </body>
