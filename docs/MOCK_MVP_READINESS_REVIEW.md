@@ -347,6 +347,26 @@ Execution-prep only — verified readiness without touching anything live:
   limitation stands until then.
 - 278/278 tests; no live records were created this loop.
 
+### Loop 27 — production-style ticket detail redesign (presentation only)
+- **App shell:** left vertical navigation (Department queue / My assigned / Reporting) with
+  the backend indicator anchored in the nav footer; slim top bar keeps the environment
+  banner and user/department controls always visible.
+- **Master → detail:** the queue is now a full-width list; opening a ticket navigates to a
+  focused detail page with “← Back to queue”. The detail page leads with the ticket id,
+  title, status/priority badges, and an age line (“Opened N days ago · No movement for
+  N days”).
+- **Hierarchy:** main column = Issue summary (accent-marked, the heart of the ticket) →
+  Public conversation (avatar bubbles, requester tagged, single composer with explicit
+  “Public reply” / “Internal note” tabs and distinct internal styling) → Activity timeline
+  (collapsed to recent, “View full activity” toggle). Sidebar = Ticket details (essentials
+  + “View all details”), a compact Assignment & status card with a single **Save changes**
+  action (same store calls, applied per changed field), Tags, Internal notes, Attachments
+  (metadata-only, stated in-card).
+- **No behavior/rule/store change** — presentation only; the requester-only closure rule,
+  reminder indicator wording, and all Loop 26 filter improvements are preserved. Two UX
+  bugs fixed along the way (unrouted tickets can no longer be silently routed by a blind
+  Save; composer drafts survive tab switches). 278/278 tests; no live records created.
+
 ## 4. What remains mock-only (not production-ready yet)
 - No persistence / no real backend.
 - No authentication, identity, or permission enforcement (roles are modeled in docs only;

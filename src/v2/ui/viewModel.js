@@ -123,6 +123,7 @@ export function attachmentView(attachment, ctx) {
 export function commentView(comment, ctx) {
   return {
     id: comment.id,
+    authorId: comment.authorId ?? null, // lets the UI mark the requester's messages
     author: userName(ctx, comment.authorId),
     body: comment.body,
     visibility: comment.visibility ?? 'public',
