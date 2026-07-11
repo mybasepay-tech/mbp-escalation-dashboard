@@ -7,7 +7,13 @@
 //
 // Mapping authority: docs/MIGRATION_MAPPING_TEMPLATE.md (D32/D33 standing rules).
 
-/** Tracker fields known from read-only source inspection (gap analysis §C.1). */
+/**
+ * Tracker fields known from read-only source inspection (gap analysis §C.1), extended with
+ * the fields CONFIRMED by the real spreadsheet export (Loop 34 evidence — column names
+ * only; no data): CreatedBy/AssignedTo (display-name sources — spreadsheet exports carry
+ * no lookup ids), EscalationCommentary (description source), AddTags2 (raw lookup-encoded
+ * tag/person field), DaysToResolve (newly observed derived day-count).
+ */
 export const KNOWN_LEGACY_FIELDS = Object.freeze([
   'Title', 'Status', 'Urgency', 'EscalationDate', 'ResolvedDate', 'ExpectedResolutionDate',
   'RequestingDept', 'AssignedDepartmentOwner', 'OriginalAssignedDept', 'DaysCurrentDept',
@@ -16,6 +22,8 @@ export const KNOWN_LEGACY_FIELDS = Object.freeze([
   'StatusUpdates', 'DaysOpen', 'AssignedToLookupId', 'AuthorLookupId', 'AddTags',
   'AddTagsLookupId', 'TeamsPost', 'AssignmentID', 'InternalDocumentationNeeded',
   'InternalDocumentationCommentary', 'Created', 'Modified',
+  // Loop 34 (real-export evidence):
+  'CreatedBy', 'AssignedTo', 'EscalationCommentary', 'AddTags2', 'DaysToResolve',
 ]);
 
 /** Legacy status vocabulary confirmed so far (preserved 100% — identity mapping). */

@@ -12,6 +12,18 @@
 Answer every "[needs legacy inspection]" item from the gap analysis with evidence, so the
 field mapping, migration importer (Loop 32), and dry-run plan can proceed without guesses.
 
+> **Progress (Loop 34):** Rodolfo's spreadsheet export of the visible list partially
+> answered §5 (column inventory — 31 display columns confirmed), §6 (the seven status
+> values + nine department values observed in visible rows), and the volume question
+> (300 visible rows, IDs to 362 — completeness unconfirmed). Sanitized evidence:
+> `LEGACY_GAP_ANALYSIS.md` §C.1b. A local, aggregate-only analyzer now exists for any
+> export file: `src/v2/tools/migration/run-legacy-export-analysis.js` (no network, no
+> import, raw values never emitted). STILL OPEN and unchanged by the export: §4 schema
+> (exact column types/required/choice definitions), §7 lookup configuration (incl.
+> `AddTags2` semantics), §8 attachments, §9 un-truncated StatusUpdates verification,
+> §10 Power Automate flows, §11 permissions, plus whether other related lists/views
+> exist beside the personal-site list the export came from.
+
 ## 2. Safety rules (absolute)
 - READ-ONLY throughout. Browse, view, screenshot, export. Never edit, save, rename,
   reorder, re-permission, or delete anything.

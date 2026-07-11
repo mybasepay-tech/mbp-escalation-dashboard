@@ -74,6 +74,45 @@ already committed.
   `StatusUpdates` text blob (with a documented data-loss footgun the dashboard mitigates
   by re-reading before writing).
 
+### C.1b Confirmed by the REAL spreadsheet export (Loop 34 — sanitized evidence)
+Rodolfo exported the visible legacy Escalations list (2026-07). The export was analyzed
+LOCALLY; only aggregates and column names are recorded here — no row content, names,
+links, or paths are committed, and the raw export file never enters git.
+
+- **Shape:** 31 columns (spreadsheet display headers, plus the export artifacts
+  `Item Type` and `Path`). Canonical header→field mapping is now code:
+  `src/v2/tools/migration/exportColumns.js`.
+- **Volume:** 300 visible/exported rows; IDs range up to 362. The ID gaps mean deletions
+  and/or a filtered view — **whether this is the complete list is NOT yet confirmed.**
+- **Source:** the list lives on a PERSONAL SharePoint site (`personal/<owner>/Lists/
+  Escalations`) — treated as source evidence only, not proof there are no other related
+  lists/views.
+- **Statuses observed:** exactly the seven expected values (Not yet assigned, Assigned,
+  In Process, Pending Research, Pending Member, Pending Customer, Complete) — the frozen
+  100% identity mapping holds; no new status appeared in the visible rows.
+- **Departments observed (Assigned Department Owner):** nine queues — Billing,
+  Technology, HR, Operations, Finance, Contracts, Sales, Leadership, Payroll.
+- **Fields confirmed real and mapped:** party fields (Member/Customer/Worker Name →
+  Additional Details), `Assignment ID` (legacy data), `Amount Remaining` (sparse → legacy
+  data), `Status Updates` (verbatim + length + sha256), `Teams Post` (hyperlink metadata;
+  never emitted raw in reports), `Internal Documentation Needed`/`Commentary` (internal
+  documentation mapping).
+- **Newly observed columns** (added to the known-field set + transform): `Created By` and
+  `Assigned To` (DISPLAY NAMES — spreadsheet exports carry no lookup ids, so requester/
+  assignee matching needs a name-keyed user map), `Escalation Commentary` (description
+  source), `Days to Resolve` (derived day count; preserved uninterpreted — v2 recomputes).
+- **AddTags2:** lookup/person-style encoded (`value;#id` pairs). Kept RAW in
+  `legacyData.addTags2Raw` until its meaning (watchers? tags? recipients?) and parsing
+  strategy are approved.
+- **Attachments:** NOT visible in a spreadsheet export — still requires SharePoint
+  inspection (unresolved).
+- **Deep per-column statistics** (non-empty counts, date ranges, blob length/HTML/emoji
+  metrics): the committed sanitized analyzer produces them locally in one command —
+  `node tools/migration/run-legacy-export-analysis.js <local-export.csv>` — emitting
+  AGGREGATES ONLY by construction. *Status: pending — the raw export file was not present
+  on the analysis machine during Loop 34; the preliminary facts above come from Rodolfo's
+  export review and are marked accordingly.*
+
 ### C.2 Must be inspected in the live legacy system [needs legacy inspection]
 - Full list schema (column types, required flags, choice sets, calculated/validation
   formulas) — the dashboard only shows what it *uses*; the list may hold more.
@@ -87,7 +126,15 @@ already committed.
 - `AssignmentID` semantics and any integrations keyed on it.
 - The `TeamsPost` URL population mechanism (manual? flow?).
 - Volume: total items, per-status counts, `StatusUpdates` blob sizes, attachment counts.
+  *(Partially evidenced by the Loop 34 export: 300 visible rows, IDs to 362 — full-list
+  confirmation still required.)*
 - Any Microsoft Forms intake, Outlook rules, or other entry points into the list.
+- **Loop 34 additions:** is the 300-row export the complete list or a filtered view? Are
+  all historical IDs (including gaps) needed? Does `AddTags2` represent watchers, tags,
+  or notification recipients? Are `Teams Post` links needed in day-one UI or only in
+  Additional Details? Are there departed authors among `Created By` values (D33 exception
+  volume)? Are there other related lists/views beside the personal-site list the export
+  came from?
 
 ### C.3 Must be confirmed by the business [needs business confirmation]
 - Current pain points and manual workarounds (known from repo history: status/assignee

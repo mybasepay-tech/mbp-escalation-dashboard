@@ -8,6 +8,15 @@
 >
 > Machine-readable skeleton: [`templates/migration-field-map.template.json`](./templates/migration-field-map.template.json)
 > (placeholder rows only — no real data).
+>
+> **Loop 34 evidence update:** the REAL spreadsheet export (300 visible rows, 31 display
+> columns) confirmed this mapping's field set and surfaced four previously-unmodeled
+> columns — `Created By`, `Assigned To` (display names; spreadsheet exports carry no
+> lookup ids), `Escalation Commentary` (description source), and `Days to Resolve` — plus
+> `AddTags2` as the actual tag column name. The canonical display-header→field map is now
+> CODE: `src/v2/tools/migration/exportColumns.js` (sanitized evidence:
+> `LEGACY_GAP_ANALYSIS.md` §C.1b). Statuses in the visible rows are exactly the seven
+> expected values — the §2 identity mapping holds on real data.
 
 ## Standing rules (Rodolfo, Loops 30–31 — accepted)
 1. **Legacy status values are respected 100%** — migrated tickets keep their exact legacy
@@ -35,12 +44,13 @@
 | Legacy field | Legacy type | Meaning | v2 target | v2 type | Migration rule | Req? | Default/fallback | Risk | Decision owner | Status |
 |---|---|---|---|---|---|---|---|---|---|---|
 | `Title` | Text | Ticket title | `title` | Text | copy | yes | "(no title)" + note | low | — | mapped |
-| `StatusCommentary` | Note | Issue description (confirm) | `description` | Note | copy | no | empty | low | inspection §9 | needs inspection |
+| `EscalationCommentary` ("Escalation Commentary") | Note | Issue description — CONFIRMED by the Loop 34 export as the real column | `description` | Note | copy | no | empty | low | — | mapped (evidence) |
+| `StatusCommentary` | Note | Issue description (API-shaped exports; fallback source) | `description` | Note | copy when `EscalationCommentary` absent | no | empty | low | inspection §9 | needs inspection |
 | `Status` | Choice | Lifecycle status | `status` | Choice | copy EXACT value (rule 1); blank → `New` + migration note | yes | `New` + note | low | — | mapped |
 | `Urgency` | Choice | Priority | `priority` | Choice | 1:1 copy | yes | `Medium` + note | low | — | mapped |
 | `AssignedDepartmentOwner` | Text/Choice | Assigned dept | `assignedDeptId` | Lookup | resolve text → canonical dept key; unknown → flag row, never guess | yes | unrouted + note | med | Rodolfo (canonical dept list) | needs inspection |
-| `AssignedTo` (lookup) | Lookup(person) | Assignee | `assigneeId` | Lookup | resolve via user map | no | null | med | — | needs inspection (user map) |
-| item `Author` | System | Creator/requester | `submitterId` | Lookup | resolve author → v2 user; departed users → legacy-user placeholder policy | yes | placeholder user + note | high | Rodolfo (placeholder closure policy) | business decision |
+| `AssignedTo` (lookup / "Assigned To" display name) | Lookup(person) / Text | Assignee | `assigneeId` | Lookup | resolve via user map (lookup id when present; `name:<display name>` key for spreadsheet exports); unresolved → unassigned + warning; raw name preserved in `legacyData.assignedToName` | no | null | med | — | mapped (name-based; user map still needed) |
+| item `Author` / "Created By" display name | System / Text | Creator/requester | `submitterId` | Lookup | resolve author → v2 user (lookup id or `name:` key); departed/unmatched → D33 flag (closure only by migration owner); raw name preserved in `legacyData.createdByName` | yes | D33 exception + note | high | decided (D33) | mapped (name-based; user map still needed) |
 | *(Department Leads.Primary)* | Lookup | Accountability owner | `ticketOwner` | Lookup | derive from dept lead at import time | no | null | med | — | mapped (derived) |
 | `RequestingDept` | Text/Choice | Origin dept | `requestingDept` | Text | copy | no | empty | low | — | mapped |
 | `EscalationDate` | DateTime | Escalated | `escalationDate` | DateTime | copy | yes | `Created` | low | — | mapped |
@@ -48,7 +58,8 @@
 | `ResolvedDate` | DateTime | Closed date | `completedDate` | DateTime | copy when Status = Complete | yes* | null | low | — | mapped |
 | `ExpectedResolutionDate` | DateTime | Due date | `expectedResolutionDate` | DateTime | copy | no | null | low | — | mapped |
 | `StatusUpdates` | Note (long) | Full history blob | verbatim preservation (rule 2) + optional later parse | Note | copy verbatim, un-truncated | yes | — | high if truncated | — | mapped (verbatim) |
-| `AddTags` | Multi-lookup | Tags | `tagIds` via TicketTags links | Link list | resolve each; create missing v2 tags | no | none | med | inspection §7 (semantics) | needs inspection |
+| `AddTags` | Multi-lookup | Tags (API shape) | `tagIds` via TicketTags links | Link list | resolve each; create missing v2 tags | no | none | med | inspection §7 (semantics) | needs inspection |
+| `AddTags2` ("AddTags2") | Lookup-encoded text | Tags/watchers — CONFIRMED as the export's tag column; `value;#id` pair encoding observed | `legacyData.addTags2Raw` now; `tagIds` after parsing strategy approval | — | preserve RAW; parse ONLY after semantics (watchers vs tags vs recipients) are confirmed | no | none | med | Rodolfo + inspection §7 | needs decision (raw preserved) |
 | `FinancialImpactAmount` | Currency | Money involved | `amountInvolved` | Currency | copy | no | null | low | — | mapped |
 | `AmountRemaining` | Currency | Remaining amount | legacy/additional data (rule 3) | — | preserve, not surfaced as primary UI | no | — | low | — | mapped (preserve) |
 | `MemberName` | Text | Member party | party field, Additional Details (rule 7) | Text | copy; display in detail Additional Details | no | empty | low | — | mapped |
@@ -63,7 +74,8 @@
 | `TeamsPost` | URL | Teams post link | legacy/additional data | — | preserve | no | — | low | — | deferred |
 | `AssignmentID` | ? | Unknown key | legacy/additional data (rule 8) | — | preserve, uninterpreted | no | — | low | inspection §5 (consumers only) | mapped (preserve) |
 | item `id` | System | Legacy key | `legacyItemId` + `legacyUrl` | Text/URL | copy — already modeled | yes | — | low | — | mapped |
-| `DaysOpen` (calculated) | Calc | Stale day count | — (v2 computes live) | — | DO NOT migrate | — | — | none | — | mapped (excluded) |
+| `DaysOpen` (calculated) | Calc | Stale day count | `legacyData.daysOpen` (audit only) — v2 computes live | — | preserve uninterpreted; never displayed as current | — | — | none | — | mapped (preserve, excluded from UI) |
+| `DaysToResolve` ("Days to Resolve") | Calc/Number | Resolution day count — NEW column observed in the Loop 34 export | `legacyData.daysToResolve` (audit only) | — | preserve uninterpreted; v2 derives resolution metrics live | no | — | low | — | mapped (preserve) |
 | Native attachments | Files | Attachments | metadata rows; files deferred | — | per inspection §8 outcome | ? | — | med | inspection + Rodolfo | deferred |
 | *(any newly discovered column)* | — | — | — | — | add a row here before mapping freeze | — | — | — | — | needs inspection |
 
