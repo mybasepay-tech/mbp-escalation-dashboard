@@ -22,7 +22,7 @@
 | 2 | **D6 auth execution** | Rod approves D6 plan | App registration live (cert, `Sites.Selected`, single-site grant); live contract re-passed under app auth | Admin + Eng | admin availability; cert handling | Working non-interactive auth; D6 marked executed |
 | 3 | **Legacy inspection** | Read-only admin access approved | C.2 checklist answered; field mapping frozen; open questions answered | Rodolfo + Eng | undocumented flows/fields | Inspection report; approved mapping matrix |
 | 4 | **Migration design** | Phases 2–3 done | Transform rules (incl. StatusUpdates parser + preservation strategy) reviewed and approved | Eng | history-blob parsing | Migration design doc |
-| 5 | **Migration tool build** | Phase 4 approved | Importer runs idempotently against fixtures; unit-tested; read-only toward legacy by construction | Eng | edge cases | Importer + tests |
+| 5 | **Migration tool build** | Phase 4 approved | Importer runs idempotently against fixtures; unit-tested; read-only toward legacy by construction. *(Loop 32: the OFFLINE validate/transform/report foundation is built + tested — `src/v2/tools/migration/`; the gated import stage remains.)* | Eng | edge cases | Importer + tests |
 | 6 | **Controlled import (copy)** | Phase 5 done; pre-prod lists provisioned | Full COPY of legacy data imported to v2 pre-production; zero legacy writes | Eng (supervised) | data surprises | Import run log (sanitized) |
 | 7 | **Validation** | Phase 6 done | §E validation report passes; discrepancies triaged to zero-or-accepted | Eng + Rodolfo | silent data loss | Validation report |
 | 8 | **Controlled pilot** | Phase 7 passed; §F permissions applied | Small named group works real-ish cases in v2 (copies); acceptance criteria met; feedback triaged | Rodolfo + pilot users | workflow mismatch | Pilot report; UAT sign-off |
@@ -85,9 +85,10 @@ requester-only closure with final note) remain enforced regardless.
 - [ ] **Legacy status values preserved 100%** (identity mapping — verified in dry-run)
 - [ ] **StatusUpdates preserved verbatim, un-truncated** (checksum-verified in dry-run)
 - [ ] **Requester/creator-only closure** enforced (already live-tested; re-verified in pilot)
-- [ ] **Departed-author exception defined BEFORE migration import** (Loop 31 accepted policy:
-      unmatched-requester tickets closable only by the designated admin/migration owner —
-      a migration exception, not a general rule; the named owner is still to be assigned)
+- [x] **Departed-author exception defined** (Loop 31 policy + Loop 32/D33 owner:
+      unmatched-requester tickets closable only by **Rodolfo Chacón / IT Admin**, the
+      designated migration owner — an auditable migration exception, not a general rule;
+      the importer flags every such ticket)
 - [ ] **Party fields (`MemberName`/`CustomerName`/`WorkerName`) preserved and displayed** in
       the ticket detail Additional Details area (Loop 31 decision — schema + UI item before
       import; not protagonist fields)

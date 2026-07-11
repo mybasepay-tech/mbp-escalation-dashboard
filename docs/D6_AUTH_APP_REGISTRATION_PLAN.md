@@ -1,5 +1,8 @@
 # D6 — App Registration / Auth Plan (Escalation System v2)
 
+> **Hands-on execution steps:** [`D6_ADMIN_EXECUTION_CHECKLIST.md`](./D6_ADMIN_EXECUTION_CHECKLIST.md)
+> (~1 hour of admin work, with capture worksheet, post-execution validation, and rollback).
+>
 > **Status: READY FOR APPROVAL + ADMIN SETUP — not complete.** Nothing in this plan has
 > been executed against Entra/Azure. The committed code contains the fail-closed
 > validation contract and placeholder templates only; the registration itself is a manual,

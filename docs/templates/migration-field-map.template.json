@@ -6,7 +6,7 @@
     "StatusUpdates preserved verbatim and un-truncated on every ticket",
     "unknown legacy fields preserved in legacy/additional data, never dropped",
     "no legacy writeback; import targets v2 pre-production lists only",
-    "departed/unmatched authors: FLAG; closure only by designated admin/migration owner (Loop 31)",
+    "departed/unmatched authors: FLAG; closure only by the designated migration owner (Rodolfo Chacon / IT Admin, D33) as an auditable migration exception",
     "party fields (MemberName/CustomerName/WorkerName) preserved AND displayed in Additional Details (Loop 31)",
     "AmountRemaining + AssignmentID preserved as legacy data, uninterpreted, not primary UI (Loop 31)",
     "internal notes visible to all users this phase (Loop 31)"
