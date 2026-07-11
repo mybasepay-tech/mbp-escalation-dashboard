@@ -110,7 +110,7 @@ already committed.
 | `Urgency` | Priority | `priority` | 1:1 | yes | low | |
 | `AssignedDepartmentOwner` | Assigned dept (text) | `assignedDeptId` | resolve text → `Escalations_v2_Departments` key; unknown → create dept or flag | yes | med | Legacy is free-ish text; needs canonical dept list |
 | `AssignedToLookupId` | Assignee | `assigneeId` | resolve via user map → v2 user key | no | med | Depends on identity strategy (D6/Person columns) |
-| item `Author` (`AuthorLookupId`) | Submitter | `submitterId` | resolve author → v2 user | yes | **high** | v2 closure authority hangs on this; missing/departed authors need a policy |
+| item `Author` (`AuthorLookupId`) | Submitter | `submitterId` | resolve author → v2 user | yes | med | Closure authority. Departed/unmatched authors: closure by designated admin/migration owner ONLY (Loop 31 accepted exception) |
 | *(none — dept lead list)* | Owner/closure authority | `ticketOwner` | derive from Department Leads primary | no | med | Legacy has no per-ticket owner field [inspected: leads list exists] |
 | `RequestingDept` | Originating dept | `requestingDept` | copy | no | low | |
 | `EscalationDate` | Created/escalated | `escalationDate` | copy | yes | low | |
@@ -121,8 +121,8 @@ already committed.
 | `StatusUpdates` | Full history blob | comments + activity + preserved raw | parse entries → `Escalations_v2_Comments`/activity; ALWAYS also preserve the verbatim blob in `migrationNotes` or an archival column | yes | **high** | Prepend-format text; parsing is best-effort — raw text must never be lost |
 | `AddTags` (multi-lookup) | Tags | `tagIds` via TicketTags link list | resolve each lookup → v2 tag; create missing tags | no | med | Tag emails suggest people-tags — confirm semantics [needs business confirmation] |
 | `FinancialImpactAmount` | Money involved | `amountInvolved` | copy | no | low | |
-| `AmountRemaining` | Remaining amount | **no v2 field** | ADD to v2 or park in migrationNotes | ? | med | Decide before mapping freeze [needs business confirmation] |
-| `MemberName` / `CustomerName` / `WorkerName` | Case parties | **no v2 fields** | ADD to v2 (likely) or fold into description | ? | **high** | Actively displayed in legacy UI — probably must-have |
+| `AmountRemaining` | Remaining amount | legacy/additional data | preserve; NOT primary UI (Loop 31 decision) | no | low | Revisit only if business confirms active use |
+| `MemberName` / `CustomerName` / `WorkerName` | Case parties | legacy party fields shown in Additional Details | preserve + display (Loop 31 decision); not protagonist fields | yes | low | Small pre-import UI item to surface them |
 | `IssueType` / `IssueCategoryDetail` | Classification | `issueType` / `issueCategory` | copy | no | low | |
 | `OriginalAssignedDept`, `DaysCurrentDept`, `DateAssignedtoCurrent` | Dept-transfer tracking | activity events (+ optional fields) | synthesize a transfer activity event on import | no | med | v2 tracks transfers via activity going forward |
 | `InternalDocumentationNeeded` / `...Commentary` | Closing doc gate | **no v2 fields** | map to internal note on import; decide if v2 needs the closing gate | ? | med | Part of the legacy CLOSING VALIDATION RULE [inspected] |
@@ -136,7 +136,7 @@ already committed.
 
 | Area | State | Detail |
 |---|---|---|
-| Data model | **Partially ready** | Core model strong; missing legacy fields: Member/Customer/Worker names, AmountRemaining, InternalDocumentation pair, TeamsPost, AssignmentID (decisions needed) |
+| Data model | **Partially ready** | Core model strong; legacy carry-fields now DECIDED (Loop 31): party names preserved + displayed in Additional Details; AmountRemaining/AssignmentID/TeamsPost preserved as legacy data; InternalDocumentation pair → internal note. Remaining work: add the party/legacy-data fields to schema + UI before import |
 | UI | **Ready (pre-prod)** | Production-style; needs the new-field decisions above reflected once made; no ticket-edit of title/description yet |
 | Store/backend | **Ready (pre-prod)** | Contract passed live incl. resilience; adapter async-safe |
 | SharePoint lists | **Ready (test site)** | 9 lists schema-validated live; pre-production/production site provisioning is a re-run of the same fail-closed scripts |
@@ -154,8 +154,10 @@ already committed.
 1. D6 app registration executed (certificate, `Sites.Selected`, single-site grant) and the
    live contract re-passed under app auth.
 2. Legacy list + flows inspected (C.2) and the field mapping (D) frozen and approved.
-3. Decisions on the "no v2 field" rows (Member/Customer/Worker, AmountRemaining,
-   InternalDocumentation gate, TeamsPost) — add fields or park, explicitly.
+3. ~~Decisions on the "no v2 field" rows~~ **DECIDED (Loops 30–31):** party names preserved
+   + displayed in Additional Details; AmountRemaining/AssignmentID/TeamsPost preserved as
+   legacy data; InternalDocumentation pair → internal note on import. Remaining engineering:
+   add the party/legacy-data fields to the v2 schema + detail UI before import.
 4. Migration importer built: read-only legacy export → transform → import to v2
    pre-production lists; idempotent; preserves raw StatusUpdates verbatim; no writeback.
 5. Migration dry-run on a full copy with a validation report (counts by status/dept/
@@ -207,13 +209,23 @@ integration · department-specific panel configuration (modeled since the MVP).
 - Reporting day-one baseline: **totals, open, by status, by department/queue,
   needs-attention, completed** (all already computable in v2).
 
+**Answered (Loop 31 — accepted by Rodolfo):**
+- **Party fields (`MemberName`/`CustomerName`/`WorkerName`): PRESERVE and DISPLAY** in the
+  ticket detail's Details / "Additional details" area — important enough to keep visible,
+  not protagonist fields. (UI surfacing is a small pre-import work item.)
+- **Departed-author exception:** when a migrated ticket's original requester cannot be
+  matched, closure is allowed **only by a designated admin / migration owner**. This is a
+  documented MIGRATION exception, not a general permission rule; requester-only closure
+  remains the standing rule for everything else.
+- **`AssignmentID`: PRESERVE** as a legacy/additional-data field; do not interpret or
+  depend on it until inspection confirms whether anything consumes it.
+
 **Still open:**
-1. Member/Customer/Worker name fields — day-one v2 fields, description fold-in, or legacy
-   data? (Highest-impact remaining mapping decision.)
-2. `AssignmentID` semantics and downstream consumers — inspection.
-3. Exact export column lists actually used today (spreadsheet-order/RFP) — inspection §12.
-4. Departed-author placeholder policy for requester-only closure on migrated tickets.
-5. Cutover freeze-window length; 6. post-launch support owner.
+1. `AssignmentID` consumers (preserve-only until inspection answers this).
+2. Exact export column lists actually used today (spreadsheet-order/RFP) — inspection §12.
+3. Named designated admin/migration owner for the departed-author exception.
+4. Cutover freeze-window length; 5. post-launch support owner.
+6. Teams/PA parity decision (deferred gate — must close before the cutover runbook).
 
 Inspection execution: [`LEGACY_INSPECTION_RUNBOOK.md`](./LEGACY_INSPECTION_RUNBOOK.md).
 Mapping capture: [`MIGRATION_MAPPING_TEMPLATE.md`](./MIGRATION_MAPPING_TEMPLATE.md).

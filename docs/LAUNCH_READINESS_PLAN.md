@@ -85,7 +85,14 @@ requester-only closure with final note) remain enforced regardless.
 - [ ] **Legacy status values preserved 100%** (identity mapping — verified in dry-run)
 - [ ] **StatusUpdates preserved verbatim, un-truncated** (checksum-verified in dry-run)
 - [ ] **Requester/creator-only closure** enforced (already live-tested; re-verified in pilot)
-- [ ] Remaining mapping decisions made (party-name fields, doc-gate, departed-author policy)
+- [ ] **Departed-author exception defined BEFORE migration import** (Loop 31 accepted policy:
+      unmatched-requester tickets closable only by the designated admin/migration owner —
+      a migration exception, not a general rule; the named owner is still to be assigned)
+- [ ] **Party fields (`MemberName`/`CustomerName`/`WorkerName`) preserved and displayed** in
+      the ticket detail Additional Details area (Loop 31 decision — schema + UI item before
+      import; not protagonist fields)
+- [ ] `AmountRemaining` + `AssignmentID` preserved as legacy/additional data (never dropped;
+      not primary UI; AssignmentID uninterpreted until inspection identifies consumers)
 - [ ] Migration dry run passed per [`MIGRATION_DRY_RUN_PLAN.md`](./MIGRATION_DRY_RUN_PLAN.md); reconciliation report accepted
 - [ ] **Day-one reporting baseline** verified (totals / open / by status / by dept / needs-attention / completed)
 - [ ] Simplified permission model applied (§F): all-users visibility, one access group

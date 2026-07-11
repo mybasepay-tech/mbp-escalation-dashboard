@@ -5,7 +5,11 @@
     "legacy status values preserved exactly (identity mapping; blank -> New + note)",
     "StatusUpdates preserved verbatim and un-truncated on every ticket",
     "unknown legacy fields preserved in legacy/additional data, never dropped",
-    "no legacy writeback; import targets v2 pre-production lists only"
+    "no legacy writeback; import targets v2 pre-production lists only",
+    "departed/unmatched authors: FLAG; closure only by designated admin/migration owner (Loop 31)",
+    "party fields (MemberName/CustomerName/WorkerName) preserved AND displayed in Additional Details (Loop 31)",
+    "AmountRemaining + AssignmentID preserved as legacy data, uninterpreted, not primary UI (Loop 31)",
+    "internal notes visible to all users this phase (Loop 31)"
   ],
   "fields": [
     {
@@ -17,6 +21,32 @@
       "rule": "copy",
       "required": true,
       "fallback": "(no title) + migration note",
+      "risk": "low",
+      "decisionOwner": null,
+      "status": "mapped"
+    },
+    {
+      "legacyField": "MemberName",
+      "legacyType": "Text",
+      "meaning": "Member party (example of the Loop 31 party-field decision)",
+      "v2Field": "party field shown in Additional Details",
+      "v2Type": "Text",
+      "rule": "copy",
+      "required": false,
+      "fallback": "empty",
+      "risk": "low",
+      "decisionOwner": null,
+      "status": "mapped"
+    },
+    {
+      "legacyField": "AssignmentID",
+      "legacyType": "<unknown until inspection>",
+      "meaning": "Unknown key (example of the preserve-uninterpreted decision)",
+      "v2Field": "legacy-additional-data",
+      "v2Type": null,
+      "rule": "preserve-verbatim",
+      "required": false,
+      "fallback": null,
       "risk": "low",
       "decisionOwner": null,
       "status": "mapped"
