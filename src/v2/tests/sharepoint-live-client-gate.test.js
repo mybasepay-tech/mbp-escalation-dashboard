@@ -72,8 +72,36 @@ test('committed live files contain no live URLs, tenant/client IDs, secrets, GUI
     /^testsite\.config\.json$/, /\.local\.json$/, /^transport\..*\.js$/, /\.transport\.js$/,
     /^\.env$/, /\.secret\./, /-report\.(json|txt)$/,
   ];
+  // Loop 33 (D6): the COMMITTED app-auth modules replace the git-ignored operator transport.
+  // They are the ONLY committed files allowed to speak HTTP — and exclusively to Microsoft's
+  // PUBLIC, tenant-neutral endpoints (identity platform + Graph). They still may not carry
+  // any tenant-identifying value; see the dedicated tailored scan below.
+  const D6_APP_AUTH_FILES = new Set(['appAuthTokenProvider.js', 'appAuthTransport.js', 'run-appauth-smoke.js']);
   for (const f of readdirSync(LIVE).filter((n) => n.endsWith('.js') || n.endsWith('.json') || n.endsWith('.md'))) {
     if (GIT_IGNORED_RUNTIME.some((re) => re.test(f))) continue;
+    if (D6_APP_AUTH_FILES.has(f)) continue; // covered by the tailored D6 scan below
+    const src = readFileSync(join(LIVE, f), 'utf8');
+    for (const [why, re] of FORBIDDEN) assert.doesNotMatch(src, re, `${f} must not contain ${why}`);
+  }
+});
+
+test('D6 app-auth modules: no tenant-identifying values, secrets, key material, SDKs, env reads, or disk token caches', () => {
+  // Tailored scan for the committed D6 app-auth modules (Loop 33). fetch() to the PUBLIC
+  // login.microsoftonline.com / graph.microsoft.com hosts is their whole purpose — what must
+  // NEVER appear is anything identifying this tenant or carrying credential material.
+  const FORBIDDEN = [
+    ['GUID (tenant/client id)', /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i],
+    ['SharePoint tenant host', /\bsharepoint\.com/i],
+    ['certificate thumbprint literal', /['"][0-9A-Fa-f]{40}['"]/],
+    ['JWT/token literal', /eyJ[A-Za-z0-9_-]{20,}/],
+    ['secret assignment', /(client_secret|clientSecret|api[_-]?key|password|pwd)\s*[:=]/i],
+    ['inline private key', /BEGIN [A-Z ]*PRIVATE KEY/],
+    ['SDK import', /@microsoft\/|@pnp\/|@azure\/|\bmsal\b/i],
+    ['env read', /process\.env/],
+    ['disk write (token caches stay in memory)', /writeFile|appendFile|createWriteStream|Set-Content|Out-File/i],
+    ['non-Microsoft absolute URL', /https?:\/\/(?!login\.microsoftonline\.com|graph\.microsoft\.com|\$\{)[a-z0-9.-]+/i],
+  ];
+  for (const f of ['appAuthTokenProvider.js', 'appAuthTransport.js', 'run-appauth-smoke.js']) {
     const src = readFileSync(join(LIVE, f), 'utf8');
     for (const [why, re] of FORBIDDEN) assert.doesNotMatch(src, re, `${f} must not contain ${why}`);
   }

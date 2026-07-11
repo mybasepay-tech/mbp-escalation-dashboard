@@ -23,6 +23,21 @@ test('live .gitignore keeps runtime config, transport bootstrap, env, and secret
   assert.match(ig, /transport/i, 'must ignore transport bootstrap(s)');
   assert.match(ig, /\.env/, 'must ignore .env');
   assert.match(ig, /secret/i, 'must ignore secrets');
+  // Loop 33 (D6): the real app-auth config (auth.config.local.json) is covered by *.local.json,
+  // and token caches must stay ignored too (the app-auth provider keeps tokens in memory only).
+  assert.match(ig, /\*\.local\.json/, 'must ignore *.local.json (auth.config.local.json)');
+  assert.match(ig, /tokencache|\.auth/i, 'must ignore token caches');
+});
+
+test('the real D6 app-auth config is never committed; its example carries placeholders only', () => {
+  // auth.config.local.json MAY exist locally (operators need it) — *.local.json keeps it out
+  // of git. The committed example must stay disabled + identifier-free.
+  const example = JSON.parse(readFileSync(join(LIVE, 'auth.config.example.json'), 'utf8'));
+  assert.equal(example.enableAppAuth, false, 'example must be fail-closed (disabled)');
+  const raw = readFileSync(join(LIVE, 'auth.config.example.json'), 'utf8');
+  assert.doesNotMatch(raw, /https?:\/\//i, 'example must not contain a live URL');
+  assert.doesNotMatch(raw, /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i, 'example must not contain a GUID');
+  assert.doesNotMatch(raw, /['"][0-9A-Fa-f]{40}['"]/, 'example must not contain a real thumbprint');
 });
 
 test('ui .gitignore keeps the local live-backend opt-in out of git (Loop 23)', () => {

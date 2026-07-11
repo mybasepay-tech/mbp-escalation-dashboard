@@ -191,6 +191,15 @@ whole client path is async-safe: `tests/sharepoint-live-async-transport-contract
 the FULL contract through `SharePointLiveClient` + an async transport locally on every
 `npm test`.
 
+**Loop 33 (D6 executed):** the SharePoint test path now authenticates with **certificate
+app-only auth** (dedicated non-production app registration, `Sites.Selected`, single-site
+grant — admin setup completed manually by Rodolfo). The committed, identifier-free
+`appAuthTokenProvider.js` + `appAuthTransport.js` replace operator token minting: the private
+key stays in the operator's certificate store, real identifiers live only in the git-ignored
+`auth.config.local.json`, and everything remains explicit-opt-in + fail-closed (invalid
+enabled config throws; disabled config falls back to the documented operator-transport
+rollback path). The status endpoint reports only a fixed `authMode` label.
+
 The **Phase-2 build** (when D6/D7 + Rod approval land) is fully specified and design-only: the
 [test-site build runbook](../../docs/SHAREPOINT_V2_TEST_SITE_BUILD_RUNBOOK.md), the
 [`SharePointStore` implementation plan](../../docs/SHAREPOINTSTORE_IMPLEMENTATION_PLAN.md), and

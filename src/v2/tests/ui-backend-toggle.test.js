@@ -158,6 +158,32 @@ test('gate: enabled only when every step passes — and exposes NO site/client/t
   assert.doesNotMatch(exposed, /site|client|token|url/i, 'no live identifiers leak through the gate result');
 });
 
+test('gate: reports a SANITIZED auth-mode label — app-auth when the transport self-describes, operator-token otherwise (Loop 33)', async () => {
+  const mk = (transport) => spyDeps({
+    readUiLiveConfig: () => JSON.stringify({ enableSharePointTestBackend: true, testsiteConfig: './testsite.config.json' }),
+    importRunner: async () => ({
+      loadConfig: () => ({ environmentLabel: 'nonprod-test', runNamespace: 'ui-live', listPrefix: 'Escalations_v2_' }),
+      assertSafe: () => {},
+      loadTransport: async () => transport,
+    }),
+  }).deps;
+
+  const appAuth = await resolveLiveBackend(mk({
+    describe: () => ({ authMode: 'app-certificate', apiMode: 'graph' }),
+  }));
+  assert.equal(appAuth.enabled, true);
+  assert.equal(appAuth.authMode, 'app-auth-certificate');
+
+  const operator = await resolveLiveBackend(mk({}));
+  assert.equal(operator.enabled, true);
+  assert.equal(operator.authMode, 'operator-token');
+
+  // The label is a fixed vocabulary — never a value derived from config/identifiers.
+  for (const r of [appAuth, operator]) {
+    assert.ok(['app-auth-certificate', 'operator-token'].includes(r.authMode));
+  }
+});
+
 // ----- 2b. error sanitization: nothing sensitive can reach browser copy (Loop 26) -----
 
 test('sanitizeErrorMessage redacts URLs, GUID-shaped ids, tokens, and local paths — keeps the actionable class', () => {

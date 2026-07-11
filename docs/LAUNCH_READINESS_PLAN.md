@@ -9,9 +9,18 @@
 ## A. Current phase
 - Pre-production replacement build; visual/product direction accepted (Loops 26–28).
 - Domain rules, store contract, and SharePoint adapter proven live on the non-production
-  test site (30/30 contract tests, verified cleanup); 283 automated tests green.
+  test site (30/30 contract tests, verified cleanup); 325 automated tests green.
 - MockStore is the default UI backend; the SharePoint test backend is dual opt-in and
-  fail-closed; D6 auth plan ready for approval.
+  fail-closed.
+- **D6 EXECUTED (2026-07-11 / Loop 33):** admin setup completed by Rodolfo (dedicated v2
+  app registration, certificate-only, `Sites.Selected`, single-site `write` grant) and
+  app-auth wired + validated against the SharePoint test site — smoke and full live store
+  contract green under certificate app-only auth, with zero test-data leftovers. Operator
+  token minting is no longer required for the SharePoint test path. Real identifiers live
+  only in git-ignored local config. Remaining optional D6 item: consent the
+  SHAREPOINT-resource `Sites.Selected` permission to unlock Hyperlink-column writes
+  (`apiMode: sharepoint-rest`); in graph mode those two optional metadata fields are
+  omitted-and-reported (see `D6_AUTH_APP_REGISTRATION_PLAN.md` §7).
 - Legacy: untouched, authoritative, protected by automated guards.
 
 ## B → C. Launch path phases with gates
@@ -19,7 +28,7 @@
 | # | Phase | Entry criteria | Exit criteria | Owner | Key risks | Deliverables |
 |---|---|---|---|---|---|---|
 | 1 | **Gap analysis** (this loop) | Loop 28 accepted | Gap analysis + this plan merged; open questions issued | Eng (AI loops) | unknown legacy internals | LEGACY_GAP_ANALYSIS.md, this plan |
-| 2 | **D6 auth execution** | Rod approves D6 plan | App registration live (cert, `Sites.Selected`, single-site grant); live contract re-passed under app auth | Admin + Eng | admin availability; cert handling | Working non-interactive auth; D6 marked executed |
+| 2 | **D6 auth execution** — ✅ **DONE (Loop 33)** | Rod approves D6 plan | App registration live (cert, `Sites.Selected`, single-site grant); live contract re-passed under app auth — **all met 2026-07-11**; optional: SharePoint-resource consent for Hyperlink fidelity | Admin + Eng | admin availability; cert handling | Working non-interactive auth; D6 marked executed |
 | 3 | **Legacy inspection** | Read-only admin access approved | C.2 checklist answered; field mapping frozen; open questions answered | Rodolfo + Eng | undocumented flows/fields | Inspection report; approved mapping matrix |
 | 4 | **Migration design** | Phases 2–3 done | Transform rules (incl. StatusUpdates parser + preservation strategy) reviewed and approved | Eng | history-blob parsing | Migration design doc |
 | 5 | **Migration tool build** | Phase 4 approved | Importer runs idempotently against fixtures; unit-tested; read-only toward legacy by construction. *(Loop 32: the OFFLINE validate/transform/report foundation is built + tested — `src/v2/tools/migration/`; the gated import stage remains.)* | Eng | edge cases | Importer + tests |
@@ -80,7 +89,8 @@ requester-only closure with final note) remain enforced regardless.
 
 ## G. Launch checklist (updated with Loop 30 decisions)
 **Must-haves (confirmed):**
-- [ ] D6 completed and live contract green under app auth
+- [x] D6 completed and live contract green under app auth (Loop 33; graph api mode —
+      optional SharePoint-resource consent pending for Hyperlink-column writes)
 - [ ] Legacy inspection done ([`LEGACY_INSPECTION_RUNBOOK.md`](./LEGACY_INSPECTION_RUNBOOK.md)); mapping frozen ([`MIGRATION_MAPPING_TEMPLATE.md`](./MIGRATION_MAPPING_TEMPLATE.md))
 - [ ] **Legacy status values preserved 100%** (identity mapping — verified in dry-run)
 - [ ] **StatusUpdates preserved verbatim, un-truncated** (checksum-verified in dry-run)
