@@ -36,8 +36,13 @@ export function transformLegacyTicket(item, {
   }
 
   // ----- people -----
-  const author = f.AuthorLookupId != null ? userMap[String(f.AuthorLookupId)] : undefined;
-  const assignee = f.AssignedToLookupId != null ? userMap[String(f.AssignedToLookupId)] : undefined;
+  // Two author/assignee sources exist (Loop 34): API-style exports carry LOOKUP IDS
+  // (userMap key = the id); spreadsheet exports carry DISPLAY NAMES only (userMap key =
+  // `name:<display name>`). Lookup id wins when both are present.
+  const author = (f.AuthorLookupId != null ? userMap[String(f.AuthorLookupId)] : undefined)
+    ?? (f.CreatedBy != null ? userMap[`name:${f.CreatedBy}`] : undefined);
+  const assignee = (f.AssignedToLookupId != null ? userMap[String(f.AssignedToLookupId)] : undefined)
+    ?? (f.AssignedTo != null ? userMap[`name:${f.AssignedTo}`] : undefined);
   if (!author?.v2Id) {
     flags.push({
       type: 'departed-author',
@@ -45,8 +50,8 @@ export function transformLegacyTicket(item, {
       closureException: migrationOwnerRef,
     });
   }
-  if (f.AssignedToLookupId != null && !assignee?.v2Id) {
-    warnings.push({ type: 'unresolved-assignee', detail: `assignee lookup '${f.AssignedToLookupId}' unresolved -> imported unassigned` });
+  if ((f.AssignedToLookupId != null || f.AssignedTo != null) && !assignee?.v2Id) {
+    warnings.push({ type: 'unresolved-assignee', detail: `assignee reference '${f.AssignedToLookupId ?? f.AssignedTo}' unresolved -> imported unassigned` });
   }
 
   // ----- department -----
@@ -88,7 +93,9 @@ export function transformLegacyTicket(item, {
     ticket: {
       id: `esc_legacy_${item.id}`,
       title: f.Title || '(no title)',
-      description: f.StatusCommentary ?? '',
+      // Loop 34: the real export's description source is `Escalation Commentary`;
+      // StatusCommentary remains the fallback for API-style exports.
+      description: f.EscalationCommentary ?? f.StatusCommentary ?? '',
       status, // exact legacy value
       priority: f.Urgency ?? 'Medium',
       issueCategory: f.IssueCategoryDetail ?? '',
@@ -125,6 +132,13 @@ export function transformLegacyTicket(item, {
       daysCurrentDept: f.DaysCurrentDept ?? null,
       dateAssignedtoCurrent: f.DateAssignedtoCurrent ?? null,
       internalDocumentationNeeded: f.InternalDocumentationNeeded ?? null,
+      // Loop 34 (real-export evidence): preserved uninterpreted for audit — v2 recomputes
+      // day counts at read time; AddTags2 stays RAW until its parsing strategy is approved.
+      daysOpen: f.DaysOpen ?? null,
+      daysToResolve: f.DaysToResolve ?? null,
+      createdByName: f.CreatedBy ?? null,
+      assignedToName: f.AssignedTo ?? null,
+      addTags2Raw: f.AddTags2 ?? null,
       unknownFields,
     },
     internalNotes: f.InternalDocumentationCommentary

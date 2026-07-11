@@ -36,6 +36,17 @@ cutover conversation.
 - Attachment inventory (item id → file names/sizes) if inspection found usage.
 - Export manifest: date/time, row counts per list — the reconciliation baseline.
 
+**Loop 34 status against these inputs:** a REAL spreadsheet export of the visible list
+now exists (300 rows, IDs to 362, 31 display columns — sanitized evidence in
+`LEGACY_GAP_ANALYSIS.md` §C.1b; header→field bridge in
+`src/v2/tools/migration/exportColumns.js`; sanitized aggregate analyzer in
+`run-legacy-export-analysis.js`). It is ANALYSIS evidence, not yet a dry-run input: a
+spreadsheet export can truncate long text and carries display names instead of lookup
+ids, so the un-truncated JSON/API export, the user/tags/leads lookups, the attachment
+inventory, and the manifest above are STILL required. Completeness of the 300 visible
+rows vs the full list is unconfirmed. Real export files and reports stay local
+(`tools/migration/.gitignore` — recommended drop location `tools/migration/exports/`).
+
 ## 4. Transform steps (deterministic, re-runnable, no legacy access)
 1. Parse export files locally (no network).
 2. Apply the frozen field mapping row by row; NEVER drop unknown fields — everything

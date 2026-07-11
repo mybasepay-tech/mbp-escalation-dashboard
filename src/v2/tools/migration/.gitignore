@@ -1,0 +1,8 @@
+# Real legacy exports and any report derived from them are LOCAL ONLY — never committed.
+# Recommended drop location for real export files: tools/migration/exports/ (ignored).
+exports/
+*.csv
+*.xlsx
+*.iqy
+*.local.*
+*-report.*
