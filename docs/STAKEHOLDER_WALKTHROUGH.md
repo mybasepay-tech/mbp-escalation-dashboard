@@ -156,6 +156,14 @@ Say this plainly (see the script below):
 - **No cutover** — parallel-run and cutover remain a separately-approved future plan
   (D14); legacy is operational and untouched.
 
+## 7a. Where this goes next (Loop 29)
+v2 is now framed as the **replacement system in pre-production validation**. The complete
+gap analysis against the legacy tracker (with inspected facts and explicit unknowns) and
+the phased, gate-controlled path to launch are documented in
+[`LEGACY_GAP_ANALYSIS.md`](./LEGACY_GAP_ANALYSIS.md) and
+[`LAUNCH_READINESS_PLAN.md`](./LAUNCH_READINESS_PLAN.md) — use them for the "when can we
+use it?" conversation. Legacy remains the source of truth until an approved cutover.
+
 ## 8. Recommended decision-maker ask
 At the end of the walkthrough, ask for three approvals — none of which start a pilot or
 cutover by themselves:
