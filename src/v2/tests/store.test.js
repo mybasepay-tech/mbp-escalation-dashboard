@@ -23,7 +23,7 @@ test('My Assigned Tickets shows only the current user\'s assigned tickets', asyn
   const mine = await store.myAssignedTickets('user_sarah');
   assert.ok(mine.every((t) => t.assigneeId === 'user_sarah'));
   const ids = mine.map((t) => t.id).sort();
-  assert.deepEqual(ids, ['esc_complete', 'esc_pending_member', 'esc_pending_research', 'esc_person']);
+  assert.deepEqual(ids, ['esc_ben_1019', 'esc_complete', 'esc_pending_member', 'esc_pending_research', 'esc_person']);
   // Tickets assigned to others must not leak in.
   assert.ok(!ids.includes('esc_in_process')); // assigned to Maggie
 });

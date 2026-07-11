@@ -26,6 +26,25 @@ test('unknown dimension keys behave as "all" — never hide tickets by accident'
   assert.deepEqual(out, all);
 });
 
+test('department filter scopes All tickets by queue', async () => {
+  const all = await tickets();
+  const benefits = applyTicketFilters(all, { dept: 'dept_benefits' }, {});
+  const payroll = applyTicketFilters(all, { dept: 'dept_payroll' }, {});
+  const financial = applyTicketFilters(all, { dept: 'dept_financial' }, {});
+  assert.ok(benefits.length > 0 && benefits.every((t) => t.assignedDeptId === 'dept_benefits'));
+  assert.ok(payroll.length > 0 && payroll.every((t) => t.assignedDeptId === 'dept_payroll'));
+  assert.ok(financial.length > 0 && financial.every((t) => t.assignedDeptId === 'dept_financial'));
+  assert.equal(benefits.length + payroll.length + financial.length, all.filter((t) => t.assignedDeptId).length);
+});
+
+test('default All tickets view includes cross-department demo tickets', async () => {
+  const all = await tickets();
+  const out = applyTicketFilters(all, DEFAULT_TICKET_FILTERS, { currentUserId: 'user_sarah' });
+  assert.deepEqual(out, all);
+  assert.ok(out.some((t) => t.id === 'esc_fin_0891'));
+  assert.ok(out.some((t) => t.id === 'esc_pay_0778'));
+});
+
 test('scope: unassigned / assigned_to_me / assigned_to_others / migrated', async () => {
   const all = await tickets();
   const me = 'user_sarah';

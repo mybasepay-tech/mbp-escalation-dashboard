@@ -10,6 +10,7 @@ import { seededStore } from '../mock/seed.js';
 import { STATUS, ACTIVITY_TYPE } from '../domain/constants.js';
 import {
   loadContext, ticketRows, detailView, activityLines, statusOptions, assignmentOptions,
+  buildQueueMetrics, ticketRef,
 } from '../ui/viewModel.js';
 
 const V2_ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -24,6 +25,20 @@ test('department-queue rows include person-assigned tickets', async () => {
   // The person-assigned row carries its assignee name for display.
   const personRow = rows.find((r) => r.id === 'esc_person');
   assert.equal(personRow.assigneeName, 'Sarah');
+});
+
+test('All tickets rows span every seeded queue and expose display references', async () => {
+  const store = seededStore();
+  const ctx = await loadContext(store);
+  const rows = ticketRows(await store.listTickets(), ctx);
+  assert.ok(rows.length >= 13);
+  assert.ok(rows.some((r) => r.deptName === 'Benefits Ops'));
+  assert.ok(rows.some((r) => r.deptName === 'Payroll Ops'));
+  assert.ok(rows.some((r) => r.deptName === 'Financial Ops'));
+  const fin = rows.find((r) => r.id === 'esc_fin_0891');
+  assert.equal(fin.ref, '#FIN-0891');
+  assert.equal(fin.submitterName, 'Teri');
+  assert.equal(fin.requestingDept, 'Billing & Payments');
 });
 
 test('My Assigned rows show only the current mock user\'s tickets', async () => {
@@ -113,8 +128,23 @@ test('assignmentOptions lists every seeded person and department', async () => {
   const store = seededStore();
   const ctx = await loadContext(store);
   const opts = assignmentOptions(ctx);
-  assert.equal(opts.people.length, 4);
-  assert.equal(opts.departments.length, 2);
+  assert.equal(opts.people.length, 6);
+  assert.equal(opts.departments.length, 3);
+});
+
+test('queue metrics are derived from the current ticket set', async () => {
+  const store = seededStore();
+  const all = await store.listTickets();
+  const metrics = buildQueueMetrics(all, { currentUserId: 'user_sarah', now: '2026-06-12T00:00:00.000Z' });
+  assert.equal(metrics.open, all.filter((t) => t.status !== STATUS.COMPLETE && t.status !== STATUS.CANCELLED).length);
+  assert.equal(metrics.assignedToMe, all.filter((t) => t.assigneeId === 'user_sarah').length);
+  assert.equal(metrics.completedTotal, all.filter((t) => t.status === STATUS.COMPLETE).length);
+  assert.equal(metrics.completedThisWeek, 1);
+});
+
+test('ticketRef converts internal ids to compact display references only', () => {
+  assert.equal(ticketRef('esc_ben_1027'), '#BEN-1027');
+  assert.equal(ticketRef('esc_pay_0778'), '#PAY-0778');
 });
 
 // ----- UI-specific safety scan -----
