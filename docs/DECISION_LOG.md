@@ -394,6 +394,7 @@
 | D28 | Live store-contract execution (Loop 22) | Full EscalationStore contract executed against the live nonprod test site via SharePointStore + SharePointLiveClient + runtime transport; async client path committed and contract-tested locally | No (nonprod only) | **Accepted** (executed — see log entry for coverage detail) |
 | D29 | UI backend toggle, disabled by default (Loop 23) | v2 UI supports the SharePoint TEST backend behind a dual opt-in (git-ignored server config + explicit `?backend=sharepoint-test`); MockStore stays the default; loopback-only API keeps secrets out of the browser | No (opt-in, nonprod only) | **Accepted** (implemented + smoke-tested) |
 | D30 | Namespaced demo fixtures + gated seed/cleanup (Loop 24) | Demo data on the test site is a small `esc_demo_loop24_*` fixture set, seeded idempotently by a gated CLI with exact-key cleanup to zero leftovers; full UI lifecycle smoke passed live incl. both closure-rule refusals | No (test-only data) | **Accepted** (executed + cleaned) |
+| D31 | Pre-production replacement framing + gated launch path (Loop 29) | v2 is the replacement system in pre-production validation (no longer "demo-only" framing); launch proceeds ONLY through the phased, fail-closed gates in LAUNCH_READINESS_PLAN.md, grounded in the inspected-facts gap analysis (LEGACY_GAP_ANALYSIS.md); legacy stays source of truth until an approved cutover | No (planning) | **Accepted** |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -533,6 +534,18 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   records with 0 leftovers. The UI gained a minimal "New demo ticket" form that always
   creates `esc_demo_loop24_*` ids. No legacy, no flows, no notifications, no real files,
   no production users, no cutover.
+
+- **D31 — Pre-production replacement framing + gated launch path (Loop 29): Accepted.**
+  v2 is treated as the replacement system in a pre-production build, validated in
+  controlled steps — not as a throwaway demo. The path to launch is the phased, fail-closed
+  gate sequence in [`LAUNCH_READINESS_PLAN.md`](./LAUNCH_READINESS_PLAN.md) (D6 auth →
+  legacy inspection → migration design/build → controlled import of a COPY → validation →
+  pilot → cutover runbook → launch), grounded in
+  [`LEGACY_GAP_ANALYSIS.md`](./LEGACY_GAP_ANALYSIS.md), whose legacy facts were obtained by
+  READ-ONLY inspection of the legacy dashboard source (the file was not modified) with all
+  remaining unknowns explicitly labeled for legacy inspection or business confirmation.
+  Nothing in this decision authorizes cutover, migration of real data, notifications, or
+  production users; legacy remains the source of truth throughout.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional
