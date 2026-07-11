@@ -9,7 +9,7 @@
 > Machine-readable skeleton: [`templates/migration-field-map.template.json`](./templates/migration-field-map.template.json)
 > (placeholder rows only — no real data).
 
-## Standing rules (Rodolfo, Loop 30)
+## Standing rules (Rodolfo, Loops 30–31 — accepted)
 1. **Legacy status values are respected 100%** — migrated tickets keep their exact legacy
    status string; normalization only into REPORTING buckets, never into the stored value.
 2. **`StatusUpdates` is preserved verbatim** on every migrated ticket; parsing into
@@ -18,6 +18,16 @@
 4. Unknown/unmapped legacy fields are preserved in a legacy/additional-data area
    (`migrationNotes` or a dedicated legacy-payload column) rather than dropped.
 5. Requester/creator-only closure carries into v2 unchanged (D23).
+6. **Departed-author exception (Loop 31):** tickets whose original requester cannot be
+   matched are closable ONLY by the designated admin/migration owner — a documented
+   migration exception, never a general permission rule. The importer must FLAG these.
+7. **Party fields (Loop 31):** `MemberName`/`CustomerName`/`WorkerName` are preserved AND
+   displayed in the ticket detail Additional Details area — visible, not protagonist.
+8. **`AssignmentID` (Loop 31):** preserved as legacy data; never interpreted or depended on
+   until inspection identifies consumers.
+9. **Internal notes are visible to all users for now** — no fine-grained note permissions
+   this phase.
+10. **Attachments:** default deferred/metadata-only unless inspection proves active use.
 
 ## 1. Field mapping
 
@@ -39,10 +49,10 @@
 | `StatusUpdates` | Note (long) | Full history blob | verbatim preservation (rule 2) + optional later parse | Note | copy verbatim, un-truncated | yes | — | high if truncated | — | mapped (verbatim) |
 | `AddTags` | Multi-lookup | Tags | `tagIds` via TicketTags links | Link list | resolve each; create missing v2 tags | no | none | med | inspection §7 (semantics) | needs inspection |
 | `FinancialImpactAmount` | Currency | Money involved | `amountInvolved` | Currency | copy | no | null | low | — | mapped |
-| `AmountRemaining` | Currency | Remaining amount | legacy/additional data (rule 3) | — | preserve, not surfaced as primary UI | no | — | low | Rodolfo (future) | deferred |
-| `MemberName` | Text | Member party | TBD (likely new v2 fields or description fold-in) | — | — | ? | — | high | **Rodolfo** | business decision |
-| `CustomerName` | Text | Customer party | TBD | — | — | ? | — | high | **Rodolfo** | business decision |
-| `WorkerName` | Text | Worker party | TBD | — | — | ? | — | high | **Rodolfo** | business decision |
+| `AmountRemaining` | Currency | Remaining amount | legacy/additional data (rule 3) | — | preserve, not surfaced as primary UI | no | — | low | — | mapped (preserve) |
+| `MemberName` | Text | Member party | party field, Additional Details (rule 7) | Text | copy; display in detail Additional Details | no | empty | low | — | mapped |
+| `CustomerName` | Text | Customer party | party field, Additional Details (rule 7) | Text | copy; display in detail Additional Details | no | empty | low | — | mapped |
+| `WorkerName` | Text | Worker party | party field, Additional Details (rule 7) | Text | copy; display in detail Additional Details | no | empty | low | — | mapped |
 | `IssueType` | Choice/Text | Type | `issueType` | Text | copy | no | empty | low | — | mapped |
 | `IssueCategoryDetail` | Choice/Text | Category | `issueCategory` | Text | copy | no | empty | low | — | mapped |
 | `OriginalAssignedDept` | Text | First dept | activity event (synthesized transfer) + legacy data | — | synthesize `assignment_change` on import | no | — | low | — | mapped (derived) |
@@ -50,7 +60,7 @@
 | `InternalDocumentationNeeded` | Yes/No | Closing doc gate | internal note on import; v2 gate decision separate | — | preserve as note | no | — | med | Rodolfo (gate parity) | business decision |
 | `InternalDocumentationCommentary` | Note | Doc commentary | internal note on import | Note | copy → note | no | — | low | — | mapped |
 | `TeamsPost` | URL | Teams post link | legacy/additional data | — | preserve | no | — | low | — | deferred |
-| `AssignmentID` | ? | Unknown | legacy/additional data | — | preserve | ? | — | ? | inspection §5 | needs inspection |
+| `AssignmentID` | ? | Unknown key | legacy/additional data (rule 8) | — | preserve, uninterpreted | no | — | low | inspection §5 (consumers only) | mapped (preserve) |
 | item `id` | System | Legacy key | `legacyItemId` + `legacyUrl` | Text/URL | copy — already modeled | yes | — | low | — | mapped |
 | `DaysOpen` (calculated) | Calc | Stale day count | — (v2 computes live) | — | DO NOT migrate | — | — | none | — | mapped (excluded) |
 | Native attachments | Files | Attachments | metadata rows; files deferred | — | per inspection §8 outcome | ? | — | med | inspection + Rodolfo | deferred |
@@ -81,11 +91,11 @@ and extend the v2 choice set BEFORE import rather than remapping.
 
 | Field | Source | v2 target | Rule | Status |
 |---|---|---|---|---|
-| Requester/creator | item `Author` | `submitterId` (closure authority, D23) | resolve; departed → placeholder policy | business decision (placeholder policy) |
+| Requester/creator | item `Author` | `submitterId` (closure authority, D23) | resolve; unmatched/departed → FLAG + closable only by designated admin/migration owner (rule 6) | mapped (owner name still to assign) |
 | Assignee | `AssignedTo` lookup | `assigneeId` | resolve via user map | needs inspection |
 | Owner | *(none in legacy)* | `ticketOwner` | derive from Department Leads primary | mapped (derived) |
 | Department/queue | `AssignedDepartmentOwner` | `assignedDeptId` | canonical dept resolution table | needs inspection |
-| MemberName / CustomerName / WorkerName | text fields | TBD | see field table — Rodolfo decision | business decision |
+| MemberName / CustomerName / WorkerName | text fields | party fields in Additional Details | copy + display (rule 7) | mapped |
 
 ## 4. Money fields
 

@@ -395,6 +395,7 @@
 | D29 | UI backend toggle, disabled by default (Loop 23) | v2 UI supports the SharePoint TEST backend behind a dual opt-in (git-ignored server config + explicit `?backend=sharepoint-test`); MockStore stays the default; loopback-only API keeps secrets out of the browser | No (opt-in, nonprod only) | **Accepted** (implemented + smoke-tested) |
 | D30 | Namespaced demo fixtures + gated seed/cleanup (Loop 24) | Demo data on the test site is a small `esc_demo_loop24_*` fixture set, seeded idempotently by a gated CLI with exact-key cleanup to zero leftovers; full UI lifecycle smoke passed live incl. both closure-rule refusals | No (test-only data) | **Accepted** (executed + cleaned) |
 | D31 | Pre-production replacement framing + gated launch path (Loop 29) | v2 is the replacement system in pre-production validation (no longer "demo-only" framing); launch proceeds ONLY through the phased, fail-closed gates in LAUNCH_READINESS_PLAN.md, grounded in the inspected-facts gap analysis (LEGACY_GAP_ANALYSIS.md); legacy stays source of truth until an approved cutover | No (planning) | **Accepted** |
+| D32 | Accepted migration readiness decisions (Loops 30–31) | All-users visibility + simplified permissions this phase; requester-only closure stays; departed-author closure only by designated admin/migration owner (migration exception); party fields preserved + shown in Additional Details; AmountRemaining/AssignmentID preserved as legacy data; legacy statuses preserved 100%; StatusUpdates verbatim; internal notes visible to all for now; Teams/PA parity a separate pre-cutover decision gate; day-one reporting = general baseline | No (planning) | **Accepted** |
 
 ## Rod review required (before backend work)
 These must be **explicitly approved by Rod** before any backend adapter / SharePoint / Graph
@@ -546,6 +547,23 @@ Readiness context: [`MOCK_MVP_READINESS_REVIEW.md`](./MOCK_MVP_READINESS_REVIEW.
   remaining unknowns explicitly labeled for legacy inspection or business confirmation.
   Nothing in this decision authorizes cutover, migration of real data, notifications, or
   production users; legacy remains the source of truth throughout.
+
+- **D32 — Accepted migration readiness decisions (Loops 30–31): Accepted.** Recorded so
+  future migration work follows them without ambiguity: (a) all users can view the full
+  tracker/All-tickets for now — simplified access model, fine-grained permissions deferred;
+  (b) requester/creator-only closure remains a must-have; (c) **departed-author exception:**
+  migrated tickets whose original requester cannot be matched are closable only by a
+  designated admin/migration owner (a documented migration exception, not a general rule);
+  (d) `MemberName`/`CustomerName`/`WorkerName` are preserved AND displayed in the ticket
+  detail Additional Details area — visible, not protagonist; (e) `AmountRemaining` and
+  `AssignmentID` preserved as legacy/additional data, uninterpreted, not primary UI;
+  (f) legacy status values preserved 100% (identity mapping; reporting buckets additive
+  only); (g) `StatusUpdates` preserved verbatim — parsing additive-later, blob never
+  discarded; (h) internal notes visible to all users this phase; (i) Teams/Power Automate
+  parity is a separate DEFERRED decision gate that must close before the cutover runbook
+  (no flow touched meanwhile); (j) day-one reporting = totals / open / by status / by
+  department / needs-attention / completed. Captured across the gap analysis, launch plan,
+  mapping template, dry-run plan, and inspection runbook.
 
 _D2, D9, and D10 are demonstrated in the mock MVP but remain Proposed pending Rod confirmation.
 D4 and D5 are superseded by D10. With D3 decided (SharePoint v2, Loop 11), D11's provisional

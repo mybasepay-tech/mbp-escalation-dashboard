@@ -64,6 +64,24 @@ cutover conversation.
   missing department; oldest ticket; longest StatusUpdates; attachment-bearing (if any);
   orphaned lookups.
 
+**Decision-driven checks (Loop 31 accepted decisions — each is pass/fail):**
+- `MemberName`/`CustomerName`/`WorkerName` preserved on every ticket where populated, and
+  visible in the detail Additional Details area on sampled tickets.
+- `AmountRemaining` preserved (as legacy/additional data) wherever present in the export.
+- `AssignmentID` preserved verbatim wherever present; confirmed uninterpreted (no importer
+  logic branches on it).
+- **Exact status values survive:** per-ticket status string equality export vs import —
+  any normalization of a stored status is a hard failure.
+- **StatusUpdates integrity:** length + checksum equality for EVERY ticket (already above —
+  restated here as a decision-driven must).
+- **Departed-author flags:** every ticket whose author could not be matched appears in the
+  exception report and carries the admin/migration-owner closure marker; count reconciled.
+- Internal-notes visibility assumption verified (imported notes readable by a non-admin
+  test user in pre-production).
+- Attachment counts/usage recorded per ticket (even though files are not migrated).
+- **Reporting baseline reproduced** on the imported copy: totals / open / by status /
+  by department / needs-attention / completed match the transform report's expectations.
+
 ## 7. Reconciliation report
 Sanitized (counts, keys, flag categories — no live URLs/names/GUIDs): totals table,
 per-dimension count comparisons, flag/discrepancy list with disposition

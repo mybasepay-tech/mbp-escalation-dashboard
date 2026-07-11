@@ -130,6 +130,31 @@ versioning settings, flow details page, attachment indicator column, permissions
 page, and the counts listed above. File privately; only counts/field names/choice values
 (no URLs, no people, no GUIDs) go into the repo docs.
 
+## 14a. Decision-driven checks (Loop 31 — collect these explicitly)
+These feed the accepted decisions directly; each needs concrete evidence:
+- [ ] **Party fields:** % populated for `MemberName`, `CustomerName`, `WorkerName`
+      (they will be preserved and displayed in Additional Details — confirm typical values
+      and lengths).
+- [ ] **`AmountRemaining`:** % populated + 3 example values (preserved as legacy data;
+      evidence informs any future "make active" decision).
+- [ ] **`AssignmentID`:** what writes it, and search for ANY consumer (flows, views,
+      exports, formulas). Finding = "no consumers" is valid and unblocks preserve-only.
+- [ ] **Status choice extraction:** the EXACT choice set from the column definition
+      (not just the UI filter) — required for the identity mapping freeze; any extra
+      values become new mapping rows.
+- [ ] **StatusUpdates export-truncation test:** export the item with the LONGEST blob via
+      the intended export path and verify character-for-character length match against the
+      list item (Excel-path truncation is exactly what this catches).
+- [ ] **Departed-author sample:** find ≥3 items whose Author is no longer resolvable (left
+      the org) — these exercise the admin/migration-owner closure exception; record item
+      ids privately.
+- [ ] **Attachments verification:** count of items with native attachments (0 is a valid,
+      decision-confirming answer).
+- [ ] **Power Automate/Teams:** DETAILS-VIEW-ONLY documentation of every flow (per §10) —
+      reminder: this is evidence for the deferred parity decision, NOT implementation.
+- [ ] **Reporting baseline evidence:** current legacy counts for totals / open / by status /
+      by department — these become the dry-run reconciliation baseline.
+
 ## 15. Stop conditions — abort the session immediately if:
 - Any step would require write/change permission to proceed.
 - A flow opens in EDIT mode or any save/update/turn-off prompt appears.
