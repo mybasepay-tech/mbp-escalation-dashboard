@@ -64,6 +64,7 @@ function statusPayload() {
       enabled: true,
       mode: BACKEND.SHAREPOINT_TEST,
       warning: SHAREPOINT_TEST_WARNING,
+      authMode: live.authMode, // sanitized label only ('app-auth-certificate' | 'operator-token')
       environmentLabel: live.environmentLabel,
       runNamespace: live.runNamespace,
     }
@@ -158,7 +159,7 @@ await initLiveBackend();
 server.listen(PORT, HOST, () => {
   console.log(`v2 UI shell:  http://${HOST}:${PORT}/ui/index.html`);
   if (live.enabled) {
-    console.log(`[backend] SharePoint TEST backend ENABLED (opt-in, ${live.environmentLabel}) — non-production only.`);
+    console.log(`[backend] SharePoint TEST backend ENABLED (opt-in, ${live.environmentLabel}, auth=${live.authMode}) — non-production only.`);
     console.log(`[backend] Open http://${HOST}:${PORT}/ui/index.html?backend=sharepoint-test to use it; the default page stays on MockStore.`);
   } else {
     console.log(`[backend] MockStore (default). ${live.reason}`);

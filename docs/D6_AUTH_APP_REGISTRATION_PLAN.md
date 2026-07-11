@@ -3,11 +3,18 @@
 > **Hands-on execution steps:** [`D6_ADMIN_EXECUTION_CHECKLIST.md`](./D6_ADMIN_EXECUTION_CHECKLIST.md)
 > (~1 hour of admin work, with capture worksheet, post-execution validation, and rollback).
 >
-> **Status: READY FOR APPROVAL + ADMIN SETUP — not complete.** Nothing in this plan has
-> been executed against Entra/Azure. The committed code contains the fail-closed
-> validation contract and placeholder templates only; the registration itself is a manual,
-> admin-approved step. Until it lands, live test mode keeps the current (working but
-> operator-dependent) interactive token flow, which remains a documented limitation.
+> **Status: ADMIN SETUP EXECUTED (Rodolfo, 2026-07-11) + APP-AUTH WIRED AND LIVE-VALIDATED
+> (Loop 33).** The v2 non-production app registration exists with a certificate credential
+> (no secrets), admin consent granted, and a single `write` site grant on the approved
+> non-production test site (verified by listing the app's site permissions). Loop 33 wired
+> committed app-auth modules (token provider + transport) behind the same fail-closed gates:
+> the operator's git-ignored `auth.config.local.json` is the ONLY place real values live,
+> tokens are minted app-only from the certificate held in the operator's certificate store,
+> and **no operator token minting or interactive sign-in is required any more** for the
+> SharePoint test path. One deviation from this plan, discovered at validation: consent was
+> granted on the **Microsoft Graph** `Sites.Selected` application permission rather than the
+> SharePoint-resource one — see §7 note (Graph api mode works end-to-end; the
+> SharePoint-resource consent remains an optional follow-up for Hyperlink-column fidelity).
 
 ## 1. Problem
 Live SharePoint test mode authenticates via an operator-minted, short-lived token from an
@@ -70,14 +77,31 @@ to replace this with a dedicated, least-privilege app identity.
 - **Config mistakes** — fail-closed validation refuses placeholders, secrets, inline key
   material, and production-looking values; disabled remains the default.
 
-## 7. Validation checklist (when executed)
-- [ ] App registration exists, single-tenant, no secrets configured (certificate only).
-- [ ] `Sites.Selected` application permission, admin-consented; no other permissions.
-- [ ] Exactly ONE site grant (the approved non-production test site), verified by listing
-      the app's site permissions.
-- [ ] `auth.config.local.json` validates (`ok: true, enabled: true`) and is git-ignored.
-- [ ] Live store contract passes under app auth; legacy remains untouched.
-- [ ] Decision log updated (D6 → executed) with the cert expiry/renewal owner.
+## 7. Validation checklist (executed 2026-07-11, Loop 33)
+- [x] App registration exists, single-tenant, no secrets configured (certificate only).
+- [x] `Sites.Selected` application permission, admin-consented; no other permissions.
+      **Note:** consent landed on the **Microsoft Graph** resource's `Sites.Selected`
+      (an app-only SharePoint-audience token carries no roles). App-auth therefore runs in
+      **graph api mode**, which the Loop 33 transport supports end-to-end. Known platform
+      limitation in that mode: Microsoft Graph cannot WRITE SharePoint Hyperlink columns
+      (v2 uses two: the tickets' legacy-URL field and the attachments' file-URL field —
+      both optional metadata). The committed transport fails closed on such writes by
+      default; validation runs may explicitly opt into counted-and-reported omission.
+      **Optional follow-up** for full column fidelity: also add + consent the
+      SHAREPOINT-resource `Sites.Selected` application permission, then set
+      `apiMode: "sharepoint-rest"` — the committed transport already implements that mode.
+- [x] Exactly ONE site grant (the approved non-production test site), verified by listing
+      the app's site permissions (`write`). Probes confirm other sites + the root site are
+      refused (access denied) under the app token.
+- [x] `auth.config.local.json` validates (`ok: true, enabled: true`) and is git-ignored
+      (`*.local.json`); the certificate is referenced by CurrentUser store thumbprint —
+      the private key never leaves the certificate store.
+- [x] App-auth smoke passes (status, read-only access to all nine v2 lists, namespaced
+      CRUD with zero leftovers) and the live store contract runs green under app auth
+      (graph mode, hyperlink seed writes explicitly omitted-and-reported); legacy remains
+      untouched.
+- [ ] Decision log updated (D6 → executed) with the cert expiry/renewal owner
+      (cert expires 2028-07; renewal owner: Rodolfo).
 
 ## 8. The ask
 Approve: (a) creating the dedicated non-production app registration with certificate +

@@ -108,10 +108,16 @@ export async function resolveLiveBackend(deps) {
       client,
       retry: { maxAttempts: 5, baseDelayMs: 500, sleep: (ms) => new Promise((r) => setTimeout(r, ms || 500)) },
     });
-    // Status metadata only — NEVER the site reference, client id, or any token.
+    // Auth-mode LABEL only (Loop 33): 'app-auth-certificate' when loadTransport resolved the
+    // D6 app-auth path (its transport self-describes), else the pre-D6 operator path.
+    const authMode = (typeof transport.describe === 'function'
+      && transport.describe()?.authMode === 'app-certificate')
+      ? 'app-auth-certificate' : 'operator-token';
+    // Status metadata only — NEVER the site reference, tenant/client id, thumbprint, or token.
     return {
       enabled: true,
       store,
+      authMode,
       environmentLabel: String(cfg.environmentLabel ?? ''),
       runNamespace: String(cfg.runNamespace ?? ''),
     };

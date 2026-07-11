@@ -88,11 +88,19 @@
   [`DATA_MODEL.md`](./DATA_MODEL.md) §2.
 
 ### D6 — Entra app registration
-- **Status:** Open (needs Rod)
+- **Status:** EXECUTED (admin setup by Rodolfo 2026-07-11; app-auth wired + live-validated in Loop 33)
 - **Context:** Legacy uses Entra app `c1b03319-…`. Permission isolation matters.
 - **Options:** (a) **new** v2 Entra app with its own scopes; (b) reuse legacy app.
-- **Recommendation:** (a) so legacy permissions are never altered (hard rule #3).
-- **Blocks:** any live auth work (post-MVP).
+- **Decision:** (a) — a dedicated v2 non-production app registration, certificate-only
+  (no client secrets), `Sites.Selected` application permission with a single `write` grant
+  on the approved non-production test site. Legacy permissions never altered.
+- **Execution notes:** certificate credential uploaded (private key stays in the operator's
+  certificate store; expires 2028-07; renewal owner Rodolfo). Consent landed on the
+  **Microsoft Graph** resource's `Sites.Selected`; app-auth runs in graph api mode (see
+  `D6_AUTH_APP_REGISTRATION_PLAN.md` §7 for the optional SharePoint-resource consent
+  follow-up that unlocks Hyperlink-column writes via `apiMode: sharepoint-rest`). Real
+  identifiers live only in the git-ignored `auth.config.local.json`; operator token
+  minting is no longer required for the SharePoint test path.
 
 ### D7 — Legacy read access for migration dry-run
 - **Status:** Open (needs Rod)

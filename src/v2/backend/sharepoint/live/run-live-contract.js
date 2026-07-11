@@ -198,6 +198,11 @@ after(async () => {
   console.log(`  items deleted      : ${totalDeleted} (run-created only; lists + pre-existing rows untouched)`);
   console.log(`  delete failures    : ${deleteFailures.length}`);
   for (const f of deleteFailures) console.log(`    FAILED delete ${f.list} item ${f.id}: ${f.error}`);
+  // Loop 33: the app-auth graph transport can be explicitly opted into omitting Hyperlink
+  // column writes (a Microsoft Graph platform limitation). NEVER silent: surface the count.
+  if (typeof rawTransport.hyperlinkOmissions === 'function' && rawTransport.hyperlinkOmissions() > 0) {
+    console.log(`  hyperlink writes omitted: ${rawTransport.hyperlinkOmissions()} (graph apiMode cannot write Hyperlink columns; explicit 'omit-and-report' opt-in — full fidelity requires apiMode 'sharepoint-rest')`);
+  }
   if (leftovers.length) {
     console.log('  LEFTOVER DELTAS (should be empty; investigate):');
     for (const l of leftovers) console.log(`    ${l}`);

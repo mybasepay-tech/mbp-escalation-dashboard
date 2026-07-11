@@ -18,6 +18,7 @@ import { dirname, join, isAbsolute, resolve } from 'node:path';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 export const DEFAULT_CONFIG_PATH = join(HERE, 'testsite.config.json'); // git-ignored
+export const DEFAULT_APP_AUTH_CONFIG_PATH = join(HERE, 'auth.config.local.json'); // git-ignored (D6, Loop 33)
 
 export function loadConfig(path) {
   let raw;
@@ -63,8 +64,68 @@ export function assertSafe(cfg) {
   }
 }
 
-/** Resolve + dynamically import the operator's git-ignored transport bootstrap (no SDK in git). */
+/**
+ * D6 app-auth opt-in (Loop 33): load the git-ignored auth.config.local.json if present.
+ * Returns null when the file is absent (not opted in). A present-but-unparseable file
+ * throws — an operator clearly ATTEMPTED to configure app-auth, so failing closed beats
+ * silently ignoring it.
+ */
+export function loadAppAuthConfig(path = DEFAULT_APP_AUTH_CONFIG_PATH) {
+  let raw;
+  try {
+    raw = readFileSync(path, 'utf8');
+  } catch {
+    return null; // no app-auth config — callers fall back to the operator transport path
+  }
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw new Error('FAIL-CLOSED: an app-auth config file exists but is not valid JSON — fix or remove it (git-ignored auth.config.local.json).');
+  }
+}
+
+/**
+ * Resolve the runtime transport. TWO explicit paths, both git-ignored-config gated:
+ *   1. D6 APP-AUTH (Loop 33, preferred): auth.config.local.json exists with
+ *      enableAppAuth=true and passes the fail-closed D6 validator → committed
+ *      appAuthTransport with certificate app-only tokens. No operator token minting.
+ *      An enabled-but-INVALID app-auth config throws — never silently skipped.
+ *   2. OPERATOR TRANSPORT (pre-D6 path, kept): the git-ignored bootstrap module named by
+ *      "transportModule". Used when app-auth is absent or explicitly disabled
+ *      (enableAppAuth=false is the documented rollback to this path).
+ */
 export async function loadTransport(cfg) {
+  const authPath = cfg.appAuthConfig
+    ? (isAbsolute(cfg.appAuthConfig) ? cfg.appAuthConfig : resolve(HERE, cfg.appAuthConfig))
+    : DEFAULT_APP_AUTH_CONFIG_PATH;
+  const authCfg = loadAppAuthConfig(authPath);
+  if (authCfg && authCfg.enableAppAuth === true) {
+    const { validateD6AuthConfig } = await import('./d6AuthConfig.js');
+    const res = validateD6AuthConfig(authCfg);
+    if (!res.ok) {
+      throw new Error('FAIL-CLOSED: app-auth config rejected:\n - ' + res.problems.join('\n - '));
+    }
+    // The auth config must target EXACTLY the approved test site from the runner config —
+    // a mismatch means someone points app-auth at a different site: refuse.
+    const norm = (s) => String(s ?? '').replace(/\/+$/, '').toLowerCase();
+    if (norm(authCfg.siteScopeRef) !== norm(cfg.siteReferencePlaceholder)) {
+      throw new Error('FAIL-CLOSED: app-auth siteScopeRef does not match the approved test-site reference in the runner config — refusing.');
+    }
+    const { createAppAuthTokenProvider } = await import('./appAuthTokenProvider.js');
+    const { createAppAuthTransport } = await import('./appAuthTransport.js');
+    const tokenProvider = createAppAuthTokenProvider(authCfg);
+    console.log(`[auth] D6 app-auth ENABLED: certificate app-only tokens, ${authCfg.apiMode ?? 'graph'} api mode — no operator token minting, no interactive sign-in.`);
+    return createAppAuthTransport({
+      tokenProvider,
+      siteUrl: String(authCfg.siteScopeRef),
+      apiMode: authCfg.apiMode,
+      hyperlinkWriteBehavior: authCfg.graphHyperlinkWriteBehavior,
+      listPrefix: cfg.listPrefix,
+    });
+  }
+  if (authCfg) {
+    console.log('[auth] app-auth config present but enableAppAuth!=true (documented rollback) — using the operator transport path.');
+  }
   const modRef = cfg.transportModule ?? cfg.transportModulePlaceholder;
   if (!modRef || String(modRef).includes('<')) {
     throw new Error(
