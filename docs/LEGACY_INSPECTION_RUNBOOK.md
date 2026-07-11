@@ -23,6 +23,19 @@ field mapping, migration importer (Loop 32), and dry-run plan can proceed withou
 > `AddTags2` semantics), §8 attachments, §9 un-truncated StatusUpdates verification,
 > §10 Power Automate flows, §11 permissions, plus whether other related lists/views
 > exist beside the personal-site list the export came from.
+>
+> **Progress (Loop 35 — real analyzer run on a 46-row OPEN-ITEMS view export; gap
+> analysis §C.1c):** §8 attachments PARTIALLY ANSWERED — attachments are in ACTIVE use
+> (18/46 open items have them); the remaining §8 work is the per-item inventory
+> (names/sizes/counts) and the handling decision. §9 sharpened: spreadsheet exports
+> PROVABLY truncate `Status Updates` (~195-char cap) and `Teams Post` (100-char cap) —
+> the un-truncated verification MUST come from a JSON/API export. §6 partially extended
+> with real open-item distributions (urgency, issue types, both department
+> vocabularies — note the `Sales/BD` requesting-dept variant). User-mapping scope is
+> small: 14 distinct creators, 21 distinct assignees among open items. NEW checks for
+> the inspection: why 3 OPEN items carry a `Resolved Date`; whether the full list (300+
+> rows incl. Complete) can be exported un-truncated; `AddTags2` semantics (values render
+> as plain `;`-separated display names in this flavor).
 
 ## 2. Safety rules (absolute)
 - READ-ONLY throughout. Browse, view, screenshot, export. Never edit, save, rename,

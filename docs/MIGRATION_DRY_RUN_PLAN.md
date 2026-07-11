@@ -47,6 +47,16 @@ inventory, and the manifest above are STILL required. Completeness of the 300 vi
 rows vs the full list is unconfirmed. Real export files and reports stay local
 (`tools/migration/.gitignore` — recommended drop location `tools/migration/exports/`).
 
+**Loop 35 status — spreadsheet truncation is now PROVEN, not suspected:** the real
+analyzer run (46-row open-items view export; gap analysis §C.1c) measured `Status
+Updates` capped at ~195 chars on every row and `Teams Post` capped at exactly 100 chars.
+The analyzer flags such caps automatically (`truncationSuspected`). Consequences for §3:
+a list "Export to CSV" file is disqualified as the migration source for `StatusUpdates`
+and `TeamsPost`; the un-truncated JSON/API export is a HARD requirement. Also confirmed:
+attachments are in active use (18/46 open items) — the §3 attachment inventory is
+mandatory; and 3 open items carry a `ResolvedDate` — §6 validation must assert
+`completedDate` is derived from `Status = Complete`, never from `ResolvedDate` alone.
+
 ## 4. Transform steps (deterministic, re-runnable, no legacy access)
 1. Parse export files locally (no network).
 2. Apply the frozen field mapping row by row; NEVER drop unknown fields — everything

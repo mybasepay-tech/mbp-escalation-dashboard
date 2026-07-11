@@ -24,6 +24,8 @@ export const KNOWN_LEGACY_FIELDS = Object.freeze([
   'InternalDocumentationCommentary', 'Created', 'Modified',
   // Loop 34 (real-export evidence):
   'CreatedBy', 'AssignedTo', 'EscalationCommentary', 'AddTags2', 'DaysToResolve',
+  // Loop 35 (real analyzer run — list "Export to CSV" flavor):
+  'Attachments',
 ]);
 
 /** Legacy status vocabulary confirmed so far (preserved 100% — identity mapping). */

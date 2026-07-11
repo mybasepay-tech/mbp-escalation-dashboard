@@ -146,7 +146,9 @@ export function transformLegacyTicket(item, {
       : [],
     tags,
     attachments: {
-      hasAttachments: Boolean(item.hasAttachments),
+      // Two indicator sources (Loop 35): API-style exports set item.hasAttachments; the
+      // list "Export to CSV" flavor carries an Attachments column with "0"/"1".
+      hasAttachments: Boolean(item.hasAttachments) || f.Attachments === '1' || f.Attachments === 1 || f.Attachments === true,
       count: item.attachmentCount ?? 0, // indicator only — no files are ever migrated here
     },
   };
