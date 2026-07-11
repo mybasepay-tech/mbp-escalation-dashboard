@@ -146,8 +146,8 @@ These feed the accepted decisions directly; each needs concrete evidence:
       the intended export path and verify character-for-character length match against the
       list item (Excel-path truncation is exactly what this catches).
 - [ ] **Departed-author sample:** find ≥3 items whose Author is no longer resolvable (left
-      the org) — these exercise the admin/migration-owner closure exception; record item
-      ids privately.
+      the org) — these exercise the migration-owner closure exception (owner: Rodolfo
+      Chacón / IT Admin, D33); record item ids privately.
 - [ ] **Attachments verification:** count of items with native attachments (0 is a valid,
       decision-confirming answer).
 - [ ] **Power Automate/Teams:** DETAILS-VIEW-ONLY documentation of every flow (per §10) —

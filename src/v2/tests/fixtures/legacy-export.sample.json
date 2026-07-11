@@ -1,0 +1,155 @@
+{
+  "_comment": "OBVIOUSLY FAKE sample legacy export for the migration FOUNDATION tests (Loop 32). Fabricated data only: .invalid hosts/emails, demo names from the existing mock seed, no GUIDs, no tokens, no tenant identifiers, no live ids. Shape mirrors a future read-only Graph export of the legacy tracker.",
+  "exportedAt": "2026-07-09T00:00:00.000Z",
+  "items": [
+    {
+      "id": "101",
+      "webUrl": "https://legacy.example.invalid/lists/escalations/items/101",
+      "hasAttachments": false,
+      "attachmentCount": 0,
+      "fields": {
+        "Title": "Fully mapped example - claim reprocessing",
+        "Status": "In Process",
+        "Urgency": "High",
+        "EscalationDate": "2026-05-01T09:00:00Z",
+        "ExpectedResolutionDate": "2026-05-15T09:00:00Z",
+        "RequestingDept": "Member Services",
+        "AssignedDepartmentOwner": "Benefits Ops",
+        "IssueType": "Claim reprocessing",
+        "IssueCategoryDetail": "Claims",
+        "FinancialImpactAmount": 1250.75,
+        "AmountRemaining": 300.25,
+        "MemberName": "Demo Member A (fake)",
+        "CustomerName": "Demo Employer X (fake)",
+        "WorkerName": "Demo Worker Z (fake)",
+        "StatusCommentary": "Member reports claim submitted with no update in portal. Requesting expedited review.",
+        "StatusUpdates": "[2026-05-20 10:00] Maggie: Vendor contacted, awaiting response.\n[2026-05-10 09:00] Maggie: Ticket created and routed.",
+        "AssignedToLookupId": "22",
+        "AuthorLookupId": "12",
+        "AddTags": [ { "LookupId": "7", "LookupValue": "urgent", "Email": "tag@example.invalid" } ],
+        "TeamsPost": { "Url": "https://teams.example.invalid/l/message/fake-101" },
+        "AssignmentID": "ASG-000101",
+        "InternalDocumentationNeeded": "Yes",
+        "InternalDocumentationCommentary": "Internal: vendor SLA is 3 business days.",
+        "Created": "2026-05-01T09:00:00Z",
+        "Modified": "2026-05-20T10:00:00Z"
+      }
+    },
+    {
+      "id": "102",
+      "webUrl": "https://legacy.example.invalid/lists/escalations/items/102",
+      "hasAttachments": false,
+      "attachmentCount": 0,
+      "fields": {
+        "Title": "Departed author example - completed COBRA question",
+        "Status": "Complete",
+        "Urgency": "Medium",
+        "EscalationDate": "2026-03-02T08:00:00Z",
+        "ResolvedDate": "2026-03-20T16:00:00Z",
+        "RequestingDept": "Billing & Payments",
+        "AssignedDepartmentOwner": "Financial Ops",
+        "IssueType": "COBRA",
+        "IssueCategoryDetail": "Billing",
+        "StatusCommentary": "COBRA coverage question from a former employee.",
+        "StatusUpdates": "[2026-03-20 16:00] Departed Person (fake): Resolved with carrier; closing.",
+        "AssignedToLookupId": "22",
+        "AuthorLookupId": "99",
+        "Created": "2026-03-02T08:00:00Z",
+        "Modified": "2026-03-20T16:00:00Z"
+      }
+    },
+    {
+      "id": "103",
+      "webUrl": "https://legacy.example.invalid/lists/escalations/items/103",
+      "hasAttachments": false,
+      "attachmentCount": 0,
+      "fields": {
+        "Title": "Blank status + unknown column example",
+        "Status": "",
+        "Urgency": "Low",
+        "RequestingDept": "Operations",
+        "AssignedDepartmentOwner": "Benefits Ops",
+        "StatusCommentary": "Old record with a blank status and a column the dashboard never used.",
+        "StatusUpdates": "",
+        "AuthorLookupId": "12",
+        "LegacyOddColumn": "value the mapping has never seen - must be preserved",
+        "Created": "2025-12-01T08:00:00Z",
+        "Modified": "2025-12-02T08:00:00Z"
+      }
+    },
+    {
+      "id": "104",
+      "webUrl": "https://legacy.example.invalid/lists/escalations/items/104",
+      "hasAttachments": false,
+      "attachmentCount": 0,
+      "fields": {
+        "Title": "Unknown status value example",
+        "Status": "On Hold (Legacy)",
+        "Urgency": "Medium",
+        "AssignedDepartmentOwner": "Payroll Ops",
+        "StatusCommentary": "Carries a status value outside the known choice list.",
+        "StatusUpdates": "[2026-01-05 09:00] Jennifer: Waiting on external audit.",
+        "AuthorLookupId": "31",
+        "AssignmentID": "ASG-000104",
+        "Created": "2026-01-04T08:00:00Z",
+        "Modified": "2026-01-05T09:00:00Z"
+      }
+    },
+    {
+      "id": "105",
+      "webUrl": "https://legacy.example.invalid/lists/escalations/items/105",
+      "hasAttachments": false,
+      "attachmentCount": 0,
+      "fields": {
+        "Title": "Unmapped department example",
+        "Status": "Assigned",
+        "Urgency": "Low",
+        "AssignedDepartmentOwner": "Facilities (legacy-only team)",
+        "StatusCommentary": "Assigned department has no canonical v2 mapping yet.",
+        "StatusUpdates": "",
+        "AuthorLookupId": "12",
+        "AssignedToLookupId": "31",
+        "Created": "2026-06-01T08:00:00Z",
+        "Modified": "2026-06-01T08:00:00Z"
+      }
+    },
+    {
+      "id": "106",
+      "webUrl": "https://legacy.example.invalid/lists/escalations/items/106",
+      "hasAttachments": true,
+      "attachmentCount": 2,
+      "fields": {
+        "Title": "Attachments indicator + long history example",
+        "Status": "Pending Research",
+        "Urgency": "Critical",
+        "AssignedDepartmentOwner": "Benefits Ops",
+        "MemberName": "Demo Member B (fake)",
+        "StatusCommentary": "Ticket with attachment indicator and a longer StatusUpdates blob.",
+        "StatusUpdates": "[2026-06-20 11:00] Sarah: Research packet compiled.\n[2026-06-15 10:00] Sarah: Escalated to research.\n[2026-06-10 09:30] Teri: Assigned to Sarah.\n[2026-06-08 09:00] Maggie: Created after member call.\n[2026-06-08 09:05] Maggie: Added supporting notes.",
+        "AssignedToLookupId": "22",
+        "AuthorLookupId": "12",
+        "AddTags": [
+          { "LookupId": "7", "LookupValue": "urgent", "Email": "tag@example.invalid" },
+          { "LookupId": "8", "LookupValue": "never-mapped-tag", "Email": "tag2@example.invalid" }
+        ],
+        "Created": "2026-06-08T09:00:00Z",
+        "Modified": "2026-06-20T11:00:00Z"
+      }
+    }
+  ],
+  "maps": {
+    "users": {
+      "12": { "name": "Maggie (demo)", "email": "maggie@example.invalid", "v2Id": "user_maggie" },
+      "22": { "name": "Sarah (demo)", "email": "sarah@example.invalid", "v2Id": "user_sarah" },
+      "31": { "name": "Jennifer (demo)", "email": "jennifer@example.invalid", "v2Id": "user_jennifer" }
+    },
+    "departments": {
+      "Benefits Ops": "dept_benefits",
+      "Payroll Ops": "dept_payroll",
+      "Financial Ops": "dept_financial"
+    },
+    "tags": {
+      "7": "tag_urgent"
+    }
+  }
+}

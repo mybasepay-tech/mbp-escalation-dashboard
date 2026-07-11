@@ -12,6 +12,12 @@ Prove, on a full copy of real legacy data, that the frozen mapping
 cleanly into v2 — with counts, samples, and edge cases reconciled — before any pilot or
 cutover conversation.
 
+> **Foundation status (Loop 32):** the OFFLINE validate/transform/report stage of this plan
+> is now implemented and tested against a fake sample export —
+> [`src/v2/tools/migration/`](../src/v2/tools/migration/README.md) (§4 steps 1–8, §6
+> report skeleton). It has NO import capability by construction; the gated import stage
+> remains future work under G1–G3.
+
 ## 2. Prerequisites (all must hold)
 - Legacy inspection complete; mapping template frozen and approved (every row `mapped`,
   `deferred`, or an accepted `business decision`).
@@ -75,7 +81,8 @@ cutover conversation.
 - **StatusUpdates integrity:** length + checksum equality for EVERY ticket (already above —
   restated here as a decision-driven must).
 - **Departed-author flags:** every ticket whose author could not be matched appears in the
-  exception report and carries the admin/migration-owner closure marker; count reconciled.
+  exception report and carries the migration-owner closure marker (owner: Rodolfo Chacón /
+  IT Admin, D33); count reconciled and the exception list delivered to the owner.
 - Internal-notes visibility assumption verified (imported notes readable by a non-admin
   test user in pre-production).
 - Attachment counts/usage recorded per ticket (even though files are not migrated).

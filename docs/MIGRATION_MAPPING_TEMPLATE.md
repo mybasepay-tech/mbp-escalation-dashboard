@@ -18,9 +18,10 @@
 4. Unknown/unmapped legacy fields are preserved in a legacy/additional-data area
    (`migrationNotes` or a dedicated legacy-payload column) rather than dropped.
 5. Requester/creator-only closure carries into v2 unchanged (D23).
-6. **Departed-author exception (Loop 31):** tickets whose original requester cannot be
-   matched are closable ONLY by the designated admin/migration owner — a documented
-   migration exception, never a general permission rule. The importer must FLAG these.
+6. **Departed-author exception (Loop 31; owner named Loop 32/D33):** tickets whose original
+   requester cannot be matched are closable ONLY by the designated migration owner —
+   **Rodolfo Chacón / IT Admin** — as an auditable, migration-scoped exception, never a
+   general permission rule. The importer must FLAG these records.
 7. **Party fields (Loop 31):** `MemberName`/`CustomerName`/`WorkerName` are preserved AND
    displayed in the ticket detail Additional Details area — visible, not protagonist.
 8. **`AssignmentID` (Loop 31):** preserved as legacy data; never interpreted or depended on

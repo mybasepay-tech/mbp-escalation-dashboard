@@ -220,12 +220,16 @@ integration · department-specific panel configuration (modeled since the MVP).
 - **`AssignmentID`: PRESERVE** as a legacy/additional-data field; do not interpret or
   depend on it until inspection confirms whether anything consumes it.
 
+**Answered (Loop 32):**
+- **Designated migration owner: Rodolfo Chacón / IT Admin (D33).** Departed/unmatched-author
+  tickets are closable only by the migration owner during migration validation — an
+  auditable, migration-scoped exception; requester-only closure is unchanged everywhere else.
+
 **Still open:**
 1. `AssignmentID` consumers (preserve-only until inspection answers this).
 2. Exact export column lists actually used today (spreadsheet-order/RFP) — inspection §12.
-3. Named designated admin/migration owner for the departed-author exception.
-4. Cutover freeze-window length; 5. post-launch support owner.
-6. Teams/PA parity decision (deferred gate — must close before the cutover runbook).
+3. Cutover freeze-window length; 4. post-launch support owner.
+5. Teams/PA parity decision (deferred gate — must close before the cutover runbook).
 
 Inspection execution: [`LEGACY_INSPECTION_RUNBOOK.md`](./LEGACY_INSPECTION_RUNBOOK.md).
 Mapping capture: [`MIGRATION_MAPPING_TEMPLATE.md`](./MIGRATION_MAPPING_TEMPLATE.md).
