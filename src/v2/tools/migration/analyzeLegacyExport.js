@@ -23,7 +23,16 @@ export const ANALYSIS_VERSION = 'loop34-v1';
 export const SAFE_ENUM_COLUMNS = Object.freeze([
   'Status', 'Urgency', 'Requesting Dept', 'Assigned Department Owner',
   'Issue Type', 'Issue Category Detail', 'Internal Documentation Needed', 'Item Type',
+  // Loop 35 (real "Export to CSV" flavor): per-row attachment indicator ("0"/"1") and
+  // the Days-to-Resolve calculated label/number — both value-safe.
+  'Attachments', 'Days to Resolve',
 ]);
+
+/**
+ * Sensitive people-ish columns reported as DISTINCT COUNT ONLY (never values) — sizes the
+ * user-mapping/departed-author work without leaking a single name.
+ */
+export const DISTINCT_COUNT_ONLY_COLUMNS = Object.freeze(['Created By', 'Assigned To', 'AddTags2']);
 
 /** Columns whose values are NEVER emitted — counts/metrics only. Not whitelistable. */
 export const SENSITIVE_COLUMNS = Object.freeze([
@@ -162,12 +171,25 @@ export function analyzeLegacyExport(rows, opts = {}) {
     };
   }
 
+  // Uniform value lengths across many rows signal an EXPORT TRUNCATION CAP — such a
+  // column cannot satisfy a verbatim-preservation requirement from this file (Loop 35:
+  // observed on Status Updates ~195 chars and Teams Post exactly 100 chars).
+  const lengthProfile = (values) => {
+    const lens = values.map((s) => s.length).sort((a, b) => a - b);
+    return {
+      minLength: lens[0] ?? 0,
+      maxLength: lens.at(-1) ?? 0,
+      distinctLengthCount: new Set(lens).size,
+      truncationSuspected: values.length >= 5 && (lens.at(-1) - lens[0]) <= 2,
+    };
+  };
+
   // ----- Status Updates metrics (NEVER the text) -----
   const blobs = rows.map((r) => String(r['Status Updates'] ?? '')).filter((s) => s.trim() !== '');
   const lengths = blobs.map((s) => s.length).sort((a, b) => a - b);
   const statusUpdates = {
     filled: blobs.length,
-    maxLength: lengths.at(-1) ?? 0,
+    ...lengthProfile(blobs),
     avgLength: lengths.length ? Math.round(lengths.reduce((a, b) => a + b, 0) / lengths.length) : 0,
     medianLength: median(lengths),
     multilineCount: blobs.filter((s) => /\r|\n/.test(s)).length,
@@ -180,19 +202,33 @@ export function analyzeLegacyExport(rows, opts = {}) {
   const teamsPost = {
     filled: teams.length,
     urlLikeCount: teams.filter((s) => /https?:\/\//i.test(s)).length,
+    ...lengthProfile(teams),
   };
 
   // ----- AddTags2 metrics (NEVER the names) -----
+  // Two encodings exist in the wild (Loop 35): classic lookup pairs `A;#1;#B;#2`, and the
+  // list "Export to CSV" flavor rendering plain display names separated by `;`.
   const tags = rows.map((r) => String(r.AddTags2 ?? '')).filter((s) => s.trim() !== '');
   const lookupEncoded = tags.filter((s) => LOOKUP_ENCODING.test(s));
+  const plainSemicolon = tags.filter((s) => !LOOKUP_ENCODING.test(s) && s.includes(';'));
+  const entriesIn = (s) => (LOOKUP_ENCODING.test(s)
+    ? Math.ceil(s.split(';#').length / 2)
+    : s.split(';').filter((p) => p.trim() !== '').length);
   const addTags2 = {
     filled: tags.length,
     lookupEncodedCount: lookupEncoded.length,
-    // `A;#1;#B;#2` -> segments come in value/id pairs; entries ~= ceil(segments / 2)
-    maxEntriesApprox: lookupEncoded.length
-      ? Math.max(...lookupEncoded.map((s) => Math.ceil(s.split(';#').length / 2)))
-      : (tags.length ? 1 : 0),
+    plainSemicolonCount: plainSemicolon.length,
+    maxEntriesApprox: tags.length ? Math.max(...tags.map(entriesIn)) : 0,
   };
+
+  // ----- distinct-count-only metrics for people-ish columns (NEVER values) -----
+  const distinctCounts = {};
+  for (const col of DISTINCT_COUNT_ONLY_COLUMNS) {
+    if (!(col in nonEmptyCounts)) continue;
+    const set = new Set();
+    for (const row of rows) { const v = String(row[col] ?? '').trim(); if (v) set.add(v); }
+    distinctCounts[col] = { filled: nonEmptyCounts[col], distinctCount: set.size };
+  }
 
   return {
     analysisVersion: ANALYSIS_VERSION,
@@ -212,6 +248,7 @@ export function analyzeLegacyExport(rows, opts = {}) {
     statusUpdates,
     teamsPost,
     addTags2,
+    distinctCounts,
   };
 }
 

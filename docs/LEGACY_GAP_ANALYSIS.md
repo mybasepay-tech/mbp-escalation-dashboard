@@ -109,9 +109,57 @@ links, or paths are committed, and the raw export file never enters git.
 - **Deep per-column statistics** (non-empty counts, date ranges, blob length/HTML/emoji
   metrics): the committed sanitized analyzer produces them locally in one command —
   `node tools/migration/run-legacy-export-analysis.js <local-export.csv>` — emitting
-  AGGREGATES ONLY by construction. *Status: pending — the raw export file was not present
-  on the analysis machine during Loop 34; the preliminary facts above come from Rodolfo's
-  export review and are marked accordingly.*
+  AGGREGATES ONLY by construction. *Status: an analyzer run happened in Loop 35 (§C.1c) —
+  against a 46-row OPEN-ITEMS VIEW export, not the 300-row set described above, which
+  remains to be provided/analyzed.*
+
+### C.1c REAL analyzer run (Loop 35 — sanitized aggregates; open-items view export)
+The Loop 34 analyzer ran against a real local export file (git-ignored; raw file and raw
+report never committed). **The analyzed file is NOT the 300-row export described in
+§C.1b:** it is a 46-row export of the CURRENT OPEN items view — zero `Complete` rows —
+so all statistics below describe the open workload only.
+
+- **Shape:** 31 columns again, but a DIFFERENT export flavor: it carries
+  `Initial Financial Impact` and a per-row `Attachments` indicator, and has NO
+  `Item Type`/`Path` artifacts. Both flavors are now mapped in `exportColumns.js`.
+- **Volume:** 46 rows; IDs 63–362 (254 ids missing in range — consistent with a filtered
+  view over a longer-lived list). Parsed cleanly: 0 CSV warnings, 0 duplicate ids, all
+  date fields parseable.
+- **Statuses (open items):** In Process 17 · Assigned 17 · Pending Research 5 ·
+  Pending Member 3 · Pending Customer 2 · Not yet assigned 2. No blank, no unexpected
+  values — the frozen seven-value identity mapping continues to hold.
+- **Urgency:** High 21 · Critical 13 · Medium 12 (no Low among open items).
+- **Departments:** Assigned Department Owner across 8 queues (Finance 10, Billing 9,
+  Technology 9, Operations 5, Leadership 4, Sales 4, Contracts 4, Payroll 1);
+  Requesting Dept across 7 values incl. the variant label `Sales/BD` — the requesting
+  vocabulary differs from the assigned-owner vocabulary (mapping note).
+- **ATTACHMENTS ARE REAL: 18 of 46 open items (≈39%) have attachments.** This converts
+  the attachment question from "verify whether used" to "attachment migration/handling
+  strategy REQUIRED before cutover."
+- **Truncation findings (critical for migration inputs):** `Status Updates` is TRUNCATED
+  by this export (all 46 values capped at 194–195 chars, HTML-entity-mangled) and
+  `Teams Post` is TRUNCATED (all 45 links exactly 100 chars). The analyzer now detects
+  and flags uniform-length caps. **A spreadsheet "Export to CSV" can never be the
+  migration source for verbatim `StatusUpdates` or usable Teams links — the un-truncated
+  JSON/API export remains mandatory.**
+- **Completeness (46 rows):** always-filled — Title, Created, Created By, Status,
+  Urgency, Requesting Dept, Assigned Department Owner, Escalation Commentary (72–2251
+  chars, multiline in 32 rows, NOT truncated), Issue Type, Issue Category Detail.
+  Partially filled — Assigned To 44, Member Name 45, Customer Name 35, Worker Name 20,
+  AddTags2 40, Original Assigned Dept 41, DateAssignedtoCurrent 17, Expected Resolution
+  Date 15, Initial Financial Impact 15, Assignment ID 16, Internal Documentation Needed
+  11 (Yes 7 / No 4), Internal Documentation Commentary 6, Resolved Date 3. EMPTY in all
+  rows — `Amount Remaining`, `Days Open`, `DaysCurrentDept` (calculated/legacy columns
+  export blank); `Days to Resolve` renders the literal label `Open` on every open item.
+- **Date ranges (open items):** Created 2026-01-28..2026-07-10; Expected Resolution
+  2026-02-18..2026-07-10; DateAssignedtoCurrent 2026-03-31..2026-07-10; Resolved Date
+  2026-04-07..2026-06-26 — note 3 OPEN items carry a Resolved Date (data-quality
+  oddity: resolved-then-reopened or mis-set field; flag for import rules).
+- **People (distinct counts only):** 14 distinct creators, 21 distinct assignees —
+  the user-map/departed-author work is bounded and small.
+- **AddTags2:** in this flavor the values are PLAIN display names separated by `;`
+  (36 of 40 filled rows; up to ~8 entries; no `;#` lookup pairs). Parsing strategy must
+  therefore handle BOTH renderings; semantics (watchers vs tags) still unconfirmed.
 
 ### C.2 Must be inspected in the live legacy system [needs legacy inspection]
 - Full list schema (column types, required flags, choice sets, calculated/validation

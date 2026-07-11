@@ -44,6 +44,10 @@ export const EXPORT_HEADER_MAP = Object.freeze({
   'Internal Documentation Commentary': 'InternalDocumentationCommentary',
   'Teams Post': 'TeamsPost', // hyperlink metadata; preserved, never exposed raw in reports
   'AddTags2': 'AddTags2', // lookup/person-style encoded field; kept RAW until parsing strategy is approved
+  // Loop 35 — additional columns observed in the REAL list "Export to CSV" flavor (which
+  // carries Attachments/Initial Financial Impact and NO Item Type/Path):
+  'Initial Financial Impact': 'FinancialImpactAmount',
+  'Attachments': 'Attachments', // "0"/"1" per-row attachment indicator
 });
 
 /** Item-level export columns (not ticket fields). */

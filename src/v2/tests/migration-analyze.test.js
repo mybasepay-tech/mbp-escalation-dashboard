@@ -111,7 +111,9 @@ test('Status Updates metrics: lengths + multiline/html/emoji detection, never th
 });
 
 test('Teams Post metrics never include URLs', () => {
-  assert.deepEqual(report.teamsPost, { filled: 3, urlLikeCount: 3 });
+  assert.equal(report.teamsPost.filled, 3);
+  assert.equal(report.teamsPost.urlLikeCount, 3);
+  assert.equal(typeof report.teamsPost.truncationSuspected, 'boolean');
   assert.doesNotMatch(reportText, /teams\.example\.invalid/, 'no URL leaks into the report');
   assert.doesNotMatch(reportText, /https?:\/\//, 'no URL of any kind in the report');
 });
@@ -155,6 +157,73 @@ test('unknown columns are still inventoried and counted (never dropped, values n
   assert.ok(r.columns.includes('Mystery Column'));
   assert.equal(r.nonEmptyCounts['Mystery Column'], 1);
   assert.ok(!JSON.stringify(r).includes('secret-ish'), 'unknown column values never emitted');
+});
+
+// ---------- Loop 35: truncation detection, export flavors, distinct-count-only ----------
+
+test('uniform value lengths flag TRUNCATION SUSPECTED on Status Updates and Teams Post (synthetic rows)', () => {
+  const capped = Array.from({ length: 8 }, (_, i) => ({
+    ID: String(i + 1), Status: 'Assigned',
+    'Status Updates': `&#160;<div>fake truncated blob ${i}</div>`.padEnd(195, 'x').slice(0, 195 - (i % 2)),
+    'Teams Post': `https://teams.example.invalid/${String(i).repeat(3)}`.padEnd(100, 'y').slice(0, 100),
+  }));
+  const r = analyzeLegacyExport(capped);
+  assert.equal(r.statusUpdates.truncationSuspected, true, 'near-uniform blob lengths => truncation');
+  assert.equal(r.teamsPost.truncationSuspected, true, 'exact-uniform URL lengths => truncation');
+  assert.ok(r.statusUpdates.distinctLengthCount <= 2);
+  // varied lengths do NOT flag
+  const varied = analyzeLegacyExport(rows);
+  assert.equal(varied.teamsPost.truncationSuspected, false, 'fixture URLs vary in length');
+});
+
+test('AddTags2 plain-semicolon flavor (display names, no ;# pairs) is detected and counted', () => {
+  const r = analyzeLegacyExport([
+    { ID: '1', AddTags2: 'Fake Person A;Fake Person B;Fake Person C' },
+    { ID: '2', AddTags2: 'Fake Person A' },
+    { ID: '3', AddTags2: 'Fake Tag One;#11;#Fake Tag Two;#12' },
+  ]);
+  assert.equal(r.addTags2.filled, 3);
+  assert.equal(r.addTags2.lookupEncodedCount, 1);
+  assert.equal(r.addTags2.plainSemicolonCount, 1);
+  assert.equal(r.addTags2.maxEntriesApprox, 3, 'plain flavor: 3 semicolon-separated entries');
+  assert.doesNotMatch(JSON.stringify(r), /Fake Person|Fake Tag/, 'names never emitted');
+});
+
+test('Attachments and Days to Resolve are safe enum columns (indicator/label values only)', () => {
+  const r = analyzeLegacyExport([
+    { ID: '1', Attachments: '1', 'Days to Resolve': 'Open' },
+    { ID: '2', Attachments: '0', 'Days to Resolve': 'Open' },
+    { ID: '3', Attachments: '1', 'Days to Resolve': '12' },
+  ]);
+  assert.deepEqual(r.enums.Attachments.values, { '1': 2, '0': 1 });
+  assert.deepEqual(r.enums['Days to Resolve'].values, { Open: 2, '12': 1 });
+});
+
+test('people-ish columns report DISTINCT COUNT ONLY — never values', () => {
+  const r = analyzeLegacyExport([
+    { ID: '1', 'Created By': 'Fake Author A', 'Assigned To': 'Fake Agent A', AddTags2: 'Fake Person A' },
+    { ID: '2', 'Created By': 'Fake Author A', 'Assigned To': 'Fake Agent B', AddTags2: '' },
+    { ID: '3', 'Created By': 'Fake Author B', 'Assigned To': '', AddTags2: 'Fake Person B' },
+  ]);
+  assert.deepEqual(r.distinctCounts['Created By'], { filled: 3, distinctCount: 2 });
+  assert.deepEqual(r.distinctCounts['Assigned To'], { filled: 2, distinctCount: 2 });
+  assert.deepEqual(r.distinctCounts.AddTags2, { filled: 2, distinctCount: 2 });
+  assert.doesNotMatch(JSON.stringify(r), /Fake Author|Fake Agent/, 'no values leak');
+});
+
+test('the Loop 35 export flavor (Initial Financial Impact + Attachments, no Item Type/Path) maps into the foundation', () => {
+  const item = rowToLegacyItem({
+    ID: '77', Status: 'Assigned', 'Initial Financial Impact': '1500', Attachments: '1',
+    'Created By': 'Fake Requester Z', 'Escalation Commentary': 'synthetic', 'Days to Resolve': 'Open',
+  });
+  assert.equal(item.fields.FinancialImpactAmount, '1500');
+  assert.equal(item.fields.Attachments, '1');
+  assert.equal(item.sourcePath, null, 'this flavor has no Path column');
+  const { candidate } = transformLegacyTicket(item, {});
+  assert.equal(candidate.attachments.hasAttachments, true, "Attachments '1' -> indicator true");
+  assert.equal(candidate.ticket.amountInvolved, '1500');
+  const none = transformLegacyTicket(rowToLegacyItem({ ID: '78', Status: 'Assigned', Attachments: '0' }), {});
+  assert.equal(none.candidate.attachments.hasAttachments, false);
 });
 
 // ---------- CLI wrapper ----------

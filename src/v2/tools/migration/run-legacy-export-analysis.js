@@ -46,9 +46,9 @@ function summarize(report) {
   const st = report.enums.Status;
   if (st) lines.push(`statuses (${st.distinctCount}): ${Object.entries(st.values).map(([v, n]) => `${v}=${n}`).join(', ')}`);
   lines.push(`blank status=${report.statusCompleteness.blankStatusCount} unexpected=${JSON.stringify(report.statusCompleteness.unexpectedStatuses)}`);
-  lines.push(`StatusUpdates: filled=${report.statusUpdates.filled} maxLen=${report.statusUpdates.maxLength} avgLen=${report.statusUpdates.avgLength} multiline=${report.statusUpdates.multilineCount} html=${report.statusUpdates.htmlMarkupCount}`);
-  lines.push(`TeamsPost: filled=${report.teamsPost.filled} urlLike=${report.teamsPost.urlLikeCount} (URLs never emitted)`);
-  lines.push(`AddTags2: filled=${report.addTags2.filled} lookupEncoded=${report.addTags2.lookupEncodedCount} maxEntries~=${report.addTags2.maxEntriesApprox}`);
+  lines.push(`StatusUpdates: filled=${report.statusUpdates.filled} len=${report.statusUpdates.minLength}..${report.statusUpdates.maxLength} avg=${report.statusUpdates.avgLength} multiline=${report.statusUpdates.multilineCount} html=${report.statusUpdates.htmlMarkupCount}${report.statusUpdates.truncationSuspected ? ' TRUNCATION-SUSPECTED (this file cannot satisfy verbatim preservation)' : ''}`);
+  lines.push(`TeamsPost: filled=${report.teamsPost.filled} urlLike=${report.teamsPost.urlLikeCount}${report.teamsPost.truncationSuspected ? ' TRUNCATION-SUSPECTED' : ''} (URLs never emitted)`);
+  lines.push(`AddTags2: filled=${report.addTags2.filled} lookupEncoded=${report.addTags2.lookupEncodedCount} plainSemicolon=${report.addTags2.plainSemicolonCount} maxEntries~=${report.addTags2.maxEntriesApprox}`);
   return lines.join('\n');
 }
 
