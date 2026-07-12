@@ -252,4 +252,46 @@ export function analyzeLegacyExport(rows, opts = {}) {
   };
 }
 
+/**
+ * Sanitized summary of the READ-ONLY attachment inventory (Loop 36): counts and sizes
+ * ONLY — file names and URLs are never emitted.
+ * @param {{itemId: string, count: number, files: {sizeBytes: ?number}[]}[]} inventory
+ */
+export function analyzeAttachmentInventory(inventory) {
+  const entries = Array.isArray(inventory) ? inventory : [];
+  const counts = entries.map((e) => Number(e.count ?? (e.files?.length ?? 0)));
+  const sizes = entries.flatMap((e) => (e.files ?? []).map((f) => f.sizeBytes)).filter((n) => Number.isFinite(n));
+  return {
+    itemsWithAttachments: entries.length,
+    totalFiles: counts.reduce((a, b) => a + b, 0),
+    maxFilesPerItem: counts.length ? Math.max(...counts) : 0,
+    sizeKnownFiles: sizes.length,
+    totalKnownBytes: sizes.reduce((a, b) => a + b, 0),
+    maxFileBytes: sizes.length ? Math.max(...sizes) : null,
+  };
+}
+
+/**
+ * Sanitized summary of the field-schema snapshot (Loop 36): field/type/choice metadata
+ * only — schema carries no row data by nature, but we still emit ONLY structural facts.
+ * @param {{internalName, displayName, type, required, hidden, readOnly, choices}[]} fields
+ */
+export function summarizeSchemaSnapshot(fields) {
+  const all = Array.isArray(fields) ? fields : [];
+  const visible = all.filter((f) => !f.hidden);
+  const choiceFields = {};
+  for (const f of visible) {
+    if (Array.isArray(f.choices) && f.choices.length) choiceFields[f.internalName] = f.choices;
+  }
+  return {
+    fieldCount: all.length,
+    visibleFieldCount: visible.length,
+    hiddenCount: all.length - visible.length,
+    readOnlyCount: all.filter((f) => f.readOnly).length,
+    requiredFields: visible.filter((f) => f.required).map((f) => f.internalName),
+    choiceFields,
+    visibleFieldTypes: Object.fromEntries(visible.map((f) => [f.internalName, f.type])),
+  };
+}
+
 export default analyzeLegacyExport;
