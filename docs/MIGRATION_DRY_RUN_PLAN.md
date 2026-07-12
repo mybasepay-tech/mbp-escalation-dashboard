@@ -47,6 +47,16 @@ inventory, and the manifest above are STILL required. Completeness of the 300 vi
 rows vs the full list is unconfirmed. Real export files and reports stay local
 (`tools/migration/.gitignore` — recommended drop location `tools/migration/exports/`).
 
+**Loop 36 status — the un-truncated export PATH exists; one grant blocks execution:**
+the committed READ-ONLY exporter (GET-only by construction; items + schema snapshot +
+attachment metadata inventory; raw output git-ignored) satisfies the §3 input list once
+it can reach the legacy site. Verified live: the D6 app identity is refused (403) on the
+legacy personal site because `Sites.Selected` grants are per-site and only the v2 test
+site is granted. Required manual step: an admin `Sites.Selected` **Read** grant on the
+legacy site (or an operator-minted delegated token). Attachment BINARY handling remains a
+separate gate: the inventory captures metadata only; migrating/linking/skipping files is
+a decision for Rodolfo before any import claims completeness.
+
 **Loop 35 status — spreadsheet truncation is now PROVEN, not suspected:** the real
 analyzer run (46-row open-items view export; gap analysis §C.1c) measured `Status
 Updates` capped at ~195 chars on every row and `Teams Post` capped at exactly 100 chars.

@@ -72,7 +72,11 @@ test('the sample fixture is obviously fake: .invalid hosts/emails only, no GUIDs
 
 test('migration tools are offline by construction: no network/SharePoint/import code paths', () => {
   const dir = join(V2_ROOT, 'tools', 'migration');
+  // Loop 36: the READ-ONLY legacy exporter pair is the ONLY exception — it may speak
+  // HTTP GET to the (config-supplied) legacy list. It gets its own tailored scan below.
+  const READONLY_EXPORTER_FILES = new Set(['exportLegacyListReadonly.js', 'run-legacy-readonly-export.js']);
   for (const f of readdirSync(dir).filter((n) => n.endsWith('.js'))) {
+    if (READONLY_EXPORTER_FILES.has(f)) continue;
     const src = readFileSync(join(dir, f), 'utf8');
     assert.doesNotMatch(src, /\bfetch\s*\(/, `${f}: no fetch`);
     assert.doesNotMatch(src, /XMLHttpRequest/, `${f}: no XHR`);
@@ -81,6 +85,42 @@ test('migration tools are offline by construction: no network/SharePoint/import 
     assert.doesNotMatch(src, /SharePointStore|SharePointLiveClient|createTransport/, `${f}: no live-store wiring in the foundation`);
     assert.doesNotMatch(src, /process\.env/, `${f}: no env reads`);
   }
+});
+
+test('the read-only legacy exporter is GET-only by construction and identifier-free (Loop 36)', () => {
+  const dir = join(V2_ROOT, 'tools', 'migration');
+  for (const f of ['exportLegacyListReadonly.js', 'run-legacy-readonly-export.js']) {
+    const src = readFileSync(join(dir, f), 'utf8');
+    // No write capability of any kind toward SharePoint:
+    assert.doesNotMatch(src, /method:\s*['"](POST|PATCH|PUT|DELETE|MERGE)/i, `${f}: no write verbs`);
+    assert.doesNotMatch(src, /X-HTTP-Method/i, `${f}: no verb override`);
+    // `__metadata` may appear in the READ-side noise-strip list; only forbid CONSTRUCTING
+    // a verbose write payload (assignment/property form).
+    assert.doesNotMatch(src, /__metadata\s*[:=]\s*\{/, `${f}: no write payload construction`);
+    assert.doesNotMatch(src, /\$batch/i, `${f}: no batch (could smuggle writes)`);
+    // No identifying values committed:
+    assert.doesNotMatch(src, /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/i, `${f}: no GUIDs`);
+    assert.doesNotMatch(src, /\bsharepoint\.com|graph\.microsoft\.com|microsoftonline\.com/i, `${f}: no tenant/public hosts`);
+    assert.doesNotMatch(src, /personal\/[a-z]/i, `${f}: no personal-site path literals`);
+    assert.doesNotMatch(src, /process\.env/, `${f}: no env reads`);
+    assert.doesNotMatch(src, /eyJ[A-Za-z0-9_-]{15,}/, `${f}: no token literals`);
+  }
+  // The exporter module's ONLY http verb is GET, and it never touches the filesystem.
+  const mod = readFileSync(join(dir, 'exportLegacyListReadonly.js'), 'utf8');
+  assert.match(mod, /method:\s*'GET'/, 'exporter declares GET explicitly');
+  assert.doesNotMatch(mod, /writeFile|createWriteStream|appendFile/, 'exporter module performs no disk writes');
+  assert.doesNotMatch(mod, /openAsBlob|arrayBuffer|\.body\b/, 'exporter never streams attachment binaries');
+  // The runner writes ONLY into the git-ignored exports/ dir.
+  const runner = readFileSync(join(dir, 'run-legacy-readonly-export.js'), 'utf8');
+  assert.match(runner, /EXPORTS_DIR = join\(HERE, 'exports'\)/, 'runner output is pinned to exports/');
+  assert.match(runner, /readOnlyApproved/, 'runner requires explicit read-only approval flag');
+  for (const flag of ['--import', '--write', '--push', '--apply', '--execute', '--live', '--download']) {
+    assert.ok(runner.includes(`'${flag}'`), `runner refusal list must include ${flag}`);
+  }
+  // Example config stays placeholder-only.
+  const example = readFileSync(join(dir, 'legacy-export.config.example.json'), 'utf8');
+  assert.equal(JSON.parse(example).readOnlyApproved, false, 'example must be fail-closed');
+  assert.doesNotMatch(example, /https:\/\/[a-z0-9]/i, 'example carries no real URL');
 });
 
 test('the dry-run CLI refuses import-style flags by name', () => {

@@ -161,6 +161,24 @@ so all statistics below describe the open workload only.
   (36 of 40 filled rows; up to ~8 entries; no `;#` lookup pairs). Parsing strategy must
   therefore handle BOTH renderings; semantics (watchers vs tags) still unconfirmed.
 
+### C.1d Migration-grade READ-ONLY export path (Loop 36 — built; blocked on one grant)
+A committed, GET-only-by-construction full-list exporter now exists
+(`tools/migration/exportLegacyListReadonly.js` + gated runner): all items paginated with
+raw un-truncated fields, site-user resolution for Author/Editor ids, full field-schema
+snapshot (types/required/choices/hidden), and attachment METADATA only (never binaries).
+Raw output goes only to the git-ignored `exports/` folder; the analyzer consumes the JSON
+directly (internal→display name mapping via the schema snapshot) and reports explicitly
+when the Loop 35 truncation caps are gone.
+
+**Blocker (verified live, read-only):** the D6 app identity gets **HTTP 403** on the
+legacy personal site — its `Sites.Selected` grant covers only the v2 test site. The
+delegated fallback requires an interactive sign-in an unattended session cannot perform.
+**Manual step (2 min, admin):** grant the v2 app **Read** on the legacy site via
+`Grant-PnPAzureADAppSitePermission … -Permissions Read` (PnP admin utility), then run
+`node tools/migration/run-legacy-readonly-export.js` — the git-ignored local config is
+already staged on the operator machine. Alternative: operator mints a delegated token
+into the git-ignored token file (`auth.mode: "token-file"`).
+
 ### C.2 Must be inspected in the live legacy system [needs legacy inspection]
 - Full list schema (column types, required flags, choice sets, calculated/validation
   formulas) — the dashboard only shows what it *uses*; the list may hold more.

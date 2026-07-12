@@ -1,0 +1,12 @@
+{
+  "_comment": "EXAMPLE config for the READ-ONLY legacy export (Loop 36) — PLACEHOLDERS ONLY. Copy to legacy-export.config.local.json (GIT-IGNORED via *.local.*) and fill real values LOCALLY. auth.mode 'app-certificate' reuses the D6 provider (requires an admin-granted Sites.Selected READ permission on the legacy site); 'token-file' reads an operator-minted delegated token from a git-ignored file. The exporter is GET-only by construction: no writes, no attachment binaries, raw output only under the git-ignored exports/ folder.",
+  "readOnlyApproved": false,
+  "siteUrl": "<LEGACY_SITE_URL_PLACEHOLDER>",
+  "listTitle": "<LEGACY_LIST_TITLE_PLACEHOLDER>",
+  "fetchAttachmentSizes": true,
+  "auth": {
+    "mode": "app-certificate",
+    "appAuthConfig": "<PATH_TO_GIT_IGNORED_AUTH_CONFIG_PLACEHOLDER>",
+    "tokenFile": "<PATH_TO_GIT_IGNORED_TOKEN_FILE_PLACEHOLDER>"
+  }
+}

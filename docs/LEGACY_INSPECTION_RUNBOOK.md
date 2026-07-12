@@ -24,6 +24,14 @@ field mapping, migration importer (Loop 32), and dry-run plan can proceed withou
 > §10 Power Automate flows, §11 permissions, plus whether other related lists/views
 > exist beside the personal-site list the export came from.
 >
+> **Progress (Loop 36):** a READ-ONLY, GET-only full-list exporter is committed and
+> wired (items + field-schema snapshot + attachment-metadata inventory → git-ignored
+> local JSON; sanitized aggregate analysis). It answers §4 (schema/choices/required),
+> §5, the §8 inventory, and the §13 export requirement in ONE run — but is blocked on a
+> single admin step: the D6 app has no `Sites.Selected` grant on the LEGACY site
+> (verified 403). Grant **Read** there, then run
+> `node tools/migration/run-legacy-readonly-export.js`.
+>
 > **Progress (Loop 35 — real analyzer run on a 46-row OPEN-ITEMS view export; gap
 > analysis §C.1c):** §8 attachments PARTIALLY ANSWERED — attachments are in ACTIVE use
 > (18/46 open items have them); the remaining §8 work is the per-item inventory
