@@ -318,6 +318,18 @@
   @media (max-width: 720px) {
     .assignee-picker { border-left: 0; padding-left: 0; width: 100%; }
   }
+  .grouping-toggle {
+    display: flex; align-items: center; gap: 6px;
+    border-left: 1px solid var(--border); padding-left: 12px;
+  }
+  .grouping-toggle-label {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
+    color: var(--text-muted); font-weight: 700;
+  }
+  .btn-ghost.btn-sm { padding: 5px 8px; font-size: 12px; }
+  @media (max-width: 960px) {
+    .grouping-toggle { border-left: 0; padding-left: 0; width: 100%; }
+  }
 
   .toolbar {
     background: var(--surface); border: 0;
@@ -345,6 +357,33 @@
     transition: background 0.12s ease, color 0.12s ease;
   }
   .toolbar-toggle:has(input:checked) { background: rgba(0, 102, 51, 0.08); color: var(--emerald); border-color: rgba(0, 102, 51, 0.3); }
+
+  /* "Filters" disclosure — houses the lower-frequency filters (urgency, issue
+     type, last-update, overdue) so the toolbar isn't showing every control at
+     once. Plain <details>/<summary> — no JS needed to open/close, only to
+     dismiss on an outside click and to keep the active-count badge in sync. */
+  .more-filters { position: relative; }
+  .more-filters > summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: inline-flex; align-items: center; gap: 6px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    padding: 8px 12px; font-size: 13px; color: var(--text); background: #fff;
+  }
+  .more-filters > summary::-webkit-details-marker { display: none; }
+  .more-filters > summary::after { content: "▾"; font-size: 10px; color: var(--text-faint); }
+  .more-filters[open] > summary { border-color: var(--emerald); }
+  .more-filters-badge {
+    background: var(--emerald); color: #fff; border-radius: 999px;
+    font-size: 11px; font-weight: 700; padding: 1px 7px; line-height: 1.4;
+  }
+  .more-filters-panel {
+    position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); box-shadow: var(--shadow-md);
+    padding: 12px; display: flex; flex-direction: column; gap: 8px;
+    min-width: 240px;
+  }
+  .more-filters-panel select { width: 100%; }
 
   .btn {
     background: var(--marigold); color: var(--prussian); border: none;
@@ -1437,6 +1476,7 @@
   html.dark-mode .toolbar input[type="search"],
   html.dark-mode .toolbar select,
   html.dark-mode .assignee-picker select,
+  html.dark-mode .more-filters > summary,
   html.dark-mode .form-row input[type="text"],
   html.dark-mode .form-row input[type="email"],
   html.dark-mode .form-row input[type="number"],
@@ -1733,6 +1773,11 @@
         <option value="">All assignees</option>
       </select>
     </div>
+    <div class="grouping-toggle">
+      <span class="grouping-toggle-label">Overdue backlog:</span>
+      <button class="btn-ghost btn-sm" id="groupByDeptBtn" title="Who owns the most overdue open escalations, by department">By Department</button>
+      <button class="btn-ghost btn-sm" id="groupByAssigneeBtn" title="Who owns the most overdue open escalations, by assignee">By Assignee</button>
+    </div>
   </section>
 
   <div class="toolbar">
@@ -1753,33 +1798,36 @@
       <option value="Documentation">Documentation</option>
       <option value="Complete">Complete</option>
     </select>
-    <select id="filterUrgency">
-      <option value="">All urgencies</option>
-      <option value="Critical">Critical</option>
-      <option value="High">High</option>
-      <option value="Medium">Medium</option>
-      <option value="Low">Low</option>
-    </select>
     <select id="filterDept">
       <option value="">All assigned depts</option>
     </select>
-    <select id="filterIssueType">
-      <option value="">All issue types</option>
-    </select>
-    <label class="toolbar-toggle">
-      <input type="checkbox" id="filterOverdue"> Past expected date
-    </label>
-    <select id="filterLastUpdate">
-      <option value="">Last update: any time</option>
-      <option value="updated:0">Updated today</option>
-      <option value="updated:7">Updated last 7 days</option>
-      <option value="updated:14">Updated last 14 days</option>
-      <option value="noupdate:7">No updates last 7 days</option>
-      <option value="noupdate:14">No updates last 14 days</option>
-    </select>
+    <details class="more-filters" id="moreFiltersDetails">
+      <summary>Filters <span class="more-filters-badge" id="moreFiltersBadge" style="display:none"></span></summary>
+      <div class="more-filters-panel">
+        <select id="filterUrgency">
+          <option value="">All urgencies</option>
+          <option value="Critical">Critical</option>
+          <option value="High">High</option>
+          <option value="Medium">Medium</option>
+          <option value="Low">Low</option>
+        </select>
+        <select id="filterIssueType">
+          <option value="">All issue types</option>
+        </select>
+        <select id="filterLastUpdate">
+          <option value="">Last update: any time</option>
+          <option value="updated:0">Updated today</option>
+          <option value="updated:7">Updated last 7 days</option>
+          <option value="updated:14">Updated last 14 days</option>
+          <option value="noupdate:7">No updates last 7 days</option>
+          <option value="noupdate:14">No updates last 14 days</option>
+        </select>
+        <label class="toolbar-toggle">
+          <input type="checkbox" id="filterOverdue"> Past expected date
+        </label>
+      </div>
+    </details>
     <div class="spacer"></div>
-    <button class="btn-ghost" id="groupByDeptBtn" title="Who owns the most overdue open escalations, by department">By Department</button>
-    <button class="btn-ghost" id="groupByAssigneeBtn" title="Who owns the most overdue open escalations, by assignee">By Assignee</button>
     <button class="btn-ghost" id="refreshBtn" title="Refetch from SharePoint">↻ Refresh</button>
     <button class="btn-ghost" id="exportBtn" title="Export current view to CSV">Export CSV</button>
     <a class="btn-secondary btn" id="openListBtn" href="#" target="_blank" rel="noopener">Open List ↗</a>
@@ -4077,6 +4125,18 @@ function buildTrackerViewUrl() {
   if (!params.length) return { url: CONFIG.trackerWebUrl, filtered: false };
   return { url: `${CONFIG.trackerWebUrl}?${params.join("&")}`, filtered: true };
 }
+// Keeps the "Filters" disclosure's badge in sync with whichever of the
+// collapsed filters (urgency, issue type, overdue, last-update) are active,
+// since those controls are now hidden by default and shouldn't go unnoticed.
+function updateMoreFiltersBadge() {
+  const badge = document.getElementById("moreFiltersBadge");
+  if (!badge) return;
+  const count = [filters.urgency, filters.issueType, filters.overdue,
+    (filters.noUpdateSince || filters.updatedSince)].filter(Boolean).length;
+  badge.textContent = count || "";
+  badge.style.display = count ? "" : "none";
+}
+
 function refreshOpenListLink() {
   const btn = document.getElementById("openListBtn");
   if (!btn) return;
@@ -4089,6 +4149,7 @@ function refreshOpenListLink() {
 
 function renderList() {
   refreshOpenListLink();
+  updateMoreFiltersBadge();
   const items = applyFilters();
   // When Smart Search applied a limit, make it visible in the list header
   // so the user knows the count is capped (otherwise they might think there
@@ -4783,6 +4844,12 @@ function wireUI() {
   });
   document.getElementById("filterIssueType").addEventListener("change", (e) => { filters.issueType = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterOverdue").addEventListener("change", (e) => { filters.overdue = e.target.checked; clearHiddenPreset(); renderList(); });
+  // <details> has no built-in "close on outside click" — without this the
+  // Filters panel stays open until the user clicks its own summary again.
+  document.addEventListener("click", (ev) => {
+    const details = document.getElementById("moreFiltersDetails");
+    if (details.open && !details.contains(ev.target)) details.open = false;
+  });
   document.getElementById("groupByDeptBtn").addEventListener("click", () => applyGroupingPreset("assignedDept"));
   document.getElementById("groupByAssigneeBtn").addEventListener("click", () => applyGroupingPreset("assignee"));
   // Delegated: aiResultCard's body is fully re-rendered on every renderAiResultCard()
