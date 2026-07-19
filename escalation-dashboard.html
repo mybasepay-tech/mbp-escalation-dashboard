@@ -282,41 +282,28 @@
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
     color: var(--text-muted); font-weight: 700;
   }
-  .dept-chips { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
-  .dept-chip {
-    background: var(--gray-bg); border: 1px solid transparent;
-    color: var(--text); padding: 5px 10px; border-radius: 999px;
-    font-size: 12px; font-weight: 600; cursor: pointer;
-    display: inline-flex; align-items: center; gap: 6px;
-    transition: background 0.1s, border-color 0.1s;
+  .dept-picker {
+    display: flex; align-items: center; gap: 6px;
   }
-  .dept-chip:hover { background: #e5e7eb; }
-  .dept-chip.active {
-    background: var(--emerald); color: #fff;
-    border-color: var(--emerald-dark);
-  }
-  .dept-chip-count {
-    background: rgba(0,0,0,0.08); color: inherit;
-    padding: 1px 6px; border-radius: 999px;
-    font-size: 11px; font-weight: 700;
-  }
-  .dept-chip.active .dept-chip-count { background: rgba(255,255,255,0.25); }
   .assignee-picker {
     display: flex; align-items: center; gap: 6px;
     border-left: 1px solid var(--border); padding-left: 12px;
   }
+  .dept-picker label,
   .assignee-picker label {
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
     color: var(--text-muted); font-weight: 700;
   }
+  .dept-picker select,
   .assignee-picker select {
     border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
     padding: 6px 10px; background: #fff; color: var(--text);
     font-size: 13px; min-width: 200px; outline: none;
   }
+  .dept-picker select:focus,
   .assignee-picker select:focus { border-color: var(--emerald); }
   @media (max-width: 720px) {
-    .assignee-picker { border-left: 0; padding-left: 0; width: 100%; }
+    .dept-picker, .assignee-picker { border-left: 0; padding-left: 0; width: 100%; }
   }
   .grouping-toggle {
     display: flex; align-items: center; gap: 6px;
@@ -1475,6 +1462,7 @@
   /* Inputs and selects (hardcoded #fff) */
   html.dark-mode .toolbar input[type="search"],
   html.dark-mode .toolbar select,
+  html.dark-mode .dept-picker select,
   html.dark-mode .assignee-picker select,
   html.dark-mode .more-filters > summary,
   html.dark-mode .form-row input[type="text"],
@@ -1546,9 +1534,6 @@
   html.dark-mode .pill.last-update.stale { background: #3a2210; color: #fdba74; }
   html.dark-mode .badge.stale-badge { background: #3a2210; color: #fdba74; border-color: #5c3818; }
   html.dark-mode .stale-text { color: #fdba74; }
-
-  /* Dept hover state hardcoded a light gray */
-  html.dark-mode .dept-chip:hover { background: var(--gray-bg); }
 
   /* Modal foot uses var(--bg); fine. Modal title color uses --emerald; readable. */
 
@@ -1766,7 +1751,12 @@
 
   <section class="filter-bar" id="filterBar">
     <div class="filter-bar-label">Filter by:</div>
-    <div class="dept-chips" id="deptChips"><!-- populated by JS --></div>
+    <div class="dept-picker">
+      <label for="filterDept">Department:</label>
+      <select id="filterDept">
+        <option value="">All assigned depts</option>
+      </select>
+    </div>
     <div class="assignee-picker">
       <label for="filterAssignee">Assignee:</label>
       <select id="filterAssignee">
@@ -1797,9 +1787,6 @@
       <option value="Pending Launch">Pending Launch</option>
       <option value="Documentation">Documentation</option>
       <option value="Complete">Complete</option>
-    </select>
-    <select id="filterDept">
-      <option value="">All assigned depts</option>
     </select>
     <details class="more-filters" id="moreFiltersDetails">
       <summary>Filters <span class="more-filters-badge" id="moreFiltersBadge" style="display:none"></span></summary>
@@ -3266,7 +3253,6 @@ function applyParsedFilters(parsed) {
   document.getElementById("filterIssueType").value = filters.issueType;
   document.getElementById("filterOverdue").checked = filters.overdue;
   document.getElementById("filterLastUpdate").value = "";
-  renderDeptChips();
   populateAssigneeFilter();
   renderList();
   renderAiResultCard();
@@ -3491,7 +3477,6 @@ function applyGroupingPreset(groupBy) {
   document.getElementById("filterIssueType").value = "";
   document.getElementById("filterOverdue").checked = true;
   document.getElementById("filterLastUpdate").value = "";
-  renderDeptChips();
   populateAssigneeFilter();
   renderList();
   renderAiResultCard();
@@ -3513,7 +3498,6 @@ function clearAiFilter() {
   document.getElementById("filterIssueType").value = "";
   document.getElementById("filterOverdue").checked = false;
   document.getElementById("filterLastUpdate").value = "";
-  renderDeptChips();
   populateAssigneeFilter();
   renderList();
 }
@@ -4098,7 +4082,6 @@ function applyKpiPreset(preset) {
   document.getElementById("filterIssueType").value = "";
   document.getElementById("filterOverdue").checked = filters.overdue;
   document.getElementById("filterLastUpdate").value = "";
-  renderDeptChips();
   populateAssigneeFilter();
   renderList();
   // Scroll the list into view so the result of the click is obvious
@@ -4175,7 +4158,6 @@ function renderList() {
       document.getElementById("filterIssueType").value = "";
       document.getElementById("filterOverdue").checked = false;
       document.getElementById("filterLastUpdate").value = "";
-      renderDeptChips();
       populateAssigneeFilter();
       renderList();
     });
@@ -4593,11 +4575,9 @@ function populateFilterOptions() {
   const types = [...new Set(escalations.map(e => e.issueType).filter(Boolean))].sort();
   typeSel.innerHTML = `<option value="">All issue types</option>` + types.map(t => `<option>${escapeHtml(t)}</option>`).join("");
 
-  renderDeptChips();
   populateAssigneeFilter();
 }
 
-// Renders the dept chip row. Active chip reflects filters.dept.
 // Render the "Find similar" results callout in the detail panel.
 // `data` shape: { items: [...], indexedAt, totalIndexed } OR { items: [], note: "..." }
 function renderSimilarPanel(escId, data) {
@@ -4656,22 +4636,6 @@ function renderSimilarPanel(escId, data) {
       </div>
       <div class="ai-similar-disclaimer">${data.totalIndexed} escalations indexed${data.indexedAt ? ` · last built ${fmtDate(data.indexedAt)}` : ""}. Click any item to open it.</div>
     </div>`;
-}
-
-function renderDeptChips() {
-  const open = escalations.filter(e => isOpenStatus(e.status));
-  const counts = {};
-  open.forEach(e => { if (e.assignedDept) counts[e.assignedDept] = (counts[e.assignedDept] || 0) + 1; });
-  // Preserve a canonical dept order matching the Dept Leads list when available;
-  // fall back to alphabetical for any extras.
-  const ordered = deptLeads.length
-    ? [...deptLeads.map(d => d.dept), ...Object.keys(counts).filter(d => !deptLeads.some(l => l.dept === d))]
-    : Object.keys(counts).sort();
-  const chips = document.getElementById("deptChips");
-  chips.innerHTML = [
-    `<button type="button" class="dept-chip ${!filters.dept ? "active" : ""}" data-dept="">All <span class="dept-chip-count">${open.length}</span></button>`,
-    ...ordered.map(d => `<button type="button" class="dept-chip ${filters.dept === d ? "active" : ""}" data-dept="${escapeHtml(d)}">${escapeHtml(d)} <span class="dept-chip-count">${counts[d] || 0}</span></button>`)
-  ].join("");
 }
 
 // Cascades from filters.dept: the dropdown lists everyone who has EVER been
@@ -4822,21 +4786,10 @@ function wireUI() {
   document.getElementById("filterDept").addEventListener("change", (e) => {
     filters.dept = e.target.value;
     clearHiddenPreset();
-    renderDeptChips();
     populateAssigneeFilter();
     renderList();
   });
   // Dept chip clicks (delegated)
-  document.getElementById("deptChips").addEventListener("click", (ev) => {
-    const chip = ev.target.closest(".dept-chip");
-    if (!chip) return;
-    filters.dept = chip.dataset.dept || "";
-    document.getElementById("filterDept").value = filters.dept;
-    clearHiddenPreset();
-    renderDeptChips();
-    populateAssigneeFilter();
-    renderList();
-  });
   document.getElementById("filterAssignee").addEventListener("change", (e) => {
     filters.assignee = e.target.value;
     clearHiddenPreset();
@@ -4862,7 +4815,7 @@ function wireUI() {
     filters[field] = key;
     filters.aggregation = null;
     document.getElementById("aiResultCard").style.display = "none";
-    if (field === "dept") { document.getElementById("filterDept").value = key; renderDeptChips(); populateAssigneeFilter(); }
+    if (field === "dept") { document.getElementById("filterDept").value = key; populateAssigneeFilter(); }
     else if (field === "assignee") { populateAssigneeFilter(); document.getElementById("filterAssignee").value = key; }
     else if (field === "urgency") document.getElementById("filterUrgency").value = key;
     else if (field === "issueType") document.getElementById("filterIssueType").value = key;
