@@ -271,52 +271,11 @@
   .kpi-subrow:hover { background: var(--gray-bg); color: var(--text); }
   .kpi-subrow strong { color: var(--text); }
 
-  /* Secondary filter row: dept chips + assignee picker */
-  .filter-bar {
-    background: var(--surface); border-radius: var(--radius);
-    padding: 10px 14px; margin-bottom: 16px;
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-    box-shadow: var(--shadow-sm);
-  }
   .filter-bar-label {
     font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
     color: var(--text-muted); font-weight: 700;
   }
-  .dept-picker {
-    display: flex; align-items: center; gap: 6px;
-  }
-  .assignee-picker {
-    display: flex; align-items: center; gap: 6px;
-    border-left: 1px solid var(--border); padding-left: 12px;
-  }
-  .dept-picker label,
-  .assignee-picker label {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
-    color: var(--text-muted); font-weight: 700;
-  }
-  .dept-picker select,
-  .assignee-picker select {
-    border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-    padding: 6px 10px; background: #fff; color: var(--text);
-    font-size: 13px; min-width: 200px; outline: none;
-  }
-  .dept-picker select:focus,
-  .assignee-picker select:focus { border-color: var(--emerald); }
-  @media (max-width: 720px) {
-    .dept-picker, .assignee-picker { border-left: 0; padding-left: 0; width: 100%; }
-  }
-  .grouping-toggle {
-    display: flex; align-items: center; gap: 6px;
-    border-left: 1px solid var(--border); padding-left: 12px;
-  }
-  .grouping-toggle-label {
-    font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px;
-    color: var(--text-muted); font-weight: 700;
-  }
   .btn-ghost.btn-sm { padding: 5px 8px; font-size: 12px; }
-  @media (max-width: 960px) {
-    .grouping-toggle { border-left: 0; padding-left: 0; width: 100%; }
-  }
 
   .toolbar {
     background: var(--surface); border: 0;
@@ -678,6 +637,9 @@
   .page-actions {
     display: flex;
     justify-content: flex-end;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
     margin-bottom: 14px;
   }
   .btn-emerald {
@@ -1462,8 +1424,6 @@
   /* Inputs and selects (hardcoded #fff) */
   html.dark-mode .toolbar input[type="search"],
   html.dark-mode .toolbar select,
-  html.dark-mode .dept-picker select,
-  html.dark-mode .assignee-picker select,
   html.dark-mode .more-filters > summary,
   html.dark-mode .form-row input[type="text"],
   html.dark-mode .form-row input[type="email"],
@@ -1742,35 +1702,17 @@
   <div class="banner" id="banner"></div>
 
   <div class="page-actions">
+    <a class="btn-secondary btn" id="openListBtn" href="#" target="_blank" rel="noopener">Open List ↗</a>
     <button class="btn btn-emerald" id="sendDigestBtn" title="Generate an AI-written weekly digest and send it to the Escalations Teams channel">
       <span class="page-actions-icon">📊</span> Send Weekly Digest
     </button>
+    <button class="btn" id="newEscBtn">+ New Escalation</button>
   </div>
 
   <section class="kpi-row" id="kpiRow"></section>
 
-  <section class="filter-bar" id="filterBar">
-    <div class="filter-bar-label">Filter by:</div>
-    <div class="dept-picker">
-      <label for="filterDept">Department:</label>
-      <select id="filterDept">
-        <option value="">All assigned depts</option>
-      </select>
-    </div>
-    <div class="assignee-picker">
-      <label for="filterAssignee">Assignee:</label>
-      <select id="filterAssignee">
-        <option value="">All assignees</option>
-      </select>
-    </div>
-    <div class="grouping-toggle">
-      <span class="grouping-toggle-label">Overdue backlog:</span>
-      <button class="btn-ghost btn-sm" id="groupByDeptBtn" title="Who owns the most overdue open escalations, by department">By Department</button>
-      <button class="btn-ghost btn-sm" id="groupByAssigneeBtn" title="Who owns the most overdue open escalations, by assignee">By Assignee</button>
-    </div>
-  </section>
-
   <div class="toolbar">
+    <div class="filter-bar-label">Filter by:</div>
     <input type="search" id="searchInput" placeholder="Search by title, ID, customer, member, assignee…">
     <select id="filterStatus">
       <option value="">All statuses</option>
@@ -1787,6 +1729,12 @@
       <option value="Pending Launch">Pending Launch</option>
       <option value="Documentation">Documentation</option>
       <option value="Complete">Complete</option>
+    </select>
+    <select id="filterDept">
+      <option value="">All assigned depts</option>
+    </select>
+    <select id="filterAssignee">
+      <option value="">All assignees</option>
     </select>
     <details class="more-filters" id="moreFiltersDetails">
       <summary>Filters <span class="more-filters-badge" id="moreFiltersBadge" style="display:none"></span></summary>
@@ -1814,11 +1762,11 @@
         </label>
       </div>
     </details>
+    <button class="btn-ghost btn-sm" id="groupByDeptBtn" title="Group overdue open escalations by department">Overdue by Dept</button>
+    <button class="btn-ghost btn-sm" id="groupByAssigneeBtn" title="Group overdue open escalations by assignee">Overdue by Assignee</button>
     <div class="spacer"></div>
     <button class="btn-ghost" id="refreshBtn" title="Refetch from SharePoint">↻ Refresh</button>
     <button class="btn-ghost" id="exportBtn" title="Export current view to CSV">Export CSV</button>
-    <a class="btn-secondary btn" id="openListBtn" href="#" target="_blank" rel="noopener">Open List ↗</a>
-    <button class="btn" id="newEscBtn">+ New Escalation</button>
   </div>
 
   <!-- AI-applied filters banner — shown after a successful Ask AI parse -->
