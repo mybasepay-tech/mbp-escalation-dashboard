@@ -266,6 +266,10 @@
   .kpi-stale { border-left: 3px solid #f59e0b; }
   .kpi-aging .kpi-value { color: #b45309; }
   .kpi-aging { border-left: 3px solid #d97706; }
+  .kpi-subrows { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 4px; }
+  .kpi-subrow { font-size: 12px; color: var(--text-muted); cursor: pointer; padding: 2px 4px; margin: -2px -4px; border-radius: 6px; }
+  .kpi-subrow:hover { background: var(--gray-bg); color: var(--text); }
+  .kpi-subrow strong { color: var(--text); }
 
   /* Secondary filter row: dept chips + assignee picker */
   .filter-bar {
@@ -430,6 +434,10 @@
   .badge.s-pendingmember { background: var(--purple-bg); color: var(--purple); }
   .badge.s-pendingresearch { background: var(--purple-bg); color: var(--purple); }
   .badge.s-pendingcustomer { background: var(--purple-bg); color: var(--purple); }
+  .badge.s-opentracking { background: var(--blue-bg); color: var(--blue); }
+  .badge.s-flexworkos { background: var(--purple-bg); color: var(--purple); }
+  .badge.s-pendinglaunch { background: var(--amber-bg); color: var(--amber); }
+  .badge.s-documentation { background: var(--gray-bg); color: var(--gray); }
   .badge.s-complete { background: var(--green-bg); color: var(--green); }
   .badge.s-default { background: var(--gray-bg); color: var(--gray); }
   .badge.u-critical { background: var(--red-bg); color: var(--red); }
@@ -1090,6 +1098,14 @@
     margin: 6px 0;
     border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
   }
+  .updates-history .esc-reassign {
+    background: var(--purple-bg);
+    border-left: 3px solid var(--purple);
+    padding: 8px 10px;
+    margin: 6px 0;
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-size: 13px;
+  }
 
   /* Drawer-style detail panel (slides in from right) */
   .detail-drawer {
@@ -1567,6 +1583,8 @@
   }
   .ai-group-row.top .ai-group-name { font-weight: 700; }
   .ai-group-row.top .ai-group-bar-fill { background: #6366f1; }
+  .ai-group-row.is-clickable { cursor: pointer; border-radius: 6px; padding: 2px 4px; margin: -2px -4px; }
+  .ai-group-row.is-clickable:hover { background: var(--gray-bg); }
   .ai-group-name {
     color: var(--text);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -1729,6 +1747,10 @@
       <option value="Pending Member">Pending Member</option>
       <option value="Pending Research">Pending Research</option>
       <option value="Pending Customer">Pending Customer</option>
+      <option value="Open for Tracking">Open for Tracking</option>
+      <option value="Being Addressed in FlexWork OS">Being Addressed in FlexWork OS</option>
+      <option value="Pending Launch">Pending Launch</option>
+      <option value="Documentation">Documentation</option>
       <option value="Complete">Complete</option>
     </select>
     <select id="filterUrgency">
@@ -1747,7 +1769,17 @@
     <label class="toolbar-toggle">
       <input type="checkbox" id="filterOverdue"> Past expected date
     </label>
+    <select id="filterLastUpdate">
+      <option value="">Last update: any time</option>
+      <option value="updated:0">Updated today</option>
+      <option value="updated:7">Updated last 7 days</option>
+      <option value="updated:14">Updated last 14 days</option>
+      <option value="noupdate:7">No updates last 7 days</option>
+      <option value="noupdate:14">No updates last 14 days</option>
+    </select>
     <div class="spacer"></div>
+    <button class="btn-ghost" id="groupByDeptBtn" title="Who owns the most overdue open escalations, by department">By Department</button>
+    <button class="btn-ghost" id="groupByAssigneeBtn" title="Who owns the most overdue open escalations, by assignee">By Assignee</button>
     <button class="btn-ghost" id="refreshBtn" title="Refetch from SharePoint">↻ Refresh</button>
     <button class="btn-ghost" id="exportBtn" title="Export current view to CSV">Export CSV</button>
     <a class="btn-secondary btn" id="openListBtn" href="#" target="_blank" rel="noopener">Open List ↗</a>
@@ -2126,7 +2158,12 @@ const CONFIG = {
   hideLeadDepts: ["Testing"]
 };
 
-const STATUS_OPEN = new Set(["Not yet assigned","Assigned","In Process","Pending Member","Pending Research","Pending Customer"]);
+// Denylist, not allowlist: anything not explicitly closed counts as open so new/unrecognized
+// SharePoint status values (e.g. future choice-list additions) are never silently dropped from counts.
+const CLOSED_STATUSES = new Set(["complete"]);
+function isOpenStatus(status) {
+  return !CLOSED_STATUSES.has(String(status || "").trim().toLowerCase());
+}
 
 /* ---------- environment detection ---------- */
 const isFile = location.protocol === "file:" || location.protocol === "data:";
@@ -2142,7 +2179,7 @@ let trackerListId = null;
 let leadsListId = null;
 let userInfoListId = null;
 let selectedId = null;
-let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "", timeWindow: null, aggregation: null, compareWith: null, synthesizeNarrative: false, docNeeded: null, financialMin: null, hasAssigneeUpdate: null, olderThanDays: null, noUpdateSince: null };
+let filters = { search: "", status: "", urgency: "", dept: "", issueType: "", overdue: false, resolvedWithin: null, hasFinancial: false, stale: false, assignee: "", submitter: "", sort: null, limit: null, hasFollowUp: null, followUpBy: "", timeWindow: null, aggregation: null, compareWith: null, synthesizeNarrative: false, docNeeded: null, financialMin: null, hasAssigneeUpdate: null, olderThanDays: null, noUpdateSince: null, updatedSince: null };
 let pca = null;          // MSAL PublicClientApplication
 let activeAccount = null;
 
@@ -2219,7 +2256,7 @@ function escapeHtml(s) {
   return (s == null ? "" : String(s)).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"})[c]);
 }
 function badgeClassStatus(s) {
-  return ({"Not yet assigned":"s-notyetassigned","Assigned":"s-assigned","In Process":"s-inprocess","Pending Member":"s-pendingmember","Pending Research":"s-pendingresearch","Pending Customer":"s-pendingcustomer","Complete":"s-complete"})[s] || "s-default";
+  return ({"Not yet assigned":"s-notyetassigned","Assigned":"s-assigned","In Process":"s-inprocess","Pending Member":"s-pendingmember","Pending Research":"s-pendingresearch","Pending Customer":"s-pendingcustomer","Open for Tracking":"s-opentracking","Being Addressed in FlexWork OS":"s-flexworkos","Pending Launch":"s-pendinglaunch","Documentation":"s-documentation","Complete":"s-complete"})[s] || "s-default";
 }
 function badgeClassUrgency(u) {
   return ({ Critical:"u-critical", High:"u-high", Medium:"u-medium", Low:"u-low" })[u] || "s-default";
@@ -2275,6 +2312,14 @@ function parseFollowUpMarkers(html) {
   return _parseDataAttrs(html, "[data-followup-date]",
     [{ key: "date", attr: "data-followup-date" }, { key: "by", attr: "data-followup-by" }, { key: "note", attr: "data-followup-note" }]);
 }
+// Reassignment is administrative, like a follow-up — it must not count as
+// real assignee activity (see getLastAssigneeActivity below).
+function parseReassignMarkers(html) {
+  return _parseDataAttrs(html, "[data-reassign-date]",
+    [{ key: "date", attr: "data-reassign-date" }, { key: "by", attr: "data-reassign-by" },
+     { key: "from", attr: "data-reassign-from" }, { key: "to", attr: "data-reassign-to" },
+     { key: "deptFrom", attr: "data-reassign-dept-from" }, { key: "deptTo", attr: "data-reassign-dept-to" }]);
+}
 
 /* Returns { date: ISO, source: "marker"|"modified"|"created", by?: string }.
    Used by both the stale rule and the "last update" display. */
@@ -2285,7 +2330,9 @@ function getLastAssigneeActivity(esc) {
   // (bumped by the follow-up write), so we can't trust it as a real-update
   // signal. Fall back to creation date — flags item as stale, which is
   // Sarah's intent: better to over-flag than miss something that's slipping.
-  if (parseFollowUpMarkers(esc.updates).length) {
+  // Same logic applies to reassignment markers: a reassign PATCH also bumps
+  // Modified, so its presence alone can't be trusted as real activity either.
+  if (parseFollowUpMarkers(esc.updates).length || parseReassignMarkers(esc.updates).length) {
     return { date: esc.escalationDate, source: "created" };
   }
   if (esc.modified) return { date: esc.modified, source: "modified" };
@@ -2295,7 +2342,7 @@ function getLastFollowUp(esc) {
   return parseFollowUpMarkers(esc.updates)[0] || null;
 }
 function isStale(esc) {
-  if (!STATUS_OPEN.has(esc.status)) return false;
+  if (!isOpenStatus(esc.status)) return false;
   const { date, source } = getLastAssigneeActivity(esc);
   const daysSince = daysBetween(date);
   if (daysSince == null) return false;
@@ -2610,6 +2657,14 @@ const GROUP_BY_FIELDS = new Set([
   "urgency", "status", "assignee", "submitter",
   "customer", "member", "worker"
 ]);
+// Fields where a group bar can drill straight into the matching filtered list
+// (i.e. there's a 1:1 filters.* field to set) — used to make group-by bars
+// clickable. Fields without a direct filter equivalent (customer, member,
+// worker, issueCategory, requestingDept) render as plain, non-clickable bars.
+const GROUP_BY_FILTER_FIELD = {
+  assignedDept: "dept", assignee: "assignee", urgency: "urgency",
+  issueType: "issueType", status: "status", submitter: "submitter"
+};
 const GROUP_BY_LABELS = {
   issueType: "issue type",
   issueCategory: "issue category",
@@ -2940,7 +2995,7 @@ async function triggerAiFilter(query) {
                  .filter(Boolean)
     )].sort();
     const validOptions = {
-      statuses: ["Not yet assigned", "Assigned", "In Process", "Pending Member", "Pending Research", "Pending Customer", "Complete"],
+      statuses: ["Not yet assigned", "Assigned", "In Process", "Pending Member", "Pending Research", "Pending Customer", "Open for Tracking", "Being Addressed in FlexWork OS", "Pending Launch", "Documentation", "Complete"],
       urgencies: ["Critical", "High", "Medium", "Low"],
       depts: [...new Set(escalations.map(e => e.assignedDept).filter(Boolean))].sort(),
       issueTypes: [...new Set(escalations.map(e => e.issueType).filter(Boolean))].sort(),
@@ -2997,7 +3052,7 @@ function applyParsedFilters(parsed) {
   const applied = []; // human-readable chips for the banner
 
   // Validate each field against current data before applying (rejects hallucinations)
-  const validStatuses = new Set(["Not yet assigned","Assigned","In Process","Pending Member","Pending Research","Pending Customer","Complete","open","unassigned"]);
+  const validStatuses = new Set(["Not yet assigned","Assigned","In Process","Pending Member","Pending Research","Pending Customer","Open for Tracking","Being Addressed in FlexWork OS","Pending Launch","Documentation","Complete","open","unassigned"]);
   if (parsed.status && validStatuses.has(parsed.status)) {
     filters.status = parsed.status;
     applied.push({ label: "Status", value: parsed.status === "open" ? "Active only" : parsed.status });
@@ -3162,6 +3217,7 @@ function applyParsedFilters(parsed) {
   document.getElementById("filterDept").value = filters.dept;
   document.getElementById("filterIssueType").value = filters.issueType;
   document.getElementById("filterOverdue").checked = filters.overdue;
+  document.getElementById("filterLastUpdate").value = "";
   renderDeptChips();
   populateAssigneeFilter();
   renderList();
@@ -3265,13 +3321,17 @@ function renderAiResultCard() {
     const top = visible[0];
     const total = currentItems.length;
     const pct = total > 0 && kind === "count" ? Math.round((top.value / total) * 100) : null;
+    const filterField = GROUP_BY_FILTER_FIELD[groupBy];
     const rows = visible.map((g, i) => {
       const widthPct = max > 0 ? Math.max(2, Math.round((g.value / max) * 100)) : 0;
       const cls = i === 0 ? "ai-group-row top" : "ai-group-row";
       const itemsTag = (kind !== "count")
         ? ` <span class="ai-group-count">(${g.count} item${g.count === 1 ? "" : "s"})</span>`
         : "";
-      return `<div class="${cls}">` +
+      const clickAttrs = filterField
+        ? ` data-group-field="${escapeHtml(filterField)}" data-group-key="${escapeHtml(g.key)}" title="Show the ${g.count} record${g.count === 1 ? "" : "s"} behind this bar"`
+        : "";
+      return `<div class="${cls}${filterField ? " is-clickable" : ""}"${clickAttrs}>` +
         `<div class="ai-group-name">${escapeHtml(g.key)}${itemsTag}</div>` +
         `<div class="ai-group-bar"><div class="ai-group-bar-fill" style="width:${widthPct}%"></div></div>` +
         `<div class="ai-group-value">${escapeHtml(g.formatted)}</div>` +
@@ -3366,13 +3426,36 @@ function renderAiResultCard() {
   card.style.display = "block";
 }
 
+// Manual "who owns the most overdue open escalations" grouping (department/user
+// reporting). Reuses the same aggregation engine as the Ask-AI NL parser —
+// scoped to overdue + open per Maggie's literal ask, rather than all-open.
+function applyGroupingPreset(groupBy) {
+  filters.search = ""; filters.status = "open"; filters.urgency = "";
+  filters.dept = ""; filters.issueType = ""; filters.overdue = true;
+  filters.resolvedWithin = null; filters.hasFinancial = false;
+  filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
+  filters.timeWindow = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null; filters.updatedSince = null;
+  filters.aggregation = { kind: "count", groupBy };
+  document.getElementById("searchInput").value = "";
+  document.getElementById("filterStatus").value = "open";
+  document.getElementById("filterUrgency").value = "";
+  document.getElementById("filterDept").value = "";
+  document.getElementById("filterIssueType").value = "";
+  document.getElementById("filterOverdue").checked = true;
+  document.getElementById("filterLastUpdate").value = "";
+  renderDeptChips();
+  populateAssigneeFilter();
+  renderList();
+  renderAiResultCard();
+}
+
 function clearAiFilter() {
   document.getElementById("aiFilterApplied").style.display = "none";
   filters.search = ""; filters.status = ""; filters.urgency = "";
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null; filters.updatedSince = null;
   const resultCard = document.getElementById("aiResultCard");
   if (resultCard) resultCard.style.display = "none";
   document.getElementById("searchInput").value = "";
@@ -3381,6 +3464,7 @@ function clearAiFilter() {
   document.getElementById("filterDept").value = "";
   document.getElementById("filterIssueType").value = "";
   document.getElementById("filterOverdue").checked = false;
+  document.getElementById("filterLastUpdate").value = "";
   renderDeptChips();
   populateAssigneeFilter();
   renderList();
@@ -3533,7 +3617,7 @@ async function createEscalation(fields) {
 }
 
 /* ---------- update ---------- */
-const STATUS_OPTIONS = ["Not yet assigned", "Assigned", "In Process", "Pending Member", "Pending Research", "Pending Customer", "Complete"];
+const STATUS_OPTIONS = ["Not yet assigned", "Assigned", "In Process", "Pending Member", "Pending Research", "Pending Customer", "Open for Tracking", "Being Addressed in FlexWork OS", "Pending Launch", "Documentation", "Complete"];
 
 async function updateEscalationStatus(id, newStatus) {
   const fields = { Status: newStatus };
@@ -3573,6 +3657,24 @@ function formatFollowUpEntry(authorName, note) {
   const time = `${hours}:${mins} ${ampm}`;
   const noteHtml = note ? `<br>${escapeHtml(note).replace(/\n+/g, "<br>")}` : "";
   return `<p class="esc-followup" data-followup-date="${now.toISOString()}" data-followup-by="${escapeHtml(authorName)}" data-followup-note="${escapeHtml(note || "")}"><em>📞 Follow-up by <strong>${escapeHtml(authorName)}</strong> (${date} ${time})</em>${noteHtml}</p>`;
+}
+
+// .esc-reassign marker — same convention as .esc-followup, and for the same
+// reason: an administrative reassignment isn't evidence anyone did the actual
+// work, so it must not reset the stale clock (see getLastAssigneeActivity).
+// dept is captured even though today's reassign flow never changes it, so the
+// Assignment History timeline still records "which dept owned it at the time"
+// and the schema doesn't need to change if department reassignment is added later.
+function formatReassignEntry(authorName, fromAssignee, toAssignee, dept) {
+  const now = new Date();
+  const date = `${now.getMonth()+1}/${now.getDate()}/${now.getFullYear()}`;
+  let hours = now.getHours();
+  const mins = String(now.getMinutes()).padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12 || 12;
+  const time = `${hours}:${mins} ${ampm}`;
+  const fromLabel = fromAssignee || "Unassigned";
+  return `<p class="esc-reassign" data-reassign-date="${now.toISOString()}" data-reassign-by="${escapeHtml(authorName)}" data-reassign-from="${escapeHtml(fromLabel)}" data-reassign-to="${escapeHtml(toAssignee)}" data-reassign-dept-from="${escapeHtml(dept || "")}" data-reassign-dept-to="${escapeHtml(dept || "")}"><em>↪ Reassigned by <strong>${escapeHtml(authorName)}</strong> (${date} ${time})</em><br>${escapeHtml(fromLabel)} → ${escapeHtml(toAssignee)}</p>`;
 }
 
 // Append a follow-up entry. Parallels appendStatusUpdate but writes
@@ -3637,17 +3739,25 @@ async function appendStatusUpdate(id, body, newStatus, docFields) {
   );
 }
 
-async function reassignEscalationById(id, lookupId) {
+async function reassignEscalationById(id, lookupId, toAssigneeName) {
   if (!lookupId) throw new Error("Pick a person from the suggestions first.");
   // Look up current status; if it's still "Not yet assigned" the dashboard
   // should ALSO promote it to "Assigned" so the two fields don't drift out
   // of sync (the issue Jennifer surfaced on #307 — assignee set but Status
   // still "Not yet assigned" created a contradictory UI state).
   const esc = escalations.find(x => x.id === id);
-  const fields = { AssignedToLookupId: String(lookupId) };
+  const author = (activeAccount?.name) || (activeAccount?.username) || "Unknown";
+  // Re-read the freshest StatusUpdates so a parallel write doesn't get
+  // overwritten — same guard appendFollowUp/appendStatusUpdate already use.
+  const fresh = await graphGet(`/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}?$expand=fields($select=StatusUpdates)`);
+  const existing = fresh?.fields?.StatusUpdates || "";
+  const newEntry = formatReassignEntry(author, esc?.assignee, toAssigneeName || "Unknown", esc?.assignedDept);
+  const fields = { AssignedToLookupId: String(lookupId), StatusUpdates: newEntry + existing };
   if (esc && esc.status === "Not yet assigned") {
     fields.Status = "Assigned";
   }
+  // ONE combined PATCH — same reasoning as appendStatusUpdate: the external
+  // PA flow on item-modified gets confused by two rapid PATCHes.
   return graphPatch(
     `/sites/${CONFIG.graph.siteId}/lists/${trackerListId}/items/${id}/fields`,
     fields
@@ -3691,7 +3801,7 @@ async function promoteAssignedNotYetAssigned() {
 
 /* ---------- KPIs ---------- */
 function renderKpis() {
-  const open = escalations.filter(e => STATUS_OPEN.has(e.status));
+  const open = escalations.filter(e => isOpenStatus(e.status));
   const unassigned = open.filter(e => !e.assignee);
   const overdue = open.filter(e => e.expectedDate && new Date(e.expectedDate) < new Date());
   const stale = open.filter(isStale);
@@ -3699,6 +3809,14 @@ function renderKpis() {
     if (!e.escalationDate) return false;
     return (Date.now() - new Date(e.escalationDate).getTime()) / 86400000 > 10;
   });
+  // Update-compliance breakdown of the aging bucket (Maggie's "23 over 10 days /
+  // 15 updated within 7 days / 8 no update within 7 days" leadership-meeting flow).
+  const agingUpdated = aging.filter(e => {
+    const activity = getLastAssigneeActivity(e);
+    return activity && activity.date && (Date.now() - new Date(activity.date).getTime()) / 86400000 < 7;
+  });
+  const agingNoUpdate = aging.length - agingUpdated.length;
+  const agingPct = open.length ? Math.round((aging.length / open.length) * 100) : 0;
   const last30 = escalations.filter(e => e.status === "Complete" && e.resolvedDate && daysBetween(e.resolvedDate) <= 30);
   const totalImpact = open.reduce((s,e) => s + (Number(e.financialImpact) || 0), 0);
 
@@ -3721,7 +3839,11 @@ function renderKpis() {
     <div class="kpi kpi-aging" data-preset="aging" title="Open items more than 10 days old — Maggie's aging review queue">
       <div class="kpi-label">Aging Review</div>
       <div class="kpi-value">${aging.length}</div>
-      <div class="kpi-foot">open · 10+ days old</div>
+      <div class="kpi-foot">${agingPct}% of ${open.length} open · 10+ days old</div>
+      <div class="kpi-subrows">
+        <div class="kpi-subrow" data-preset="aging-updated" title="Aging items updated within the last 7 days"><strong>${agingUpdated.length}</strong> updated within last 7 days</div>
+        <div class="kpi-subrow" data-preset="aging-noupdate" title="Aging items with no update in the last 7 days"><strong>${agingNoUpdate}</strong> no update within last 7 days</div>
+      </div>
     </div>
     <div class="kpi kpi-accent" data-preset="overdue" title="Show active escalations past their expected date">
       <div class="kpi-label">Past Expected Date</div>
@@ -3739,18 +3861,15 @@ function renderKpis() {
       <div class="kpi-foot">sum on open items</div>
     </div>
   `;
-  document.getElementById("kpiRow").querySelectorAll(".kpi[data-preset]").forEach(card => {
-    card.addEventListener("click", () => applyKpiPreset(card.dataset.preset));
-  });
 }
 
 /* ---------- list ---------- */
 function applyFilters() {
   const q = filters.search.toLowerCase().trim();
   let result = escalations.filter(e => {
-    if (filters.status === "open" && !STATUS_OPEN.has(e.status)) return false;
+    if (filters.status === "open" && !isOpenStatus(e.status)) return false;
     if (filters.status === "unassigned") {
-      if (!STATUS_OPEN.has(e.status)) return false;
+      if (!isOpenStatus(e.status)) return false;
       if (e.assignee) return false;
     }
     if (filters.status && filters.status !== "open" && filters.status !== "unassigned" && e.status !== filters.status) return false;
@@ -3814,6 +3933,14 @@ function applyFilters() {
       const activityTime = new Date(activity.date).getTime();
       if (Number.isNaN(activityTime) || activityTime >= cutoff) return false;
     }
+    if (filters.updatedSince) {
+      const cutoff = new Date(filters.updatedSince).getTime();
+      const activity = getLastAssigneeActivity(e);
+      // No usable activity date → exclude (we can't confirm it was updated on/after X).
+      if (!activity || !activity.date) return false;
+      const activityTime = new Date(activity.date).getTime();
+      if (Number.isNaN(activityTime) || activityTime < cutoff) return false;
+    }
     if (q) {
       // Text search corpus: id + structured fields + issue taxonomy +
       // commentary (stripped). Cache stripped commentary on the item so the
@@ -3833,7 +3960,7 @@ function applyFilters() {
     result.sort((a, b) => compareEscalations(a, b, filters.sort.field, filters.sort.direction));
   } else {
     result.sort((a, b) => {
-      if (STATUS_OPEN.has(a.status) !== STATUS_OPEN.has(b.status)) return STATUS_OPEN.has(a.status) ? -1 : 1;
+      if (isOpenStatus(a.status) !== isOpenStatus(b.status)) return isOpenStatus(a.status) ? -1 : 1;
       return new Date(b.escalationDate || 0) - new Date(a.escalationDate || 0);
     });
   }
@@ -3884,7 +4011,7 @@ function applyKpiPreset(preset) {
   filters.dept = ""; filters.issueType = ""; filters.overdue = false;
   filters.resolvedWithin = null; filters.hasFinancial = false;
   filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null;
+  filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null; filters.updatedSince = null;
   document.getElementById("aiResultCard").style.display = "none";
 
   if (preset === "open")        filters.status = "open";
@@ -3895,6 +4022,20 @@ function applyKpiPreset(preset) {
     // so the items that need chasing surface first.
     filters.status = "open";
     filters.olderThanDays = 10;
+    filters.sort = { field: "daysSinceUpdate", direction: "desc" };
+  }
+  else if (preset === "aging-updated")   {
+    // Update-compliance breakdown of the aging bucket: updated within the last 7 days.
+    filters.status = "open";
+    filters.olderThanDays = 10;
+    filters.updatedSince = new Date(Date.now() - 7 * 86400000).toISOString();
+    filters.sort = { field: "daysSinceUpdate", direction: "desc" };
+  }
+  else if (preset === "aging-noupdate")  {
+    // Update-compliance breakdown of the aging bucket: no update in the last 7 days.
+    filters.status = "open";
+    filters.olderThanDays = 10;
+    filters.noUpdateSince = new Date(Date.now() - 7 * 86400000).toISOString();
     filters.sort = { field: "daysSinceUpdate", direction: "desc" };
   }
   else if (preset === "overdue")    { filters.status = "open"; filters.overdue = true; }
@@ -3908,6 +4049,7 @@ function applyKpiPreset(preset) {
   document.getElementById("filterDept").value = "";
   document.getElementById("filterIssueType").value = "";
   document.getElementById("filterOverdue").checked = filters.overdue;
+  document.getElementById("filterLastUpdate").value = "";
   renderDeptChips();
   populateAssigneeFilter();
   renderList();
@@ -3915,7 +4057,38 @@ function applyKpiPreset(preset) {
   document.querySelector(".list-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+// "Open List" used to always point at the unfiltered SharePoint view regardless of
+// which filter was active. Best-effort fix: append the classic AllItems.aspx
+// FilterField/FilterValue query params for the single-value filters that map
+// cleanly onto one list column; anything compound (search text, date-based
+// filters, "open"/"unassigned" pseudo-statuses) falls back to the plain URL
+// rather than guessing at a filter it can't faithfully represent.
+function buildTrackerViewUrl() {
+  const params = [];
+  let idx = 1;
+  if (filters.status && STATUS_OPTIONS.includes(filters.status)) {
+    params.push(`FilterField${idx}=Status`, `FilterValue${idx}=${encodeURIComponent(filters.status)}`);
+    idx++;
+  }
+  if (filters.dept) {
+    params.push(`FilterField${idx}=AssignedDepartmentOwner`, `FilterValue${idx}=${encodeURIComponent(filters.dept)}`);
+    idx++;
+  }
+  if (!params.length) return { url: CONFIG.trackerWebUrl, filtered: false };
+  return { url: `${CONFIG.trackerWebUrl}?${params.join("&")}`, filtered: true };
+}
+function refreshOpenListLink() {
+  const btn = document.getElementById("openListBtn");
+  if (!btn) return;
+  const { url, filtered } = buildTrackerViewUrl();
+  btn.href = url;
+  btn.title = filtered
+    ? "Open the SharePoint list, best-effort filtered to match Status/Department"
+    : "Open the full SharePoint list (current filters can't be reflected in this link)";
+}
+
 function renderList() {
+  refreshOpenListLink();
   const items = applyFilters();
   // When Smart Search applied a limit, make it visible in the list header
   // so the user knows the count is capped (otherwise they might think there
@@ -3932,7 +4105,7 @@ function renderList() {
       filters.dept = ""; filters.issueType = ""; filters.overdue = false;
       filters.resolvedWithin = null; filters.hasFinancial = false;
       filters.stale = false; filters.assignee = ""; filters.submitter = ""; filters.sort = null; filters.limit = null; filters.hasFollowUp = null; filters.followUpBy = "";
-      filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null;
+      filters.timeWindow = null; filters.aggregation = null; filters.compareWith = null; filters.synthesizeNarrative = false; filters.docNeeded = null; filters.financialMin = null; filters.hasAssigneeUpdate = null; filters.olderThanDays = null; filters.noUpdateSince = null; filters.updatedSince = null;
       document.getElementById("aiResultCard").style.display = "none";
       document.getElementById("searchInput").value = "";
       document.getElementById("filterStatus").value = "";
@@ -3940,6 +4113,7 @@ function renderList() {
       document.getElementById("filterDept").value = "";
       document.getElementById("filterIssueType").value = "";
       document.getElementById("filterOverdue").checked = false;
+      document.getElementById("filterLastUpdate").value = "";
       renderDeptChips();
       populateAssigneeFilter();
       renderList();
@@ -3948,7 +4122,7 @@ function renderList() {
   }
   el.innerHTML = items.map(e => {
     const age = daysBetween(e.escalationDate);
-    const isOpen = STATUS_OPEN.has(e.status);
+    const isOpen = isOpenStatus(e.status);
     const overdue = isOpen && e.expectedDate && new Date(e.expectedDate) < new Date();
     const stale = isStale(e);
     const lastActivity = getLastAssigneeActivity(e);
@@ -4083,6 +4257,38 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 /* ---------- detail ---------- */
+// Reconstructs the ownership chain from parsed .esc-reassign markers. Only
+// reassignments made after this feature shipped have markers — history from
+// before that point can't be recovered, so callers must handle a null return
+// (no markers yet) rather than showing a fabricated/misleading empty chain.
+function buildAssignmentHistory(esc) {
+  const markers = parseReassignMarkers(esc.updates).slice().reverse(); // oldest first
+  if (!markers.length) return null;
+  const hops = [];
+  let cursor = { owner: markers[0].from, dept: markers[0].deptFrom, start: esc.escalationDate };
+  for (const m of markers) {
+    hops.push({ ...cursor, end: m.date });
+    cursor = { owner: m.to, dept: m.deptTo, start: m.date };
+  }
+  hops.push({ ...cursor, end: null }); // current owner, still active
+  const withDuration = hops.map(h => {
+    const endTime = h.end ? new Date(h.end).getTime() : Date.now();
+    const days = Math.max(0, Math.round((endTime - new Date(h.start).getTime()) / 86400000));
+    return { ...h, days };
+  });
+  // Ping-pong: the same owner reappearing non-consecutively (a true bounce-back),
+  // or 3+ total reassignments as a secondary, weaker signal.
+  const owners = withDuration.map(h => h.owner || "(unassigned)");
+  const seen = new Set();
+  let bounced = false;
+  owners.forEach((o, i) => {
+    if (i > 0 && owners[i - 1] === o) return; // consecutive dup isn't a bounce
+    if (seen.has(o)) bounced = true;
+    seen.add(o);
+  });
+  return { hops: withDuration, pingPong: bounced || markers.length >= 3 };
+}
+
 function renderDetail() {
   const el = document.getElementById("detailCard");
   const closeBtn = `<button class="detail-drawer-close" id="detailCloseBtn" title="Close (Esc)" aria-label="Close detail">&times;</button>`;
@@ -4097,7 +4303,7 @@ function renderDetail() {
   el.setAttribute("aria-hidden", "false");
 
   const lead = deptLeads.find(d => d.dept === e.assignedDept);
-  const overdue = STATUS_OPEN.has(e.status) && e.expectedDate && new Date(e.expectedDate) < new Date();
+  const overdue = isOpenStatus(e.status) && e.expectedDate && new Date(e.expectedDate) < new Date();
   const dispFormUrl = `https://mybasepaycom-my.sharepoint.com/personal/teri_mybasepay_com/Lists/Escalations/DispForm.aspx?ID=${e.id}`;
   const daysOpen = e.daysOpen != null ? e.daysOpen : daysBetween(e.escalationDate);
   const daysOpenClass = e.status === "Complete" ? "good" : (daysOpen != null && daysOpen >= 14 ? "warn" : "");
@@ -4212,6 +4418,29 @@ function renderDetail() {
           </div>` : ""}
       </div>
     </div>
+
+    ${(() => {
+      const hist = buildAssignmentHistory(e);
+      if (!hist) return `
+        <div class="detail-section">
+          <div class="detail-section-head">Assignment History</div>
+          <div class="muted" style="font-size:13px">No reassignment history recorded before this feature shipped — history builds up from here forward.</div>
+        </div>`;
+      const rows = hist.hops.map((h, i) => {
+        const isCurrent = i === hist.hops.length - 1;
+        const label = i === 0 ? "Original" : `Reassigned · hop ${i + 1}`;
+        return `
+        <div class="kv-row">
+          <div class="kv-label">${label}${isCurrent ? " (current)" : ""}</div>
+          <div class="kv-value">${escapeHtml(h.owner || "Unassigned")}${h.dept ? ` <span class="muted">(${escapeHtml(h.dept)})</span>` : ""} <span class="muted">· ${h.days}d</span></div>
+        </div>`;
+      }).join("");
+      return `
+        <div class="detail-section">
+          <div class="detail-section-head">Assignment History${hist.pingPong ? ` <span class="badge alert" style="margin-left:8px" title="Same owner reappeared, or 3+ reassignments — this ticket has bounced around">🏓 Ping-pong</span>` : ""}</div>
+          <div class="kv-list">${rows}</div>
+        </div>`;
+    })()}
 
     <div class="detail-section">
       <div class="detail-section-head">Issue</div>
@@ -4369,7 +4598,7 @@ function renderSimilarPanel(escId, data) {
 }
 
 function renderDeptChips() {
-  const open = escalations.filter(e => STATUS_OPEN.has(e.status));
+  const open = escalations.filter(e => isOpenStatus(e.status));
   const counts = {};
   open.forEach(e => { if (e.assignedDept) counts[e.assignedDept] = (counts[e.assignedDept] || 0) + 1; });
   // Preserve a canonical dept order matching the Dept Leads list when available;
@@ -4393,7 +4622,7 @@ function renderDeptChips() {
 // the dept, so users can prioritize without losing historical assignees.
 function populateAssigneeFilter() {
   const sel = document.getElementById("filterAssignee");
-  const open = escalations.filter(e => STATUS_OPEN.has(e.status));
+  const open = escalations.filter(e => isOpenStatus(e.status));
   const inScopeAll  = filters.dept ? escalations.filter(e => e.assignedDept === filters.dept) : escalations;
   const inScopeOpen = filters.dept ? open.filter(e => e.assignedDept === filters.dept) : open;
 
@@ -4428,9 +4657,15 @@ function populateAssigneeFilter() {
 }
 
 function wireUI() {
-  // When users touch the visible filter inputs directly, clear the "hidden" preset
-  // filters (resolvedWithin, hasFinancial) so the dropdown choice means what it says.
-  const clearHiddenPreset = () => { filters.resolvedWithin = null; filters.hasFinancial = false; };
+  // When users touch the visible filter inputs directly, clear every "hidden" preset
+  // field a KPI card can set so the manual control's choice means what it says —
+  // otherwise e.g. an Aging preset's olderThanDays/sort silently keeps combining
+  // with whatever the user picks next.
+  const clearHiddenPreset = () => {
+    filters.resolvedWithin = null; filters.hasFinancial = false;
+    filters.olderThanDays = null; filters.noUpdateSince = null; filters.updatedSince = null;
+    filters.stale = false; filters.sort = null;
+  };
   document.getElementById("searchInput").addEventListener("input", (e) => { filters.search = e.target.value; renderList(); });
   document.getElementById("aiFilterAppliedClear").addEventListener("click", clearAiFilter);
   // Smart Search command palette — opens via the FAB or Ctrl/Cmd+K, lives as
@@ -4548,11 +4783,49 @@ function wireUI() {
   });
   document.getElementById("filterIssueType").addEventListener("change", (e) => { filters.issueType = e.target.value; clearHiddenPreset(); renderList(); });
   document.getElementById("filterOverdue").addEventListener("change", (e) => { filters.overdue = e.target.checked; clearHiddenPreset(); renderList(); });
+  document.getElementById("groupByDeptBtn").addEventListener("click", () => applyGroupingPreset("assignedDept"));
+  document.getElementById("groupByAssigneeBtn").addEventListener("click", () => applyGroupingPreset("assignee"));
+  // Delegated: aiResultCard's body is fully re-rendered on every renderAiResultCard()
+  // call, so bind once on the stable container rather than re-binding per bar.
+  document.getElementById("aiResultCard").addEventListener("click", (ev) => {
+    const row = ev.target.closest(".ai-group-row[data-group-field]");
+    if (!row) return;
+    const field = row.dataset.groupField;
+    const key = row.dataset.groupKey === "(none)" ? "" : row.dataset.groupKey;
+    filters[field] = key;
+    filters.aggregation = null;
+    document.getElementById("aiResultCard").style.display = "none";
+    if (field === "dept") { document.getElementById("filterDept").value = key; renderDeptChips(); populateAssigneeFilter(); }
+    else if (field === "assignee") { populateAssigneeFilter(); document.getElementById("filterAssignee").value = key; }
+    else if (field === "urgency") document.getElementById("filterUrgency").value = key;
+    else if (field === "issueType") document.getElementById("filterIssueType").value = key;
+    else if (field === "status") document.getElementById("filterStatus").value = key;
+    renderList();
+  });
+  // Delegated so nested drilldown elements (e.g. the aging card's update-compliance
+  // sub-rows) can carry their own data-preset independent of the card's own preset —
+  // re-rendered KPI markup doesn't need its own listeners re-bound every render.
+  document.getElementById("kpiRow").addEventListener("click", (ev) => {
+    const target = ev.target.closest("[data-preset]");
+    if (target) applyKpiPreset(target.dataset.preset);
+  });
+  document.getElementById("filterLastUpdate").addEventListener("change", (e) => {
+    // clearHiddenPreset() nulls noUpdateSince/updatedSince too, so it must run
+    // before we set whichever one this control is choosing, not after.
+    clearHiddenPreset();
+    const [kind, daysStr] = e.target.value ? e.target.value.split(":") : [null, null];
+    if (kind) {
+      const cutoff = new Date(Date.now() - Number(daysStr) * 86400000).toISOString();
+      if (kind === "updated") filters.updatedSince = cutoff;
+      else if (kind === "noupdate") filters.noUpdateSince = cutoff;
+    }
+    renderList();
+  });
   document.getElementById("refreshBtn").addEventListener("click", () => loadData(true));
   document.getElementById("exportBtn").addEventListener("click", exportCsv);
   document.getElementById("sendDigestBtn").addEventListener("click", openDigestModal);
   document.getElementById("digestModalSendBtn").addEventListener("click", confirmAndSendDigest);
-  document.getElementById("openListBtn").href = CONFIG.trackerWebUrl;
+  refreshOpenListLink();
   document.getElementById("newEscBtn").addEventListener("click", openNewModal);
   document.getElementById("submitNew").addEventListener("click", submitNew);
   // Phase 3: enable the AI-classify button when both title + commentary are filled.
@@ -4780,7 +5053,7 @@ function wireDetailEditing() {
       errEl.textContent = "";
       t.disabled = true;
       try {
-        await reassignEscalationById(id, _reassignPick.lookupId);
+        await reassignEscalationById(id, _reassignPick.lookupId, _reassignPick.name);
         toast(`#${id} reassigned to ${_reassignPick.name}`);
         _reassignPick = null;
         await loadData(false);
@@ -5270,8 +5543,8 @@ function exportCsv() {
     const daysToResolve = (e.status === "Complete" && e.escalationDate && e.resolvedDate)
       ? Math.max(0, Math.round((new Date(e.resolvedDate).getTime() - new Date(e.escalationDate).getTime()) / 86400000))
       : "";
-    const isStaleFlag = STATUS_OPEN.has(e.status) && isStale(e) ? "Yes" : "No";
-    const pastExpected = (STATUS_OPEN.has(e.status) && e.expectedDate && new Date(e.expectedDate) < new Date()) ? "Yes" : "No";
+    const isStaleFlag = isOpenStatus(e.status) && isStale(e) ? "Yes" : "No";
+    const pastExpected = (isOpenStatus(e.status) && e.expectedDate && new Date(e.expectedDate) < new Date()) ? "Yes" : "No";
     // DateAssignedtoCurrent: SP doesn't expose this directly; approximate as
     // today - daysCurrentDept so Maggie still has a date column to filter on.
     const dateAssignedToCurrent = (e.daysCurrentDept != null && Number.isFinite(Number(e.daysCurrentDept)))
@@ -5333,7 +5606,7 @@ function exportCsv() {
 // no side effects, no DOM access. Called by both the preview modal and
 // the actual send path.
 function computeWeeklyDigestPayload() {
-  const open = escalations.filter(e => STATUS_OPEN.has(e.status));
+  const open = escalations.filter(e => isOpenStatus(e.status));
   const stale = open.filter(isStale);
   const overdue = open.filter(e => e.expectedDate && new Date(e.expectedDate) < new Date());
   const now = Date.now();
